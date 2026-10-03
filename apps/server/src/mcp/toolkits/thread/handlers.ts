@@ -101,8 +101,11 @@ export const ThreadToolkitHandlersLive = ThreadToolkit.toLayer({
     }),
   t3_thread_search: (input) =>
     Effect.gen(function* () {
-      yield* readCaller();
-      const { projectId, ...query } = input;
+      const { caller } = yield* readCaller();
+      const { projectId: requested, ...query } = input;
+      // Like the other project tools, an omitted project means the caller's own; a client
+      // outside a thread searches every project.
+      const projectId = requested ?? caller?.projectId;
       const threadSearch = yield* ThreadSearch.ThreadSearch;
       const result = yield* threadSearch.search(query).pipe(Effect.mapError(unavailable));
       return {
