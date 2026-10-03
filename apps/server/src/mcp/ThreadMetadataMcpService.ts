@@ -16,6 +16,7 @@ import * as Layer from "effect/Layer";
 
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import type { McpInvocationScope } from "./McpInvocationContext.ts";
+import { assertTargetWithinLimits } from "./threadAccess.ts";
 
 export class ThreadMetadataMcpService extends Context.Service<
   ThreadMetadataMcpService,
@@ -165,6 +166,32 @@ const make = Effect.gen(function* () {
       );
     if (shell === null || shell.deletedAt !== null) {
       return yield* failure("thread_not_found", `Thread ${threadId} was not found.`);
+    }
+    // Another thread may only be changed if it runs within the caller's own modes.
+    if (threadId !== scope.thread?.threadId) {
+      const limits =
+        scope.thread === undefined
+          ? {
+              runtimeMode: scope.client?.runtimeModeCeiling ?? ("approval-required" as const),
+              interactionMode: "default" as const,
+            }
+          : yield* threadManagement.getThreadShell(scope.thread.threadId).pipe(
+              Effect.mapError((error) =>
+                failure(
+                  "orchestration_error",
+                  `Unable to locate calling thread: ${errorMessage(error)}`,
+                ),
+              ),
+              Effect.flatMap((caller) =>
+                caller === null
+                  ? Effect.fail(failure("thread_not_found", "The calling thread was not found."))
+                  : Effect.succeed({
+                      runtimeMode: caller.runtimeMode,
+                      interactionMode: caller.interactionMode,
+                    }),
+              ),
+            );
+      yield* assertTargetWithinLimits(limits, shell);
     }
     const target = yield* threadManagement
       .getProjectThreadRecords({ projectId: shell.projectId, threadId }, [])

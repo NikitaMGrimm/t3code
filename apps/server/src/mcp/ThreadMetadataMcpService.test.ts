@@ -78,3 +78,44 @@ it.effect("keeps calling-thread storage failures as orchestration errors", () =>
     expect(error.code).toBe("orchestration_error");
   }),
 );
+
+it.effect("refuses to change a thread that runs above the caller's modes", () =>
+  Effect.gen(function* () {
+    const fullAccessThread = ThreadId.make("thread:metadata-full-access");
+    const shells = new Map([
+      [
+        threadId,
+        {
+          id: threadId,
+          projectId: "project",
+          runtimeMode: "auto",
+          interactionMode: "default",
+          deletedAt: null,
+        },
+      ],
+      [
+        fullAccessThread,
+        {
+          id: fullAccessThread,
+          projectId: "project",
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          deletedAt: null,
+        },
+      ],
+    ]);
+    const error = yield* Effect.gen(function* () {
+      const service = yield* ThreadMetadataMcp.ThreadMetadataMcpService;
+      return yield* service.update(scope, {
+        threadId: fullAccessThread,
+        action: "rename",
+        title: "Renamed from a narrower thread",
+      });
+    }).pipe(
+      Effect.provide(serviceLayer((id) => Effect.succeed((shells.get(id) ?? null) as never))),
+      Effect.flip,
+    );
+
+    expect(error.code).toBe("runtime_mode_escalation_denied");
+  }),
+);

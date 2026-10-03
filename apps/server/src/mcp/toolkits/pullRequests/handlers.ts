@@ -26,6 +26,7 @@ import * as Option from "effect/Option";
 import * as Orchestrator from "../../../orchestration-v2/Orchestrator.ts";
 import * as ProjectService from "../../../project/ProjectService.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
+import { assertTargetWithinLimits } from "../../threadAccess.ts";
 import {
   type ListThreadPullRequestsResult,
   PullRequestLinkFailedError,
@@ -38,6 +39,7 @@ import {
   type PullRequestTargetInput,
   PullRequestWatchFailedError,
   PullRequestThreadNotFoundError,
+  PullRequestThreadAboveLimitsError,
   PullRequestThreadRequiredError,
   PullRequestsToolkit,
   type ThreadPullRequestEntry,
@@ -186,6 +188,39 @@ const make = Effect.gen(function* () {
     return thread.value;
   });
 
+  /**
+   * A thread whose pull requests the caller may change: its own, or one that
+   * runs within the caller's modes.
+   */
+  const requireWritableThread = Effect.fn("PullRequestsToolkit.requireWritableThread")(function* (
+    Failure:
+      | typeof PullRequestLinkFailedError
+      | typeof PullRequestUnlinkFailedError
+      | typeof PullRequestWatchFailedError,
+    requested: ThreadId | undefined,
+  ) {
+    const thread = yield* requireThread(Failure, requested);
+    const scope = yield* McpInvocationContext.McpInvocationContext;
+    if (thread.id === scope.thread?.threadId) return thread;
+    const limits =
+      scope.thread === undefined
+        ? {
+            runtimeMode: scope.client?.runtimeModeCeiling ?? ("approval-required" as const),
+            interactionMode: "default" as const,
+          }
+        : yield* engine.getThreadShell(scope.thread.threadId).pipe(
+            Effect.mapError((cause) => new Failure({ cause })),
+            Effect.map((caller) => ({
+              runtimeMode: caller?.runtimeMode ?? ("approval-required" as const),
+              interactionMode: caller?.interactionMode ?? ("plan" as const),
+            })),
+          );
+    yield* assertTargetWithinLimits(limits, thread).pipe(
+      Effect.mapError(() => new PullRequestThreadAboveLimitsError({ threadId: thread.id })),
+    );
+    return thread;
+  });
+
   const projectOf = (
     thread: OrchestrationV2ThreadShell,
     Failure:
@@ -223,7 +258,7 @@ const make = Effect.gen(function* () {
     input: PullRequestTargetInput,
     watching: boolean,
   ) {
-    const thread = yield* requireThread(PullRequestWatchFailedError, input.threadId);
+    const thread = yield* requireWritableThread(PullRequestWatchFailedError, input.threadId);
     const project = yield* projectOf(thread, PullRequestWatchFailedError);
     const target = yield* resolveTarget(input, project);
     const watchedLink = (shell: OrchestrationV2ThreadShell) =>
@@ -261,7 +296,7 @@ const make = Effect.gen(function* () {
   return PullRequestsToolkit.of({
     link_pull_request: (input) =>
       Effect.gen(function* () {
-        const thread = yield* requireThread(PullRequestLinkFailedError, input.threadId);
+        const thread = yield* requireWritableThread(PullRequestLinkFailedError, input.threadId);
         const project = yield* projectOf(thread, PullRequestLinkFailedError);
         const target = yield* resolveTarget(input, project);
         const existing = threadPullRequestsOf(thread).find((link) =>
@@ -291,7 +326,7 @@ const make = Effect.gen(function* () {
       }),
     unlink_pull_request: (input) =>
       Effect.gen(function* () {
-        const thread = yield* requireThread(PullRequestUnlinkFailedError, input.threadId);
+        const thread = yield* requireWritableThread(PullRequestUnlinkFailedError, input.threadId);
         const project = yield* projectOf(thread, PullRequestUnlinkFailedError);
         const target = yield* resolveTarget(input, project);
         if (!threadPullRequestsOf(thread).some((link) => threadPullRequestKeysEqual(link, target)))

@@ -76,6 +76,21 @@ export const readCaller = Effect.fn("mcp.readCaller")(function* () {
   } satisfies Caller;
 });
 
+/**
+ * A caller may change another thread only if that thread runs within the
+ * caller's own modes. Its own thread is always within them.
+ */
+export const assertTargetWithinLimits = (
+  limits: CallerLimits,
+  target: { readonly runtimeMode: RuntimeMode; readonly interactionMode: ProviderInteractionMode },
+) =>
+  OrchestrationMcp.resolveRuntimeMode(limits.runtimeMode, target.runtimeMode).pipe(
+    Effect.andThen(
+      OrchestrationMcp.resolveInteractionMode(limits.interactionMode, target.interactionMode),
+    ),
+    Effect.asVoid,
+  );
+
 function assertLiveCaller({ caller, scope }: Caller) {
   if (caller === undefined) return Effect.void;
   return caller.archivedAt !== null ||
@@ -181,14 +196,7 @@ export const readWritableThread = Effect.fn("mcp.readWritableThread")(function* 
 >(threadId?: ThreadId, fields: ReadonlyArray<K> = []) {
   const context = yield* readThread(threadId, fields);
   yield* assertLiveCaller(context);
-  yield* OrchestrationMcp.resolveRuntimeMode(
-    context.limits.runtimeMode,
-    context.projection.thread.runtimeMode,
-  );
-  yield* OrchestrationMcp.resolveInteractionMode(
-    context.limits.interactionMode,
-    context.projection.thread.interactionMode,
-  );
+  yield* assertTargetWithinLimits(context.limits, context.projection.thread);
   return context;
 });
 
