@@ -101,7 +101,7 @@ export class PullRequestThreadAboveLimitsError extends Schema.TaggedError<PullRe
   { threadId: Schema.String },
 ) {
   override get message(): string {
-    return `Thread ${this.threadId} runs with broader permissions than this caller, so its pull requests cannot be changed from here.`;
+    return `Thread ${this.threadId} cannot be changed from here: it runs with broader permissions than this caller, or the calling thread has no active run.`;
   }
 }
 

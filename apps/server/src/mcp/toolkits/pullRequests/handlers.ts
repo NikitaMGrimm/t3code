@@ -210,11 +210,19 @@ const make = Effect.gen(function* () {
           }
         : yield* engine.getThreadShell(scope.thread.threadId).pipe(
             Effect.mapError((cause) => new Failure({ cause })),
-            Effect.map((caller) => ({
-              runtimeMode: caller?.runtimeMode ?? ("approval-required" as const),
-              interactionMode: caller?.interactionMode ?? ("plan" as const),
-            })),
+            Effect.map((caller) =>
+              // A thread caller changes other threads only while its own run is live.
+              caller === null ||
+              caller.archivedAt !== null ||
+              caller.activeRunId === null ||
+              caller.providerInstanceId !== scope.thread?.providerInstanceId
+                ? undefined
+                : { runtimeMode: caller.runtimeMode, interactionMode: caller.interactionMode },
+            ),
           );
+    if (limits === undefined) {
+      return yield* new PullRequestThreadAboveLimitsError({ threadId: thread.id });
+    }
     yield* assertTargetWithinLimits(limits, thread).pipe(
       Effect.mapError(() => new PullRequestThreadAboveLimitsError({ threadId: thread.id })),
     );

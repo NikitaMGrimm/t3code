@@ -185,10 +185,20 @@ const make = Effect.gen(function* () {
               Effect.flatMap((caller) =>
                 caller === null
                   ? Effect.fail(failure("thread_not_found", "The calling thread was not found."))
-                  : Effect.succeed({
-                      runtimeMode: caller.runtimeMode,
-                      interactionMode: caller.interactionMode,
-                    }),
+                  : // Like every other cross-thread write, a thread caller needs its live run.
+                    caller.archivedAt !== null ||
+                      caller.activeRunId === null ||
+                      caller.providerInstanceId !== scope.thread?.providerInstanceId
+                    ? Effect.fail(
+                        failure(
+                          "parent_not_active",
+                          "The calling provider no longer owns an active thread run.",
+                        ),
+                      )
+                    : Effect.succeed({
+                        runtimeMode: caller.runtimeMode,
+                        interactionMode: caller.interactionMode,
+                      }),
               ),
             );
       yield* assertTargetWithinLimits(limits, shell);

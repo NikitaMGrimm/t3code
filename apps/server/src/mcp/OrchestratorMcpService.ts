@@ -766,8 +766,8 @@ const make = Effect.gen(function* () {
   const scheduledTasks = yield* ScheduledTaskService.ScheduledTaskService;
   const projects = yield* ProjectService.ProjectService;
 
-  /** A client has no thread to inherit a model from, so it falls back to the project default. */
-  const projectDefaultModelSelection = (projectId: ProjectId) =>
+  /** A caller-named project, which must exist before anything is recorded against it. */
+  const requireProject = (projectId: ProjectId) =>
     projects.getById(projectId).pipe(
       Effect.mapError((error) =>
         failure("orchestration_error", `Unable to read project ${projectId}: ${error.message}`),
@@ -776,18 +776,23 @@ const make = Effect.gen(function* () {
         Option.match({
           onNone: () =>
             Effect.fail(failure("invalid_request", `Project ${projectId} was not found.`)),
-          onSome: (project) =>
-            project.defaultModelSelection === null
-              ? Effect.fail(
-                  failure(
-                    "invalid_request",
-                    `Project ${projectId} has no default model, so this caller cannot pick one for it.`,
-                  ),
-                )
-              : Effect.succeed(project.defaultModelSelection),
+          onSome: Effect.succeed,
         }),
       ),
     );
+
+  /** A client has no thread to inherit a model from, so it falls back to the project default. */
+  const projectDefaultModelSelection = (
+    project: Effect.Success<ReturnType<typeof requireProject>>,
+  ) =>
+    project.defaultModelSelection === null
+      ? Effect.fail(
+          failure(
+            "invalid_request",
+            `Project ${project.id} has no default model, so this caller cannot pick one for it.`,
+          ),
+        )
+      : Effect.succeed(project.defaultModelSelection);
 
   const requireCapability = (scope: McpInvocationScope) =>
     scope.capabilities.has("orchestration")
@@ -1261,6 +1266,7 @@ const make = Effect.gen(function* () {
       Effect.gen(function* () {
         const { parent, limits } = yield* loadCaller(scope);
         const projectId = yield* resolveProjectTarget(parent, input.projectId);
+        const project = yield* requireProject(projectId);
         // Binding means "wake this thread", which only a thread caller in that project has.
         const bindToCurrentThread =
           input.bindToCurrentThread ??
@@ -1277,7 +1283,7 @@ const make = Effect.gen(function* () {
           );
         }
         const modelSelection =
-          parent?.thread.modelSelection ?? (yield* projectDefaultModelSelection(projectId));
+          parent?.thread.modelSelection ?? (yield* projectDefaultModelSelection(project));
         const derivedTitle = input.prompt.split("\n")[0]?.trim() ?? "";
         const title =
           input.title ?? (derivedTitle.length > 0 ? derivedTitle.slice(0, 80) : "Scheduled task");
@@ -2004,7 +2010,10 @@ const make = Effect.gen(function* () {
       }),
     interruptThread: (scope, input) =>
       Effect.gen(function* () {
-        const { target } = yield* loadScopedThread(scope, input.threadId);
+        const { limits, target } = yield* loadScopedThread(scope, input.threadId);
+        // Stopping another thread's work is a write: it must run within the caller's modes.
+        yield* resolveRuntimeMode(limits.runtimeMode, target.thread.runtimeMode);
+        yield* resolveInteractionMode(limits.interactionMode, target.thread.interactionMode);
         const key = yield* requestKey(input.clientRequestId);
         const result = yield* threadManagement
           .interruptThread({

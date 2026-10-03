@@ -90,6 +90,9 @@ it.effect("refuses to change a thread that runs above the caller's modes", () =>
           projectId: "project",
           runtimeMode: "auto",
           interactionMode: "default",
+          activeRunId: "run-live",
+          archivedAt: null,
+          providerInstanceId: "codex",
           deletedAt: null,
         },
       ],
@@ -117,5 +120,49 @@ it.effect("refuses to change a thread that runs above the caller's modes", () =>
     );
 
     expect(error.code).toBe("runtime_mode_escalation_denied");
+  }),
+);
+
+it.effect("refuses another thread's metadata to a thread caller whose run has ended", () =>
+  Effect.gen(function* () {
+    const otherThread = ThreadId.make("thread:metadata-other");
+    const shells = new Map([
+      [
+        threadId,
+        {
+          id: threadId,
+          projectId: "project",
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          activeRunId: null,
+          archivedAt: null,
+          providerInstanceId: "codex",
+          deletedAt: null,
+        },
+      ],
+      [
+        otherThread,
+        {
+          id: otherThread,
+          projectId: "project",
+          runtimeMode: "approval-required",
+          interactionMode: "default",
+          deletedAt: null,
+        },
+      ],
+    ]);
+    const error = yield* Effect.gen(function* () {
+      const service = yield* ThreadMetadataMcp.ThreadMetadataMcpService;
+      return yield* service.update(scope, {
+        threadId: otherThread,
+        action: "rename",
+        title: "Renamed after the run ended",
+      });
+    }).pipe(
+      Effect.provide(serviceLayer((id) => Effect.succeed((shells.get(id) ?? null) as never))),
+      Effect.flip,
+    );
+
+    expect(error.code).toBe("parent_not_active");
   }),
 );
