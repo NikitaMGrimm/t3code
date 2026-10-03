@@ -108,17 +108,11 @@ export const requireThreadMcpCapability = <const C extends "preview" | "device">
     Effect.withSpan("mcp.requireCapability"),
   );
 
-export const threadCallerRequired = (operation: string) =>
+const threadCallerRequired = (operation: string) =>
   new OrchestratorMcpFailure({
     code: "thread_credential_required",
     message: `${operation} acts as the calling T3 thread, so it needs an agent running inside T3 Code. This MCP client signed in from outside a thread.`,
   });
-
-/** The caller's own thread, for tools that act as the caller rather than on a target. */
-export const requireThreadCaller = (scope: McpInvocationScope, operation: string) =>
-  scope.thread === undefined
-    ? Effect.fail(threadCallerRequired(operation))
-    : Effect.succeed(scope.thread);
 
 /** A scope with a thread caller, for tools whose whole surface acts as the caller. */
 export type McpThreadInvocationScope = McpInvocationScope & { readonly thread: McpThreadCaller };

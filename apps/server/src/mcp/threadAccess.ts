@@ -76,15 +76,6 @@ export const readCaller = Effect.fn("mcp.readCaller")(function* () {
   } satisfies Caller;
 });
 
-/** The calling thread, for tools that act as the caller rather than on a target. */
-export const readThreadCaller = Effect.fn("mcp.readThreadCaller")(function* (operation: string) {
-  const context = yield* readCaller();
-  if (context.caller === undefined) {
-    return yield* McpInvocationContext.threadCallerRequired(operation);
-  }
-  return { ...context, caller: context.caller };
-});
-
 function assertLiveCaller({ caller, scope }: Caller) {
   if (caller === undefined) return Effect.void;
   return caller.archivedAt !== null ||
@@ -143,7 +134,7 @@ export const resolveProjectId = (context: Caller, projectId: ProjectId | undefin
         );
 
 /** A target thread: the one passed, else the calling thread. */
-export const resolveThreadId = (context: Caller, threadId: ThreadId | undefined) =>
+const resolveThreadId = (context: Caller, threadId: ThreadId | undefined) =>
   threadId !== undefined
     ? Effect.succeed(threadId)
     : context.caller !== undefined
