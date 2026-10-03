@@ -329,3 +329,80 @@ it.effect("refuses act-as-caller tools to a client caller", () =>
     ),
   ),
 );
+
+it.effect("a caller cannot rewrite a scheduled task that runs above its own modes", () =>
+  Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
+    const call = (name: string, args: Record<string, unknown>) =>
+      server
+        .callTool({ name, arguments: args })
+        .pipe(
+          Effect.provideService(McpInvocationContext.McpInvocationContext, clientScope("auto")),
+          Effect.provideService(McpSchema.McpServerClient, client),
+        );
+    const update = yield* call("update_scheduled_task", {
+      scheduledTaskId: "task-full-access",
+      prompt: "Run something else",
+    });
+    expect(update.structuredContent).toMatchObject({ code: "runtime_mode_escalation_denied" });
+    const remove = yield* call("delete_scheduled_task", { scheduledTaskId: "task-full-access" });
+    expect(remove.structuredContent).toMatchObject({ code: "runtime_mode_escalation_denied" });
+    const allowed = yield* call("update_scheduled_task", {
+      scheduledTaskId: "task-auto",
+      enabled: false,
+    });
+    expect(allowed.isError).toBe(false);
+  }).pipe(
+    Effect.provide(
+      McpHttpServer.OrchestratorToolkitRegistrationLive.pipe(
+        Layer.provideMerge(McpServer.McpServer.layer),
+        Layer.provide(NodeCrypto.layer),
+        Layer.provide(Layer.mock(ThreadManagement.ThreadManagementService)({})),
+        Layer.provide(Layer.mock(ProviderRegistry.ProviderRegistry)({})),
+        Layer.provide(Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({})),
+        Layer.provide(
+          Layer.mock(ScheduledTaskService.ScheduledTaskService)({
+            list: () =>
+              Effect.succeed({
+                tasks: [
+                  scheduledTask("task-full-access", "full-access"),
+                  scheduledTask("task-auto", "auto"),
+                ],
+              }),
+            upsert: (input) =>
+              Effect.succeed({
+                task: { ...(scheduledTask(input.id ?? "task-auto", "auto") as object), ...input },
+              } as never),
+          }),
+        ),
+        Layer.provide(Layer.mock(ProjectService.ProjectService)({})),
+      ),
+    ),
+  ),
+);
+
+function scheduledTask(id: string, runtimeMode: "auto" | "full-access"): never {
+  return {
+    id,
+    title: id,
+    prompt: "Check the build",
+    enabled: true,
+    projectId: "project-a",
+    threadId: null,
+    schedule: { type: "interval", everyMs: 3_600_000 },
+    workspaceStrategy: { type: "worktree", baseRef: "main", startFromOrigin: true },
+    modelSelection: { instanceId: "codex", model: "gpt-5" },
+    runtimeMode,
+    interactionMode: "default",
+    createdBy: "user",
+    creationSource: "web",
+    nextRunAt: null,
+    lastRunStatus: "never",
+    lastRunAt: null,
+    lastRunThreadId: null,
+    lastRunError: null,
+    runCount: 0,
+    createdAt: "2026-10-01T00:00:00.000Z",
+    updatedAt: "2026-10-01T00:00:00.000Z",
+  } as never;
+}

@@ -1227,8 +1227,17 @@ const make = Effect.gen(function* () {
       }
     }).pipe(Effect.timeoutOption(Duration.millis(timeoutMs)));
 
+  /**
+   * A scheduled task the caller may change: one whose modes are no broader
+   * than the caller's own, so editing its prompt cannot run work above the
+   * caller's limits.
+   */
   const loadScheduledTask = (
     scheduledTaskId: ScheduledTask["id"],
+    limits: {
+      readonly runtimeMode: RuntimeMode;
+      readonly interactionMode: ProviderInteractionMode;
+    },
   ): Effect.Effect<ScheduledTask, OrchestratorMcpFailure> =>
     Effect.gen(function* () {
       const { tasks } = yield* scheduledTasks
@@ -1242,6 +1251,8 @@ const make = Effect.gen(function* () {
       if (task === undefined) {
         return yield* failure("task_not_found", `Scheduled task ${scheduledTaskId} was not found.`);
       }
+      yield* resolveRuntimeMode(limits.runtimeMode, task.runtimeMode);
+      yield* resolveInteractionMode(limits.interactionMode, task.interactionMode);
       return task;
     });
 
@@ -1323,8 +1334,8 @@ const make = Effect.gen(function* () {
       }),
     updateScheduledTask: (scope, input) =>
       Effect.gen(function* () {
-        const { parent } = yield* loadCaller(scope);
-        const existing = yield* loadScheduledTask(input.scheduledTaskId);
+        const { parent, limits } = yield* loadCaller(scope);
+        const existing = yield* loadScheduledTask(input.scheduledTaskId, limits);
         if (
           input.bindToCurrentThread === true &&
           (parent === undefined || parent.thread.projectId !== existing.projectId)
@@ -1375,8 +1386,8 @@ const make = Effect.gen(function* () {
       }),
     deleteScheduledTask: (scope, input) =>
       Effect.gen(function* () {
-        yield* loadCaller(scope);
-        const existing = yield* loadScheduledTask(input.scheduledTaskId);
+        const { limits } = yield* loadCaller(scope);
+        const existing = yield* loadScheduledTask(input.scheduledTaskId, limits);
         yield* scheduledTasks
           .delete({ id: existing.id })
           .pipe(
