@@ -217,6 +217,9 @@ describe("ChatMarkdown Mermaid streaming", () => {
           renderer!.update(message(`${closed}The remaining explanation.`, streaming));
         });
         expect(renderer!.root.findByProps({ role: "img" })).toBe(diagram);
+        expect(
+          renderer!.root.findAll((node) => node.children.includes("The remaining explanation.")),
+        ).not.toHaveLength(0);
       }
     } finally {
       await act(async () => renderer?.unmount());
