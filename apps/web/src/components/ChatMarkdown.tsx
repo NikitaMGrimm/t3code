@@ -645,7 +645,11 @@ function extractPreCodeMeta(node: unknown): string | undefined {
   return typeof meta === "string" && meta.trim().length > 0 ? meta.trim() : undefined;
 }
 
-function isClosedCodeFence(node: ReactMarkdownExtraProps["node"], text: string): boolean {
+function isClosedCodeFence(
+  node: ReactMarkdownExtraProps["node"],
+  text: string,
+  code: string,
+): boolean {
   const start = node?.position?.start.offset;
   const end = node?.position?.end.offset;
   if (start === undefined || end === undefined) return false;
@@ -658,7 +662,10 @@ function isClosedCodeFence(node: ReactMarkdownExtraProps["node"], text: string):
     opening !== undefined &&
     closing !== undefined &&
     opening[0] === closing[0] &&
-    closing.length >= opening.length
+    closing.length >= opening.length &&
+    // A real closer is excluded from the parsed code. Invalid, overindented
+    // markers remain in it, so the source must have an extra fence line.
+    source.split(/\r\n|\r|\n/).length > code.split(/\r\n|\r|\n/).length
   );
 }
 
@@ -3532,7 +3539,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
           code={codeBlock.code}
           fenceTitle={fenceTitle}
           theme={resolvedTheme}
-          isStreaming={isStreaming && !isClosedCodeFence(node, text)}
+          isStreaming={isStreaming && !isClosedCodeFence(node, text, codeBlock.code)}
           onExpand={(src) => expandMedia({ images: [{ src, name: "Mermaid diagram" }], index: 0 })}
         >
           {highlightedCode}
@@ -3546,7 +3553,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
         fenceTitle={fenceTitle}
         theme={resolvedTheme}
         onRunShellCommand={
-          onRunShellCommand && !isStreaming && isClosedCodeFence(node, text)
+          onRunShellCommand && !isStreaming && isClosedCodeFence(node, text, codeBlock.code)
             ? onRunShellCommand
             : undefined
         }
