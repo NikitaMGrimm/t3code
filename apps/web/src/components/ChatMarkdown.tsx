@@ -1194,8 +1194,8 @@ function MarkdownCodeBlock({
 }
 
 /**
- * Mermaid fences render as a diagram once the response settles; streaming and
- * the code toggle keep the highlighted source.
+ * Completed Mermaid fences render while the response continues. Unfinished
+ * fences and the code toggle keep the highlighted source.
  */
 function MarkdownMermaidCodeBlock({
   code,
@@ -1249,9 +1249,9 @@ function MarkdownMermaidCodeBlock({
         <RenderErrorBoundary resetKeys={[code, theme]} fallback={children}>
           <Suspense
             fallback={
-              <div className="flex min-h-36 items-center justify-center text-xs text-muted-foreground">
-                Rendering diagram
-              </div>
+              <pre className="invisible" aria-hidden>
+                {code}
+              </pre>
             }
           >
             <MermaidDiagram source={code} theme={theme} onExpand={onExpand} />
@@ -3532,7 +3532,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
           code={codeBlock.code}
           fenceTitle={fenceTitle}
           theme={resolvedTheme}
-          isStreaming={isStreaming}
+          isStreaming={isStreaming && !isClosedCodeFence(node, text)}
           onExpand={(src) => expandMedia({ images: [{ src, name: "Mermaid diagram" }], index: 0 })}
         >
           {highlightedCode}
