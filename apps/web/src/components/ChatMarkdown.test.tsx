@@ -9,6 +9,19 @@ import { GitHubIcon } from "./Icons";
 import { Button } from "./ui/button";
 import { setMarkdownTaskChecked } from "./files/filePreviewMode";
 
+const { renderDiagram } = vi.hoisted(() => ({
+  renderDiagram: vi.fn<(source: string) => Promise<string>>(),
+}));
+vi.mock("./chat/MermaidDiagram", async () => {
+  const { use } = await import("react");
+  return {
+    MermaidDiagram({ source }: { source: string }) {
+      const label = use(renderDiagram(source));
+      return <svg role="img" aria-label={label} />;
+    },
+  };
+});
+
 vi.mock("@effect/atom-react", () => ({ useAtomValue: () => null }));
 vi.mock("../hooks/useTheme", () => ({ useTheme: () => ({ resolvedTheme: "dark" }) }));
 vi.mock("../hooks/useSettings", async (importOriginal) => {
@@ -72,6 +85,55 @@ function codeButton(renderer: ReactTestRenderer, label: string) {
   if (!button) throw new Error(`Missing code button: ${label}`);
   return button.props as ComponentProps<typeof Button>;
 }
+
+describe("ChatMarkdown Mermaid streaming", () => {
+  it.each([
+    ["```mermaid\nflowchart LR\nA --> B", "\n```"],
+    ["~~~~mermaid\nflowchart LR\nA --> B\n~~~", "\n~~~~"],
+    ["> ```mermaid\n> flowchart LR\n> A --> B", "\n> ```"],
+    ["- Diagram\n\n  ```mermaid\n  flowchart LR\n  A --> B", "\n  ```"],
+  ])("reveals a finished fence before the message finishes: %s", async (open, closing) => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    let renderer: ReactTestRenderer | undefined;
+    let finishRender!: (label: string) => void;
+    const pending = new Promise<string>((resolve) => {
+      finishRender = resolve;
+    });
+    renderDiagram.mockReset().mockReturnValue(pending);
+    const message = (text: string, isStreaming = true) => (
+      <ChatMarkdown cwd={undefined} text={text} isStreaming={isStreaming} />
+    );
+    const closed = `${open}${closing}\n\n`;
+    try {
+      await act(async () => {
+        renderer = create(message(open));
+      });
+      expect(renderDiagram).not.toHaveBeenCalled();
+      await act(async () => {
+        renderer!.update(message(closed));
+      });
+      expect(renderDiagram).toHaveBeenCalled();
+      expect(renderer!.root.findAllByProps({ role: "img" })).toHaveLength(0);
+      expect(renderer!.root.findAllByProps({ className: "chat-markdown-shiki" })).toHaveLength(0);
+      expect(renderer!.root.findByType("pre").props["aria-hidden"]).toBe(true);
+
+      await act(async () => {
+        finishRender("Completed diagram");
+      });
+      const diagram = renderer!.root.findByProps({ role: "img" });
+      for (const streaming of [true, false]) {
+        await act(async () => {
+          renderer!.update(message(`${closed}The remaining explanation.`, streaming));
+        });
+        expect(renderer!.root.findByProps({ role: "img" })).toBe(diagram);
+      }
+    } finally {
+      await act(async () => renderer?.unmount());
+      vi.unstubAllGlobals();
+      renderDiagram.mockReset();
+    }
+  });
+});
 
 describe("ChatMarkdown context references", () => {
   it("renders text and image references through the chip renderer, with readable fallback", async () => {
