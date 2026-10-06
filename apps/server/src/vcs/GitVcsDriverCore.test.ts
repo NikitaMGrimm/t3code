@@ -2152,6 +2152,44 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
           });
           assert.strictEqual(status.aheadCount, 2);
         }
+
+        yield* git(cwd, [
+          "config",
+          "branch.feature/configured-base.gh-merge-base",
+          "upstream/main",
+        ]);
+        yield* writeTextFile(cwd, "upstream.txt", "feature edits upstream file\n");
+        for (const shadowRef of ["refs/heads/upstream/main", "refs/tags/upstream/main"]) {
+          yield* git(cwd, ["update-ref", shadowRef, "HEAD~2"]);
+          const status = yield* driver.statusDetailsLocal(cwd, { includeBranchChanges: true });
+          assert.deepStrictEqual(status.branchChanges, {
+            baseRef: "upstream/main",
+            insertions: 2,
+            deletions: 1,
+          });
+          assert.strictEqual(status.aheadCount, 1);
+          const preview = yield* driver.getReviewDiffPreview({ cwd });
+          const changes = preview.sources.find((source) => source.kind === "branch-range")!;
+          assert.strictEqual(changes.baseRef, "upstream/main");
+          assert.deepStrictEqual(changes.files, [
+            { path: "feature.txt", previousPath: null, additions: 1, deletions: 0 },
+            { path: "upstream.txt", previousPath: null, additions: 1, deletions: 1 },
+          ]);
+          const contents = yield* driver.getReviewDiffFileContents(
+            makeReviewDiffFileContentsInput(cwd, {
+              sourceKind: "branch-range",
+              baseRef: changes.baseRef,
+              headRef: "feature/configured-base",
+              oldPath: "upstream.txt",
+              newPath: "upstream.txt",
+            }),
+          );
+          assert.deepStrictEqual(contents, {
+            oldContents: "unrelated upstream work\n",
+            newContents: "feature edits upstream file\n",
+          });
+          yield* git(cwd, ["update-ref", "-d", shadowRef]);
+        }
       }),
     );
 
