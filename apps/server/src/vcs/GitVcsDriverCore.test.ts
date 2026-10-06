@@ -2104,6 +2104,57 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
       }),
     );
 
+    it.effect("honors configured remote-qualified bases for Changes and ahead counts", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        const fork = yield* makeTmpDir();
+        const upstream = yield* makeTmpDir();
+        yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* git(cwd, ["branch", "-M", "main"]);
+        yield* git(fork, ["init", "--bare"]);
+        yield* git(upstream, ["init", "--bare"]);
+        yield* git(cwd, ["remote", "add", "origin", fork]);
+        yield* git(cwd, ["remote", "add", "upstream", upstream]);
+        yield* git(cwd, ["remote", "add", "canonical/team", upstream]);
+        yield* git(cwd, ["push", "origin", "main"]);
+        yield* writeTextFile(cwd, "upstream.txt", "unrelated upstream work\n");
+        yield* git(cwd, ["add", "upstream.txt"]);
+        yield* git(cwd, ["commit", "-m", "upstream work"]);
+        yield* git(cwd, ["push", "upstream", "main"]);
+        yield* git(cwd, ["fetch", "canonical/team"]);
+        yield* git(cwd, ["branch", "release/v2"]);
+        yield* git(cwd, ["checkout", "-b", "feature/configured-base"]);
+        yield* writeTextFile(cwd, "feature.txt", "intended branch change\n");
+        yield* git(cwd, ["add", "feature.txt"]);
+        yield* git(cwd, ["commit", "-m", "feature work"]);
+
+        for (const baseRef of ["upstream/main", "canonical/team/main", "release/v2"]) {
+          yield* git(cwd, ["config", "branch.feature/configured-base.gh-merge-base", baseRef]);
+          const status = yield* driver.statusDetailsLocal(cwd, { includeBranchChanges: true });
+          assert.deepStrictEqual(status.branchChanges, { baseRef, insertions: 1, deletions: 0 });
+          assert.strictEqual(status.aheadCount, 1);
+          const preview = yield* driver.getReviewDiffPreview({ cwd });
+          const changes = preview.sources.find((source) => source.kind === "branch-range")!;
+          assert.strictEqual(changes.baseRef, baseRef);
+          assert.deepStrictEqual(changes.files, [
+            { path: "feature.txt", previousPath: null, additions: 1, deletions: 0 },
+          ]);
+        }
+
+        for (const baseRef of ["origin/main", "upstream/missing", "main"]) {
+          yield* git(cwd, ["config", "branch.feature/configured-base.gh-merge-base", baseRef]);
+          const status = yield* driver.statusDetailsLocal(cwd, { includeBranchChanges: true });
+          assert.deepStrictEqual(status.branchChanges, {
+            baseRef: "origin/main",
+            insertions: 2,
+            deletions: 0,
+          });
+          assert.strictEqual(status.aheadCount, 2);
+        }
+      }),
+    );
+
     it.effect("Changes accepts an explicit base on a detached HEAD and rejects a bad one", () =>
       Effect.gen(function* () {
         const cwd = yield* makeTmpDir();

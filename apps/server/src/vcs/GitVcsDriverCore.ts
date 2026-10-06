@@ -1612,6 +1612,19 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       true,
     ).pipe(Effect.map((stdout) => stdout.trim()));
 
+    // A configured remote base must keep its remote instead of being resolved against the fork.
+    if (configuredBaseBranch.includes("/")) {
+      const configuredRemoteBase = yield* executeGit(
+        "GitVcsDriver.resolveBaseBranchForNoUpstream.configuredRemote",
+        cwd,
+        ["show-ref", "--verify", "--quiet", `refs/remotes/${configuredBaseBranch}`],
+        { allowNonZeroExit: true },
+      );
+      if (configuredRemoteBase.exitCode === 0) {
+        return configuredBaseBranch;
+      }
+    }
+
     const primaryRemoteName = yield* resolvePrimaryRemoteName(cwd).pipe(
       Effect.orElseSucceed(() => null),
     );
