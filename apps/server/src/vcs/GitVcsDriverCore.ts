@@ -2344,12 +2344,23 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
           };
         }
 
-        const hasRemoteBranch = yield* remoteBranchExists({
+        const publishBranch = yield* resolvePublishBranchName(cwd, branch);
+        // The configured diff base can contain HEAD while the publish branch is still behind.
+        const publishContainsHead = yield* executeGit(
+          "GitVcsDriver.pushCurrentBranch.publishContainsHead",
           cwd,
-          remoteName: publishRemoteName,
-          refName: branch,
-        }).pipe(Effect.orElseSucceed(() => false));
-        if (hasRemoteBranch) {
+          [
+            "merge-base",
+            "--is-ancestor",
+            "HEAD",
+            `refs/remotes/${publishRemoteName}/${publishBranch}`,
+          ],
+          { allowNonZeroExit: true },
+        ).pipe(
+          Effect.map((result) => result.exitCode === 0),
+          Effect.orElseSucceed(() => false),
+        );
+        if (publishContainsHead) {
           return {
             status: "skipped_up_to_date" as const,
             branch,
