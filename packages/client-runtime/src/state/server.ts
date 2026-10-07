@@ -783,7 +783,9 @@ export function createServerEnvironmentAtoms<R, E>(
                     return exit.value;
                   }
                   if (
-                    (selfUpdateMethod === "boot-service" || selfUpdateMethod === "respawn") &&
+                    (selfUpdateMethod === "boot-service" ||
+                      selfUpdateMethod === "respawn" ||
+                      selfUpdateMethod === "external-managed") &&
                     isLegacyUpdateHandoffLoss(exit.cause)
                   ) {
                     // Older servers can tear down the transport before their

@@ -1,3 +1,5 @@
+import { newerPersonalRelease } from "@t3tools/shared/personalUpdate";
+import { usePersonalUpdateStatus } from "~/hooks/usePersonalUpdateStatus";
 import {
   ChevronRightIcon,
   ChevronsLeftRightEllipsisIcon,
@@ -1636,7 +1638,20 @@ function SavedBackendListRow({
       );
     },
   });
-  const versionMismatch = resolveServerConfigVersionMismatch(environment.serverConfig);
+  const { status: personalUpdateStatus } = usePersonalUpdateStatus();
+  const personalVersion =
+    resolveServerSelfUpdateCapability(environment.serverConfig) === "external-managed"
+      ? newerPersonalRelease(
+          personalUpdateStatus,
+          environment.serverConfig?.environment.serverVersion,
+        )
+      : null;
+  const versionMismatch = personalVersion
+    ? {
+        clientVersion: personalVersion,
+        serverVersion: environment.serverConfig?.environment.serverVersion ?? "",
+      }
+    : resolveServerConfigVersionMismatch(environment.serverConfig);
   const serverUpdateState = useAtomValue(serverEnvironment.updateStateAtom(environmentId));
   const resumingServerUpdate =
     serverUpdateState.status === "running" && serverUpdateState.stage === "resuming";
@@ -2280,7 +2295,17 @@ export function ConnectionsSettings() {
     DesktopServerExposureState["mode"] | null
   >(null);
   const primaryServerConfig = primaryEnvironment?.serverConfig ?? null;
-  const primaryVersionMismatch = resolveServerConfigVersionMismatch(primaryServerConfig);
+  const { status: personalUpdateStatus } = usePersonalUpdateStatus();
+  const personalVersion =
+    resolveServerSelfUpdateCapability(primaryServerConfig) === "external-managed"
+      ? newerPersonalRelease(personalUpdateStatus, primaryServerConfig?.environment.serverVersion)
+      : null;
+  const primaryVersionMismatch = personalVersion
+    ? {
+        clientVersion: personalVersion,
+        serverVersion: primaryServerConfig?.environment.serverVersion ?? "",
+      }
+    : resolveServerConfigVersionMismatch(primaryServerConfig);
   const primaryServerUpdateState = useAtomValue(
     serverEnvironment.updateStateAtom(primaryEnvironmentId),
   );

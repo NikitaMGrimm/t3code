@@ -30,6 +30,8 @@ import {
   shouldShowDesktopUpdateCheckIcon,
 } from "./DesktopUpdateStatusIcon";
 import { SidebarUpdateReleaseNotes } from "./SidebarUpdateReleaseNotes";
+import { PersonalUpdateStatus } from "../PersonalUpdateStatus";
+import { refreshPersonalUpdateStatus } from "../../hooks/usePersonalUpdateStatus";
 
 type SidebarUpdatePopoverChangeDetails = Parameters<
   NonNullable<ComponentProps<typeof Popover>["onOpenChange"]>
@@ -89,7 +91,12 @@ function resolveSidebarUpdatePresentation({
 }
 
 export function SidebarUpdateArchitectureWarning() {
-  return isElectron ? <SidebarUpdateArchitectureWarningContent /> : null;
+  return (
+    <>
+      <PersonalUpdateStatus compact />
+      {isElectron ? <SidebarUpdateArchitectureWarningContent /> : null}
+    </>
+  );
 }
 
 function SidebarUpdateArchitectureWarningContent() {
@@ -179,6 +186,7 @@ function SidebarUpdateControl() {
     if (isInteractionDisabled) return;
 
     setIsActionPending(true);
+    void refreshPersonalUpdateStatus();
 
     if (action === "download") {
       void bridge

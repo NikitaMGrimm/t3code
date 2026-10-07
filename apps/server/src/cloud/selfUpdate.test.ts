@@ -3,6 +3,7 @@ import { expect, it } from "@effect/vitest";
 import { ServerSelfUpdateError, ThreadId } from "@t3tools/contracts";
 import { HostProcessArchitecture, HostProcessPlatform } from "@t3tools/shared/hostProcess";
 import * as Cause from "effect/Cause";
+import * as ConfigProvider from "effect/ConfigProvider";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -19,6 +20,7 @@ import { SERVICE_LAUNCHER_PROTOCOL } from "./serviceProtocol.ts";
 import * as ServerSelfUpdate from "./selfUpdate.ts";
 
 interface HarnessOptions {
+  readonly externalUpdate?: { readonly stdout: string; readonly exitCode?: number };
   readonly mode?: "web" | "desktop";
   readonly managed?: boolean;
   readonly preflight?: "ready" | "blocked";
@@ -58,6 +60,19 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
   const runner = ProcessRunner.ProcessRunner.of({
     run: (input) =>
       Effect.gen(function* () {
+        if (input.command === "/usr/local/bin/t3-update") {
+          order.push(`external:${input.args.join(",")}`);
+          return {
+            stdout: options.externalUpdate?.stdout ?? "",
+            stderr: "",
+            code: ChildProcessSpawner.ExitCode(options.externalUpdate?.exitCode ?? 0),
+            timedOut: false,
+            stdoutTruncated: false,
+            stderrTruncated: false,
+            stdoutInvalidUtf8: false,
+            stderrInvalidUtf8: false,
+          };
+        }
         if (input.command === "tar") {
           order.push("extract");
           const stagingDir = input.args[input.args.indexOf("-C") + 1];
@@ -110,6 +125,15 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
     Effect.provide(ServerConfig.layerTest(process.cwd(), baseDir)),
   );
   const selfUpdate = yield* ServerSelfUpdate.make().pipe(
+    Effect.provide(
+      ConfigProvider.layer(
+        ConfigProvider.fromEnv({
+          env: options.externalUpdate
+            ? { T3CODE_SELF_UPDATE_COMMAND: "/usr/local/bin/t3-update" }
+            : {},
+        }),
+      ),
+    ),
     Effect.provideService(ProcessRunner.ProcessRunner, runner),
     Effect.provideService(ServiceLauncherClient.ServiceLauncherClient, launcher),
     Effect.provideService(
@@ -128,6 +152,57 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
 });
 
 it.layer(NodeServices.layer)("server self update", (it) => {
+  it.effect("hands external deployments an exact version and waits for a durable receipt", () =>
+    Effect.gen(function* () {
+      const { selfUpdate, order } = yield* makeHarness({
+        managed: false,
+        externalUpdate: {
+          stdout:
+            'Preparing deployment\n{"schema":1,"targetVersion":"1.1.0","updateId":"20261007T120000Z-0123456789abcdef"}\n',
+        },
+      });
+      const result = yield* selfUpdate.update(
+        { targetVersion: "1.1.0" },
+        (stage) =>
+          Effect.sync(() => {
+            order.push(stage);
+          }),
+        () =>
+          Effect.sync(() => {
+            order.push("accepted");
+          }),
+      );
+      expect(result).toEqual({
+        targetVersion: "1.1.0",
+        method: "external-managed",
+      });
+      expect(order).toEqual(["downloading", "external:1.1.0", "installing", "accepted"]);
+    }),
+  );
+
+  it.effect("refuses mismatched receipts without accepting the restart and permits retry", () =>
+    Effect.gen(function* () {
+      const { selfUpdate, order } = yield* makeHarness({
+        managed: false,
+        externalUpdate: {
+          stdout:
+            '{"schema":1,"targetVersion":"1.2.0","updateId":"20261007T120000Z-0123456789abcdef"}',
+        },
+      });
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const exit = yield* selfUpdate
+          .update({ targetVersion: "1.1.0" }, undefined, () =>
+            Effect.sync(() => {
+              order.push("accepted");
+            }),
+          )
+          .pipe(Effect.exit);
+        expect(exit._tag).toBe("Failure");
+      }
+      expect(order).toEqual(["external:1.1.0", "external:1.1.0"]);
+    }),
+  );
+
   it.effect("marks running threads at the boot-service handoff", () =>
     Effect.gen(function* () {
       const events: string[] = [];

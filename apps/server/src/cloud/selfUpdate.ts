@@ -15,6 +15,7 @@ import * as Effect from "effect/Effect";
 import * as HashSet from "effect/HashSet";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
+import * as Schema from "effect/Schema";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
@@ -36,12 +37,28 @@ import * as ServiceLauncherClient from "./serviceLauncherClient.ts";
 import { isExactServiceVersion, SERVICE_LAUNCHER_PROTOCOL } from "./serviceProtocol.ts";
 
 const PREFLIGHT_TIMEOUT = Duration.seconds(30);
+const decodeExternalUpdateReceipt = Schema.decodeUnknownEffect(
+  Schema.fromJsonString(
+    Schema.Struct({
+      schema: Schema.Literal(1),
+      targetVersion: Schema.String,
+      updateId: Schema.String.check(Schema.isPattern(/^\d{8}T\d{6}Z-[0-9a-f]{16}$/)),
+    }),
+  ),
+);
+
+export const externalSelfUpdateCommand = Config.String("T3CODE_SELF_UPDATE_COMMAND").pipe(
+  Config.option,
+  Effect.map((command) => Option.getOrUndefined(command)?.trim() || undefined),
+);
 
 export function resolveServerSelfUpdateCapability(input: {
   readonly desktopManaged: boolean;
   readonly launcherManaged: boolean;
+  readonly externallyManaged?: boolean;
 }): ServerSelfUpdateCapability | null {
   if (input.desktopManaged) return "desktop-managed" as const;
+  if (input.externallyManaged) return "external-managed" as const;
   return input.launcherManaged ? ("boot-service" as const) : null;
 }
 
@@ -185,9 +202,16 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
     yield* Config.String(CLI_RELEASE_BASE_URL_ENV).pipe(Config.option),
   );
   const inFlight = yield* Ref.make(false);
+  const externalCommand = yield* externalSelfUpdateCommand;
+  if (externalCommand !== undefined && !path.isAbsolute(externalCommand)) {
+    return yield* Effect.die("T3CODE_SELF_UPDATE_COMMAND must be an absolute executable path.");
+  }
 
-  const capability: ServerSelfUpdateCapability | null =
-    serverConfig.mode === "desktop" ? "desktop-managed" : launcher.managed ? "boot-service" : null;
+  const capability = resolveServerSelfUpdateCapability({
+    desktopManaged: serverConfig.mode === "desktop",
+    launcherManaged: launcher.managed,
+    externallyManaged: externalCommand !== undefined,
+  });
   const failWith = (reason: string, cause?: unknown) =>
     cause === undefined
       ? new ServerSelfUpdateError({ reason })
@@ -223,6 +247,45 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
 
     return yield* Effect.gen(function* () {
       yield* reportProgress("downloading");
+      if (capability === "external-managed" && externalCommand !== undefined) {
+        if (input.continueRunningThreads === true) {
+          return yield* failWith("This managed deployment does not support thread continuation.");
+        }
+        const result = yield* runner
+          .run({
+            command: externalCommand,
+            args: [targetVersion],
+            timeout: Duration.minutes(10),
+            maxOutputBytes: 64 * 1024,
+          })
+          .pipe(
+            Effect.mapError((cause) =>
+              failWith("The deployment coordinator could not prepare the update.", cause),
+            ),
+          );
+        if (result.code !== 0) {
+          return yield* failWith(
+            "The deployment coordinator refused the update. Inspect the VPS update operation for details.",
+          );
+        }
+        const receipt = yield* decodeExternalUpdateReceipt(
+          result.stdout.trim().split("\n").at(-1) ?? "",
+        ).pipe(
+          Effect.mapError((cause) =>
+            failWith("The deployment coordinator returned an invalid receipt.", cause),
+          ),
+        );
+        if (receipt.targetVersion !== targetVersion) {
+          return yield* failWith(
+            "The deployment coordinator returned a receipt for a different version.",
+          );
+        }
+        yield* reportProgress("installing");
+        yield* onHandoffAccepted();
+        // The coordinator ID is not a boot-launcher trial ID. Remote clients
+        // verify the requested version when this container reconnects.
+        return { targetVersion, method: "external-managed" as const };
+      }
       const paths = yield* ensurePinnedRuntimeInstalled({
         baseDir: serverConfig.baseDir,
         version: targetVersion,

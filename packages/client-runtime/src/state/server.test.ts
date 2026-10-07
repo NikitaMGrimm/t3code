@@ -377,6 +377,19 @@ describe("server state projection", () => {
     }),
   );
 
+  it("requires external updates to reconnect on the requested version", () => {
+    const result = { targetVersion: "0.0.31", method: "external-managed" as const };
+    const ready = (serverVersion: string) =>
+      ({
+        version: 1 as const,
+        sequence: 1,
+        type: "ready" as const,
+        payload: { at: "2026-10-07T00:00:00.000Z", environment: { serverVersion } },
+      }) as Parameters<typeof matchesServerUpdateReadyEvent>[1];
+    expect(matchesServerUpdateResumeEvent(result, ready("0.0.30"))).toBe(false);
+    expect(matchesServerUpdateResumeEvent(result, ready("0.0.31"))).toBe(true);
+  });
+
   it("requires tokenless desktop updates to reach the target version", () => {
     const ready = (serverVersion: string) =>
       ({

@@ -1,4 +1,6 @@
 import { SettingsGroup } from "./SettingsGroup";
+import { PersonalUpdateStatus } from "../PersonalUpdateStatus";
+import { refreshPersonalUpdateStatus } from "../../hooks/usePersonalUpdateStatus";
 import { useScopedSettingsWriteAllowed } from "./useScopedSettings";
 import { Spinner } from "~/components/ui/spinner";
 import { NotificationSettings } from "./NotificationSettings";
@@ -323,6 +325,8 @@ function AboutVersionSection() {
     const bridge = window.desktopBridge;
     if (!bridge) return;
 
+    void refreshPersonalUpdateStatus();
+
     const action = updateState ? resolveDesktopUpdateButtonAction(updateState) : "none";
 
     if (action === "download") {
@@ -426,6 +430,7 @@ function AboutVersionSection() {
 
   return (
     <>
+      <PersonalUpdateStatus />
       <SettingsRow
         title={<AboutVersionTitle />}
         description={description}
@@ -3342,6 +3347,7 @@ export function GeneralSettingsPanel() {
           <AboutVersionSection />
         ) : (
           <>
+            <PersonalUpdateStatus />
             <SettingsRow
               title={<AboutVersionTitle />}
               description="Current version of the application."

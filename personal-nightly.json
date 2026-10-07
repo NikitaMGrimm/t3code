@@ -1,0 +1,62 @@
+{
+  "repository": "NikitaMGrimm/t3code",
+  "branch": "personal-nightly",
+  "upstreamRepository": "pingdotgg/t3code",
+  "upstreamTag": "v0.0.46-nightly.20261007.2787",
+  "pullRequests": [
+    {
+      "number": 15269,
+      "title": "fix(web): allow Working threads to be dragged into chat as references",
+      "headSha": "c621b507974efacda8836060ae80a3b7ac525b6e",
+      "baseSha": "9bd1d8009a6b7c50f9dd9458e2bf27d481ff3b43"
+    },
+    {
+      "number": 15371,
+      "title": "fix(web): truncate thread titles before the workspace toggle",
+      "headSha": "0a9d409b71873bb412cc2e6c61ddf782b5d505c8",
+      "baseSha": "00eb8f6183ba4b36a429db08767031ad8ca9d81d"
+    },
+    {
+      "number": 16198,
+      "title": "fix(web): preserve math labels in Mermaid diagrams",
+      "headSha": "d1cf6bc7269f88c8ebcfd82dd8a50e7a3d9acc1d",
+      "baseSha": "194c73f3f991558ca540ef6fe0ce75223bbe87a7"
+    },
+    {
+      "number": 16221,
+      "title": "fix(web): render completed Mermaid blocks while streaming",
+      "headSha": "0f765be901b1768d0f9168faab5999addc0557ea",
+      "baseSha": "cd41c4ada0c70cc2eec95ecd7266f3dab010c58c"
+    },
+    {
+      "number": 16249,
+      "title": "fix(web): preserve Mermaid source when copying selected text",
+      "headSha": "7c7a2d138bf87803592437b11d80bcef1ac573cd",
+      "baseSha": "677d1527c3d96b90b2294d9a0aed7d8c8874b29b"
+    },
+    {
+      "number": 16453,
+      "title": "fix(server): honor configured remote diff bases",
+      "headSha": "c8418b15ff5fde993c5c0b408f121b4b13c306db",
+      "baseSha": "9bd1d8009a6b7c50f9dd9458e2bf27d481ff3b43"
+    },
+    {
+      "number": 16812,
+      "title": "fix(server): keep Codex workspace skills when account health fails",
+      "headSha": "455121587bfb43eb3d98f99119dddd910ca7fc11",
+      "baseSha": "611132c171f3a821bd2e32f22261135cef6330ac"
+    },
+    {
+      "number": 16938,
+      "title": "fix(web): keep error banners above workspace panels",
+      "headSha": "89d0c5aa65a20c970876358eada301fa217e8cfa",
+      "baseSha": "a9fb6a80635c77a1d4fd988e0018059e13628eff"
+    },
+    {
+      "number": 16940,
+      "title": "fix(web): keep thread references on their machine",
+      "headSha": "4bbe1345c45682bcc1c3d05fda17f802cd05d68e",
+      "baseSha": "468ade30495c450ae4e731483187f77bc3c5e42b"
+    }
+  ]
+}
