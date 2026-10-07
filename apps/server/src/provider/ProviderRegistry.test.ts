@@ -1588,6 +1588,114 @@ it.layer(
       }),
     );
 
+    it.effect(
+      "publishes successful workspace discovery without clearing provider health errors",
+      () =>
+        Effect.gen(function* () {
+          const driver = ProviderDriverKind.make("codex");
+          const instanceId = ProviderInstanceId.make("codex");
+          const machineProvider = {
+            instanceId,
+            driver,
+            status: "error",
+            enabled: true,
+            installed: true,
+            auth: { status: "unknown" },
+            checkedAt: "2026-06-10T00:00:00.000Z",
+            message: "Codex account read failed",
+            version: "0.160.1",
+            models: [],
+            slashCommands: [],
+            skills: [],
+          } as const satisfies ServerProvider;
+          const skills = [{ name: "project", path: "/workspace/SKILL.md", enabled: true }];
+          const scopedResult = yield* Ref.make<ProviderWorkspaceSnapshot>({
+            ...machineProvider,
+            skills,
+            workspaceDiscoverySucceeded: true,
+          });
+          const instance = {
+            instanceId,
+            driverKind: driver,
+            continuationIdentity: { driverKind: driver, continuationKey: "codex:instance:codex" },
+            displayName: undefined,
+            enabled: true,
+            snapshot: {
+              resolveMaintenance: () =>
+                Effect.succeed(
+                  makeManualOnlyProviderMaintenanceCapabilities({
+                    provider: driver,
+                    packageName: null,
+                  }),
+                ),
+              getSnapshot: Effect.succeed(machineProvider),
+              refresh: Effect.succeed(machineProvider),
+              streamChanges: Stream.empty,
+              applyUsageLimits: () => Effect.void,
+            },
+            snapshotForCwd: () => Ref.get(scopedResult),
+            orchestrationAdapter: {} as ProviderInstance["orchestrationAdapter"],
+            textGeneration: {} as ProviderInstance["textGeneration"],
+          } satisfies ProviderInstance;
+          const layerInstanceRegistry = Layer.succeed(
+            ProviderInstanceRegistry.ProviderInstanceRegistry,
+            {
+              getInstance: (requestedId) =>
+                Effect.succeed(requestedId === instanceId ? instance : undefined),
+              listInstances: Effect.succeed([instance]),
+              listUnavailable: Effect.succeed([]),
+              streamChanges: Stream.empty,
+              subscribeChanges: Effect.flatMap(PubSub.unbounded<void>(), PubSub.subscribe),
+            },
+          );
+          const scope = yield* Scope.make();
+          yield* Effect.addFinalizer(() => Scope.close(scope, Exit.void));
+          const runtimeServices = yield* Layer.build(
+            ProviderRegistry.layer.pipe(
+              Layer.provideMerge(layerInstanceRegistry),
+              Layer.provideMerge(
+                ServerConfig.layerTest(process.cwd(), { prefix: "t3-workspace-health-" }),
+              ),
+              Layer.provideMerge(NodeServices.layer),
+            ),
+          ).pipe(Scope.provide(scope));
+          yield* Effect.gen(function* () {
+            const registry = yield* ProviderRegistry.ProviderRegistry;
+            yield* registry.refreshWorkspaceSnapshot({ instanceId, cwd: "/workspace" });
+            const discovered = (yield* registry.getProviders)[0]!;
+            assert.deepStrictEqual(discovered.workspaceSnapshots?.[0]?.skills, skills);
+            assert.strictEqual(discovered.status, "error");
+            assert.deepStrictEqual(discovered.auth, machineProvider.auth);
+            assert.strictEqual(discovered.message, machineProvider.message);
+            assert.deepStrictEqual(discovered.skills, []);
+
+            // A failed probe's machine fallback must retain the last successful inventory.
+            yield* Ref.set(scopedResult, machineProvider);
+            yield* registry.refreshWorkspaceSnapshot({
+              instanceId,
+              cwd: "/workspace",
+              fresh: true,
+            });
+            assert.deepStrictEqual(
+              (yield* registry.getProviders)[0]?.workspaceSnapshots,
+              discovered.workspaceSnapshots,
+            );
+
+            // An empty successful scan removes skills that are no longer installed.
+            yield* Ref.set(scopedResult, { ...machineProvider, workspaceDiscoverySucceeded: true });
+            yield* registry.refreshWorkspaceSnapshot({
+              instanceId,
+              cwd: "/workspace",
+              fresh: true,
+            });
+            const emptied = (yield* registry.getProviders)[0]!;
+            assert.deepStrictEqual(emptied.workspaceSnapshots?.[0]?.skills, []);
+            assert.strictEqual(emptied.status, "error");
+            assert.strictEqual(emptied.message, machineProvider.message);
+          }).pipe(Effect.provide(runtimeServices));
+        }),
+    );
+
     it.effect("deduplicates cwd probes and clears snapshots when an instance rebuilds", () =>
       Effect.gen(function* () {
         const driver = ProviderDriverKind.make("codex");

@@ -1084,7 +1084,9 @@ export const layer = Layer.effect(
       return yield* refreshMachineSnapshot.pipe(
         Effect.andThen(instance.snapshotForCwd(input.cwd)),
         Effect.flatMap((scopedSnapshot) =>
-          scopedSnapshot.status === "error" && scopedSnapshot.slashCommandsPending === undefined
+          scopedSnapshot.status === "error" &&
+          scopedSnapshot.slashCommandsPending === undefined &&
+          !scopedSnapshot.workspaceDiscoverySucceeded
             ? Ref.get(providersRef)
             : instanceRegistry.getInstance(input.instanceId).pipe(
                 Effect.flatMap((currentInstance) => {

@@ -61,7 +61,10 @@ export interface ProviderDriverMetadata {
 }
 
 export type ProviderWorkspaceSnapshot = ServerProvider &
-  Pick<ServerProviderWorkspaceSnapshot, "slashCommandsPending">;
+  Pick<ServerProviderWorkspaceSnapshot, "slashCommandsPending"> & {
+    /** Workspace discovery can succeed independently of machine-level account health. */
+    readonly workspaceDiscoverySucceeded?: true;
+  };
 
 /**
  * One materialized provider instance. Held by the registry, looked up by
