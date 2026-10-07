@@ -2193,6 +2193,70 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
       }),
     );
 
+    it.effect("keeps local branch bases consistent when tags share their names", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* git(cwd, ["branch", "-M", "main"]);
+        const initialCommit = yield* git(cwd, ["rev-parse", "HEAD"]);
+        yield* git(cwd, ["update-ref", "refs/tags/main", initialCommit]);
+        yield* git(cwd, ["update-ref", "refs/tags/release/v2", initialCommit]);
+        yield* writeTextFile(cwd, "README.md", "# test\nbase work\n");
+        yield* git(cwd, ["commit", "-am", "base work"]);
+        yield* git(cwd, ["branch", "release/v2", "HEAD"]);
+        yield* git(cwd, ["checkout", "-b", "feature/local-base", "HEAD"]);
+        yield* writeTextFile(cwd, "README.md", "# test\nbase work\nfeature work\n");
+        yield* git(cwd, ["commit", "-am", "feature work"]);
+
+        for (const configuredBase of [undefined, "main", "release/v2"]) {
+          if (configuredBase !== undefined) {
+            yield* git(cwd, ["config", "branch.feature/local-base.gh-merge-base", configuredBase]);
+          }
+          const baseRef = configuredBase ?? "main";
+          const status = yield* driver.statusDetailsLocal(cwd, { includeBranchChanges: true });
+          assert.deepStrictEqual(status.branchChanges, { baseRef, insertions: 1, deletions: 0 });
+          assert.strictEqual(status.aheadCount, 1);
+          const preview = yield* driver.getReviewDiffPreview({ cwd });
+          const changes = preview.sources.find((source) => source.kind === "branch-range")!;
+          assert.strictEqual(changes.baseRef, baseRef);
+          assert.deepStrictEqual(changes.files, [
+            { path: "README.md", previousPath: null, additions: 1, deletions: 0 },
+          ]);
+          const scoped = yield* driver.getReviewDiffPreview({
+            cwd,
+            baseRef,
+            file: { path: "README.md", previousPath: null, sourceKind: "branch-range" },
+          });
+          const scopedChanges = scoped.sources.find((source) => source.kind === "branch-range")!;
+          assert.deepStrictEqual(scopedChanges.files, changes.files);
+          assert.strictEqual(scopedChanges.diff, changes.diff);
+          const contents = yield* driver.getReviewDiffFileContents(
+            makeReviewDiffFileContentsInput(cwd, {
+              sourceKind: "branch-range",
+              baseRef: changes.baseRef,
+              headRef: "feature/local-base",
+            }),
+          );
+          assert.deepStrictEqual(contents, {
+            oldContents: "# test\nbase work\n",
+            newContents: "# test\nbase work\nfeature work\n",
+          });
+        }
+
+        for (const baseRef of ["refs/tags/main", initialCommit, "HEAD~2"]) {
+          const contents = yield* driver.getReviewDiffFileContents(
+            makeReviewDiffFileContentsInput(cwd, {
+              sourceKind: "branch-range",
+              baseRef,
+              headRef: "feature/local-base",
+            }),
+          );
+          assert.strictEqual(contents.oldContents, "# test\n");
+        }
+      }),
+    );
+
     it.effect("Changes accepts an explicit base on a detached HEAD and rejects a bad one", () =>
       Effect.gen(function* () {
         const cwd = yield* makeTmpDir();

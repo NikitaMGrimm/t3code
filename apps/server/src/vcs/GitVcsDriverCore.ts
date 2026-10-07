@@ -2704,7 +2704,10 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       explicitBaseRef !== undefined
         ? ((yield* resolveRemoteBaseRef(cwd, explicitBaseRef)) ?? {
             baseRef: explicitBaseRef,
-            comparisonRef: explicitBaseRef,
+            comparisonRef:
+              !explicitBaseRef.startsWith("refs/") && (yield* branchExists(cwd, explicitBaseRef))
+                ? `refs/heads/${explicitBaseRef}`
+                : explicitBaseRef,
           })
         : branch
           ? yield* resolveBaseBranchForNoUpstream(cwd, branch, { allowRemoteOfCurrent: true }).pipe(
