@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "upstreamTag": "v0.0.46-nightly.20261007.2787",
+  "conflicts": [],
+  "releasedVersion": null,
+  "sequence": 1791412098620,
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/37696370401",
+  "phase": "failed"
+}
