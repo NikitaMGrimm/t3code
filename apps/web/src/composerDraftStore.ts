@@ -70,6 +70,7 @@ import {
   reviewCommentContextReference,
   terminalContextReference,
   threadContextReference,
+  threadContextsBelongToEnvironment,
 } from "./lib/composerContextRecords";
 import { create } from "zustand";
 import { persist, type PersistStorage, type StorageValue } from "zustand/middleware";
@@ -2716,6 +2717,15 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
           }
           set((state) => {
             const existingThread = state.draftThreadsByThreadKey[draftId];
+            if (
+              existingThread?.environmentId !== projectRef.environmentId &&
+              !threadContextsBelongToEnvironment(
+                state.draftsByThreadKey[draftId]?.threadContexts ?? EMPTY_THREAD_CONTEXTS,
+                projectRef.environmentId,
+              )
+            ) {
+              return state;
+            }
             const previousThreadKeyForLogicalProject =
               state.logicalProjectDraftThreadKeyByLogicalProjectKey[normalizedLogicalProjectKey];
             const nextDraftThread = createDraftThreadState(
@@ -2830,6 +2840,16 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
               environmentId: existing.environmentId,
               projectId: existing.projectId,
             };
+            // Resource checks and Scratch creation can finish after a reference was attached.
+            if (
+              nextProjectRef.environmentId !== existing.environmentId &&
+              !threadContextsBelongToEnvironment(
+                state.draftsByThreadKey[threadKey]?.threadContexts ?? EMPTY_THREAD_CONTEXTS,
+                nextProjectRef.environmentId,
+              )
+            ) {
+              return state;
+            }
             if (
               nextProjectRef.projectId.length === 0 ||
               nextProjectRef.environmentId.length === 0
