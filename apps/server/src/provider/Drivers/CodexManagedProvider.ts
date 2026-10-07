@@ -282,7 +282,13 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
               }),
             ),
             Effect.flatMap((skills) =>
-              snapshot.getSnapshot.pipe(Effect.map((draft) => ({ ...draft, skills }))),
+              snapshot.getSnapshot.pipe(
+                Effect.map((draft) => ({
+                  ...draft,
+                  skills,
+                  workspaceDiscoverySucceeded: true as const,
+                })),
+              ),
             ),
             Effect.scoped,
             Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),

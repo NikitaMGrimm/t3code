@@ -289,7 +289,11 @@ export const CodexDriver: ProviderDriver<CodexSettings, CodexDriverEnv> = {
                 Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
               ),
             ]).pipe(
-              Effect.map(([machineSnapshot, skills]) => ({ ...machineSnapshot, skills })),
+              Effect.map(([machineSnapshot, skills]) => ({
+                ...machineSnapshot,
+                skills,
+                workspaceDiscoverySucceeded: true as const,
+              })),
               Effect.mapError(
                 (cause) =>
                   new ProviderDriverError({

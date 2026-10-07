@@ -186,10 +186,13 @@ export function upsertProviderWorkspaceSnapshot(
   cwd: string,
   scopedSnapshot: ProviderWorkspaceSnapshot,
 ): ServerProvider {
+  const preserveSlashCommands =
+    scopedSnapshot.slashCommandsPending ||
+    (scopedSnapshot.status === "error" && scopedSnapshot.workspaceDiscoverySucceeded);
   const workspaceSnapshot = {
     cwd,
     checkedAt: scopedSnapshot.checkedAt,
-    slashCommands: scopedSnapshot.slashCommandsPending
+    slashCommands: preserveSlashCommands
       ? (provider.workspaceSnapshots?.find((snapshot) => snapshot.cwd === cwd)?.slashCommands ??
         scopedSnapshot.slashCommands)
       : scopedSnapshot.slashCommands,
@@ -1084,7 +1087,9 @@ export const layer = Layer.effect(
       return yield* refreshMachineSnapshot.pipe(
         Effect.andThen(instance.snapshotForCwd(input.cwd)),
         Effect.flatMap((scopedSnapshot) =>
-          scopedSnapshot.status === "error" && scopedSnapshot.slashCommandsPending === undefined
+          scopedSnapshot.status === "error" &&
+          scopedSnapshot.slashCommandsPending === undefined &&
+          !scopedSnapshot.workspaceDiscoverySucceeded
             ? Ref.get(providersRef)
             : instanceRegistry.getInstance(input.instanceId).pipe(
                 Effect.flatMap((currentInstance) => {
