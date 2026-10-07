@@ -653,7 +653,11 @@ function extractPreCodeMeta(node: unknown): string | undefined {
   return typeof meta === "string" && meta.trim().length > 0 ? meta.trim() : undefined;
 }
 
-function isClosedCodeFence(node: ReactMarkdownExtraProps["node"], text: string): boolean {
+function isClosedCodeFence(
+  node: ReactMarkdownExtraProps["node"],
+  text: string,
+  code: string,
+): boolean {
   const start = node?.position?.start.offset;
   const end = node?.position?.end.offset;
   if (start === undefined || end === undefined) return false;
@@ -666,7 +670,10 @@ function isClosedCodeFence(node: ReactMarkdownExtraProps["node"], text: string):
     opening !== undefined &&
     closing !== undefined &&
     opening[0] === closing[0] &&
-    closing.length >= opening.length
+    closing.length >= opening.length &&
+    // A real closer is excluded from the parsed code. Invalid, overindented
+    // markers remain in it, so the source must have an extra fence line.
+    source.split(/\r\n|\r|\n/).length > code.split(/\r\n|\r|\n/).length
   );
 }
 
@@ -1202,8 +1209,8 @@ function MarkdownCodeBlock({
 }
 
 /**
- * Mermaid fences render as a diagram once the response settles; streaming and
- * the code toggle keep the highlighted source.
+ * Completed Mermaid fences render while the response continues. Unfinished
+ * fences and the code toggle keep the highlighted source.
  */
 function MarkdownMermaidCodeBlock({
   code,
@@ -1257,9 +1264,9 @@ function MarkdownMermaidCodeBlock({
         <RenderErrorBoundary resetKeys={[code, theme]} fallback={children}>
           <Suspense
             fallback={
-              <div className="flex min-h-36 items-center justify-center text-xs text-muted-foreground">
-                Rendering diagram
-              </div>
+              <pre className="invisible" aria-hidden>
+                {code}
+              </pre>
             }
           >
             <MermaidDiagram source={code} theme={theme} onExpand={onExpand} />
@@ -3550,7 +3557,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
           code={codeBlock.code}
           fenceTitle={fenceTitle}
           theme={resolvedTheme}
-          isStreaming={isStreaming}
+          isStreaming={isStreaming && !isClosedCodeFence(node, text, codeBlock.code)}
           onExpand={(src) => expandMedia({ images: [{ src, name: "Mermaid diagram" }], index: 0 })}
         >
           {highlightedCode}
@@ -3564,7 +3571,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
         fenceTitle={fenceTitle}
         theme={resolvedTheme}
         onRunShellCommand={
-          onRunShellCommand && !isStreaming && isClosedCodeFence(node, text)
+          onRunShellCommand && !isStreaming && isClosedCodeFence(node, text, codeBlock.code)
             ? onRunShellCommand
             : undefined
         }
