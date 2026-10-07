@@ -37,7 +37,7 @@ interface VersionMismatchIssue {
 
 export interface ThreadDetailsPanelProps extends Pick<
   ComponentProps<typeof ThreadDetailsCard>,
-  "anchor" | "handle" | "onPresentationChange"
+  "anchor" | "errorBannersRef" | "handle" | "onPresentationChange"
 > {
   forceNewWorktree?: boolean;
   environmentId: EnvironmentId;
@@ -117,6 +117,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
     <ThreadDetailsCard
       threadRef={{ environmentId: props.environmentId, threadId: props.threadId }}
       anchor={props.anchor}
+      errorBannersRef={props.errorBannersRef}
       handle={props.handle}
       onPresentationChange={props.onPresentationChange}
     >

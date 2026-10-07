@@ -15,12 +15,14 @@ import {
 export function ThreadDetailsCard({
   threadRef,
   anchor,
+  errorBannersRef,
   handle,
   onPresentationChange,
   children,
 }: {
   threadRef: ScopedThreadRef;
   anchor: RefObject<Element | null>;
+  errorBannersRef: RefObject<HTMLElement | null>;
   handle: ReturnType<typeof PopoverCreateHandle>;
   onPresentationChange: (presentation: ThreadPanelPresentation) => void;
   children: (density: "full" | "compact" | "essential") => ReactNode;
@@ -136,9 +138,20 @@ export function ThreadDetailsCard({
     <Popover
       handle={handle}
       open={mode === "popover" && popoverOpen}
-      onOpenChange={(open) =>
-        useRightPanelStore.getState().setThreadPanelOpen(threadRef, "popover", open)
-      }
+      onOpenChange={(open, details) => {
+        const target = details.event.target;
+        // Foreground error controls should not dismiss the workspace underneath them.
+        if (
+          !open &&
+          details.reason === "outside-press" &&
+          target instanceof Node &&
+          errorBannersRef.current?.contains(target)
+        ) {
+          details.cancel();
+          return;
+        }
+        useRightPanelStore.getState().setThreadPanelOpen(threadRef, "popover", open);
+      }}
     >
       {placement ? (
         inlineOpen ? (
@@ -159,6 +172,12 @@ export function ThreadDetailsCard({
         ) : null
       ) : (
         <PopoverPopup
+          onBlurCapture={(event) => {
+            // Base UI disables focus return before requesting a focus-out close, even if canceled.
+            if (errorBannersRef.current?.contains(event.relatedTarget)) {
+              event.stopPropagation();
+            }
+          }}
           anchor={anchor}
           align="end"
           alignOffset={0}

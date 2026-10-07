@@ -1935,6 +1935,7 @@ export default function ChatView(props: ChatViewProps) {
   const isMobileViewport = useMediaQuery("max-sm");
   const [workspaceLayoutRef, workspaceLayoutWidth] = useElementWidth<HTMLDivElement>();
   const threadPanelPopoverAnchorRef = useRef<HTMLElement | null>(null);
+  const errorBannersRef = useRef<HTMLDivElement | null>(null);
   // Tracks whether the user explicitly dismissed the sidebar for the active turn.
   // When set, the thread-change reset effect will open the sidebar instead of closing it.
   // Used by "Implement in a new thread" to carry the sidebar-open intent across navigation.
@@ -11036,6 +11037,7 @@ export default function ChatView(props: ChatViewProps) {
   ) : null;
   const threadDetailsPanelProps: ThreadDetailsPanelProps = {
     anchor: threadPanelPopoverAnchorRef,
+    errorBannersRef,
     handle: threadPanelPopoverHandle,
     onPresentationChange: setThreadPanelPresentation,
     forceNewWorktree: multipleModelSelections !== null,
@@ -11099,6 +11101,7 @@ export default function ChatView(props: ChatViewProps) {
     threadPanelOpen,
     threadPanelPresentation,
     threadPanelPopoverHandle,
+    errorBannersRef,
     threadPanelShortcutLabel: shortcutLabelForCommand(keybindings, "threadPanel.toggle"),
     threadPanelHasAttention:
       activeEnvironmentUnavailableState !== null || showVersionMismatchBanner,
@@ -11267,8 +11270,11 @@ export default function ChatView(props: ChatViewProps) {
                 </div>
               </div>
             ) : null}
-            {/* Banners overlay the timeline without changing its content height. */}
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col">
+            {/* Keep banners above workspace panels and below dialogs without shifting the timeline. */}
+            <div
+              ref={errorBannersRef}
+              className="pointer-events-none absolute inset-x-0 top-0 z-[49] flex flex-col"
+            >
               <ProviderStatusBanner
                 status={visibleProviderStatus}
                 onDismiss={() => setDismissedProviderStatusBannerKey(providerStatusBannerKey)}
