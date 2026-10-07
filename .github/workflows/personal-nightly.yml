@@ -82,7 +82,7 @@ jobs:
       - name: Verify the personal update boundaries
         run: |
           python3 -m unittest discover -s scripts -p 'test_personal_nightly.py'
-          vp test run scripts/install.test.ts packages/shared/src/cliRelease.test.ts packages/ssh/src/tunnel.test.ts packages/shared/src/personalUpdate.test.ts packages/client-runtime/src/state/server.test.ts apps/server/src/cloud/selfUpdate.test.ts apps/server/src/auth/PairingGrantStore.test.ts apps/web/src/components/desktopUpdate.logic.test.ts
+          vp test run scripts/install.test.ts packages/shared/src/cliRelease.test.ts packages/ssh/src/tunnel.test.ts packages/shared/src/personalUpdate.test.ts packages/client-runtime/src/state/server.test.ts apps/server/src/cloud/selfUpdate.test.ts apps/server/src/environment/ServerEnvironment.test.ts apps/server/src/auth/PairingGrantStore.test.ts apps/web/src/components/desktopUpdate.logic.test.ts
           vp test run apps/server/src/provider/ProviderRegistry.test.ts apps/server/src/vcs/GitVcsDriverCore.test.ts apps/web/src/components/ChatMarkdown.test.tsx apps/web/src/components/Sidebar.logic.test.ts apps/web/src/components/chat/MermaidDiagram.test.tsx apps/web/src/components/chat/MessagesTimeline.test.tsx apps/web/src/components/chat/ThreadDetailsCard.test.tsx apps/web/src/components/chat/ThreadDetailsPanel.test.tsx apps/web/src/composerDraftStore.test.ts apps/web/src/markdown-clipboard.mermaid.test.ts
           vp run --filter t3 --filter @t3tools/web --filter @t3tools/desktop typecheck
       - run: node scripts/update-release-package-versions.ts '${{ needs.prepare.outputs.version }}'

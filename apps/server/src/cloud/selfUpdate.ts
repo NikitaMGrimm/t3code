@@ -58,7 +58,9 @@ export function resolveServerSelfUpdateCapability(input: {
   readonly externallyManaged?: boolean;
 }): ServerSelfUpdateCapability | null {
   if (input.desktopManaged) return "desktop-managed" as const;
-  if (input.externallyManaged) return "external-managed" as const;
+  // External coordinators replace the process and confirm by version, just like respawn.
+  // Reuse the shipped wire value so official mobile clients can decode the descriptor.
+  if (input.externallyManaged) return "respawn" as const;
   return input.launcherManaged ? ("boot-service" as const) : null;
 }
 
@@ -247,7 +249,7 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
 
     return yield* Effect.gen(function* () {
       yield* reportProgress("downloading");
-      if (capability === "external-managed" && externalCommand !== undefined) {
+      if (capability === "respawn" && externalCommand !== undefined) {
         if (input.continueRunningThreads === true) {
           return yield* failWith("This managed deployment does not support thread continuation.");
         }
@@ -284,7 +286,7 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
         yield* onHandoffAccepted();
         // The coordinator ID is not a boot-launcher trial ID. Remote clients
         // verify the requested version when this container reconnects.
-        return { targetVersion, method: "external-managed" as const };
+        return { targetVersion, method: "respawn" as const };
       }
       const paths = yield* ensurePinnedRuntimeInstalled({
         baseDir: serverConfig.baseDir,

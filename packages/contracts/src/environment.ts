@@ -70,16 +70,11 @@ export type WorktreeSubmodules = typeof WorktreeSubmodules.Type;
 export type ExecutionEnvironmentPlatform = typeof ExecutionEnvironmentPlatform.Type;
 
 /** How a server can replace itself with another version when asked over RPC.
-    New servers only advertise the stable launcher-backed "boot-service" path;
-    "respawn" remains decodable for compatibility with older servers.
+    Launcher-managed servers advertise "boot-service". "respawn" also covers
+    externally supervised replacement, confirmed by version rather than a launcher trial.
     "desktop-app" means the supervising desktop app updated and relaunched
     itself, bringing the server back with it. */
-export const ServerSelfUpdateMethod = Schema.Literals([
-  "boot-service",
-  "respawn",
-  "desktop-app",
-  "external-managed",
-]);
+export const ServerSelfUpdateMethod = Schema.Literals(["boot-service", "respawn", "desktop-app"]);
 export type ServerSelfUpdateMethod = typeof ServerSelfUpdateMethod.Type;
 
 /** Proven ownership for a manual update; unknown installs omit this descriptor. */
@@ -94,7 +89,6 @@ export type ServerInstallation = typeof ServerInstallation.Type;
     version belongs to the T3 Code desktop app supervising it — updating the
     app on that machine is the only way to update the server. */
 export const ServerSelfUpdateCapability = Schema.Literals([
-  "external-managed",
   "boot-service",
   "respawn",
   "desktop-managed",

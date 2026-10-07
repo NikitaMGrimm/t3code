@@ -1,6 +1,11 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { ORCHESTRATION_PROTOCOL_VERSION } from "@t3tools/contracts";
+import {
+  ExecutionEnvironmentCapabilities,
+  ExecutionEnvironmentDescriptor,
+  ORCHESTRATION_PROTOCOL_VERSION,
+} from "@t3tools/contracts";
 import { expect, it } from "@effect/vitest";
+import * as ConfigProvider from "effect/ConfigProvider";
 import * as Crypto from "effect/Crypto";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -85,6 +90,50 @@ const makeServerConfig = Effect.fn(function* (baseDir: string) {
 });
 
 it.layer(NodeServices.layer)("ServerEnvironmentLive", (it) => {
+  it.effect("keeps externally managed servers decodable by official mobile clients", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const baseDir = yield* fs.makeTempDirectoryScoped();
+      const config = yield* makeServerConfig(baseDir);
+      yield* fs.makeDirectory(config.stateDir, { recursive: true });
+      const descriptor = yield* Effect.gen(function* () {
+        const environment = yield* ServerEnvironment.ServerEnvironment;
+        return yield* environment.getDescriptor;
+      }).pipe(
+        Effect.provide(
+          ServerEnvironment.layer.pipe(
+            Layer.provide(layerEmptySecretStore),
+            Layer.provide(ServerConfig.layer(config)),
+            Layer.provide(
+              ConfigProvider.layer(
+                ConfigProvider.fromEnv({
+                  env: { T3CODE_SELF_UPDATE_COMMAND: "/usr/local/bin/t3-update" },
+                }),
+              ),
+            ),
+          ),
+        ),
+        Effect.provideService(HostProcessArguments, ["node", "bin.mjs"]),
+        Effect.provideService(HostProcessIsExecutable, false),
+        Effect.provideService(HostProcessPlatform, "linux"),
+        Effect.provideService(HostProcessEnvironment, {}),
+      );
+      // Official protocol-2 clients shipped before this fork accept only these update paths.
+      const officialDescriptor = Schema.Struct({
+        ...ExecutionEnvironmentDescriptor.fields,
+        capabilities: Schema.Struct({
+          ...ExecutionEnvironmentCapabilities.fields,
+          serverSelfUpdate: Schema.optionalKey(
+            Schema.Literals(["boot-service", "respawn", "desktop-managed"]),
+          ),
+        }),
+      });
+      const decoded = yield* Schema.decodeEffect(officialDescriptor)(descriptor);
+      expect(decoded.capabilities.serverSelfUpdate).toBe("respawn");
+      expect(decoded.capabilities.serverSelfUpdateProgress).toBeUndefined();
+      expect(decoded.capabilities.serverUpdateThreadContinuation).toBeUndefined();
+    }),
+  );
   it.effect("publishes proven install ownership only for manually updated servers", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;

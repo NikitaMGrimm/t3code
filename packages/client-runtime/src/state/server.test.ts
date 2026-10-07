@@ -378,7 +378,7 @@ describe("server state projection", () => {
   );
 
   it("requires external updates to reconnect on the requested version", () => {
-    const result = { targetVersion: "0.0.31", method: "external-managed" as const };
+    const result = { targetVersion: "0.0.31", method: "respawn" as const };
     const ready = (serverVersion: string) =>
       ({
         version: 1 as const,

@@ -174,7 +174,7 @@ it.layer(NodeServices.layer)("server self update", (it) => {
       );
       expect(result).toEqual({
         targetVersion: "1.1.0",
-        method: "external-managed",
+        method: "respawn",
       });
       expect(order).toEqual(["downloading", "external:1.1.0", "installing", "accepted"]);
     }),

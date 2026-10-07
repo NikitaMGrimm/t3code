@@ -1640,7 +1640,7 @@ function SavedBackendListRow({
   });
   const { status: personalUpdateStatus } = usePersonalUpdateStatus();
   const personalVersion =
-    resolveServerSelfUpdateCapability(environment.serverConfig) === "external-managed"
+    resolveServerSelfUpdateCapability(environment.serverConfig) === "respawn"
       ? newerPersonalRelease(
           personalUpdateStatus,
           environment.serverConfig?.environment.serverVersion,
@@ -2297,7 +2297,7 @@ export function ConnectionsSettings() {
   const primaryServerConfig = primaryEnvironment?.serverConfig ?? null;
   const { status: personalUpdateStatus } = usePersonalUpdateStatus();
   const personalVersion =
-    resolveServerSelfUpdateCapability(primaryServerConfig) === "external-managed"
+    resolveServerSelfUpdateCapability(primaryServerConfig) === "respawn"
       ? newerPersonalRelease(personalUpdateStatus, primaryServerConfig?.environment.serverVersion)
       : null;
   const primaryVersionMismatch = personalVersion
