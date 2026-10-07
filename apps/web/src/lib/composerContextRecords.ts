@@ -166,6 +166,13 @@ export function threadContextReference(record: ThreadContextRecord): ComposerCon
   return { kind: "thread", contextId: record.contextId, label: record.label };
 }
 
+export function threadContextsBelongToEnvironment(
+  records: ReadonlyArray<ThreadContextRecord>,
+  environmentId: EnvironmentId,
+): boolean {
+  return records.every((record) => record.environmentId === environmentId);
+}
+
 export function threadContextRecord(ref: ScopedThreadRef, title: string): ThreadContextRecord {
   const label = sanitizeComposerContextLabel(title, "thread");
   return {

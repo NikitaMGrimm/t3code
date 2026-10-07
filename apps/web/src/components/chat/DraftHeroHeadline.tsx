@@ -14,6 +14,7 @@ import { primaryServerKeybindingsAtom } from "~/state/server";
 import { useScratchProject } from "~/hooks/useScratchProject";
 import { useClientSettings } from "~/hooks/useSettings";
 import { hasExplicitComposerModelSelection } from "~/lib/chatThreadActions";
+import { threadContextsBelongToEnvironment } from "~/lib/composerContextRecords";
 import {
   deriveLogicalProjectKeyFromSettings,
   selectProjectGroupingSettings,
@@ -40,6 +41,7 @@ import {
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { InlineButton } from "../ui/button";
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
+import { toastManager } from "../ui/toast";
 
 // Menu value for "No project"; real entries are keyed by logical project key.
 const NO_PROJECT_VALUE = "no-project";
@@ -179,12 +181,22 @@ export function DraftHeroHeadline({
     if (!draftId) {
       return;
     }
+    const currentDraft = getComposerDraft(draftId);
+    if (
+      !threadContextsBelongToEnvironment(currentDraft?.threadContexts ?? [], project.environmentId)
+    ) {
+      toastManager.add({
+        type: "warning",
+        title: "Keep thread references on their machine",
+        description: "Remove thread references before switching to another machine.",
+      });
+      return;
+    }
     latestTargetRef.current = {
       draftId,
       activeProjectKey: logicalProjectKey,
       scratchTargetEnvironmentId: project.environmentId,
     };
-    const currentDraft = getComposerDraft(draftId);
     setLogicalProjectDraftThreadId(
       logicalProjectKey,
       scopeProjectRef(project.environmentId, project.id),

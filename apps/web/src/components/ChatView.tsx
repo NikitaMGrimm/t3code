@@ -393,6 +393,7 @@ import {
   previewAnnotationContextReference,
   reviewCommentContextLabel,
   terminalContextReference,
+  threadContextsBelongToEnvironment,
 } from "../lib/composerContextRecords";
 import { type ReviewCommentContext } from "../reviewCommentContext";
 import { environmentCatalog } from "../connection/catalog";
@@ -1800,6 +1801,9 @@ export default function ChatView(props: ChatViewProps) {
     const draft = store.getComposerDraft(composerDraftTarget);
     return (draft?.images.length ?? 0) > 0 || (draft?.files.length ?? 0) > 0;
   });
+  const composerHasThreadContexts = useComposerDraftStore(
+    (store) => (store.getComposerDraft(composerDraftTarget)?.threadContexts.length ?? 0) > 0,
+  );
   // Anything beyond the prompt text: attachments, terminal or element contexts, annotations.
   const composerHasNonPromptContent = useComposerDraftStore((store) => {
     const draft = store.getComposerDraft(composerDraftTarget);
@@ -2852,7 +2856,14 @@ export default function ChatView(props: ChatViewProps) {
         projectGroupingSettings,
       );
       const storedDraftSession = getDraftSessionByLogicalProjectKey(logicalProjectKey);
-      if (storedDraftSession) {
+      if (
+        storedDraftSession &&
+        threadContextsBelongToEnvironment(
+          useComposerDraftStore.getState().getComposerDraft(storedDraftSession.draftId)
+            ?.threadContexts ?? [],
+          activeProjectRef.environmentId,
+        )
+      ) {
         setDraftThreadContext(storedDraftSession.draftId, input);
         setLogicalProjectDraftThreadId(
           logicalProjectKey,
@@ -3037,6 +3048,7 @@ export default function ChatView(props: ChatViewProps) {
     canAutoBalanceEnvironments &&
     loadBalancingSettings.loadBalancingEnabled &&
     draftThread?.environmentSelection !== "manual" &&
+    !composerHasThreadContexts &&
     (!composerHasAttachments || Boolean(draftThread?.loadBalancedEnvironmentId)) &&
     (!draftThread?.branch || draftThread.environmentSelection === "auto") &&
     !draftThread?.worktreePath,
@@ -4388,6 +4400,14 @@ export default function ChatView(props: ChatViewProps) {
   ]);
   const onAutoEnvironment = useCallback(() => {
     if (envLocked || !draftId) return;
+    if (useComposerDraftStore.getState().getComposerDraft(draftId)?.threadContexts.length) {
+      toastManager.add({
+        type: "warning",
+        title: "Keep thread references on this machine",
+        description: "Remove thread references before choosing automatic routing.",
+      });
+      return;
+    }
     if (composerHasAttachments) {
       toastManager.add({
         type: "warning",
@@ -4444,6 +4464,22 @@ export default function ChatView(props: ChatViewProps) {
         (env) => env.environmentId === nextEnvironmentId,
       );
       if (!target) return;
+      const referencesAllowTarget = () => {
+        if (
+          threadContextsBelongToEnvironment(
+            useComposerDraftStore.getState().getComposerDraft(draftId)?.threadContexts ?? [],
+            target.environmentId,
+          )
+        )
+          return true;
+        toastManager.add({
+          type: "warning",
+          title: "Keep thread references on their machine",
+          description: "Remove thread references before switching to another machine.",
+        });
+        return false;
+      };
+      if (!referencesAllowTarget()) return;
       const request = { environmentId: target.environmentId };
       environmentChangeRef.current = request;
       setIsEnvironmentChanging(false);
@@ -4458,6 +4494,7 @@ export default function ChatView(props: ChatViewProps) {
           currentDraft.projectId !== originalDraft.projectId
         )
           return;
+        if (!referencesAllowTarget()) return;
         const projectRef = scopeProjectRef(target.environmentId, project.id);
         if (activeProjectIsScratch) {
           // Scratch projects are machine-local, so move their logical mapping too.
@@ -8738,6 +8775,15 @@ export default function ChatView(props: ChatViewProps) {
     const sendCtx = composerRef.current?.getSendContext();
     if (!sendCtx?.providerAvailable) {
       notifyDirectAnnotationAttached();
+      return;
+    }
+    if (!threadContextsBelongToEnvironment(sendCtx.threadContexts, environmentId)) {
+      toastManager.add({
+        type: "warning",
+        title: "Thread references are on another machine",
+        description:
+          "Choose the machine that owns these threads, or remove their references before sending.",
+      });
       return;
     }
     const multipleModelSelections = sendCtx.multipleModelSelections;

@@ -1879,6 +1879,86 @@ describe("composerDraftStore project draft thread mapping", () => {
     expect(store.getComposerDraft(draftId)?.prompt).toBe("keep this prompt");
   });
 
+  it.each(["manual", "auto"] as const)(
+    "keeps referenced threads readable during %s machine selection, including stale selections",
+    (environmentSelection) => {
+      const store = useComposerDraftStore.getState();
+      const reference = threadContextRecord(
+        scopeThreadRef(TEST_ENVIRONMENT_ID, otherThreadId),
+        "Reference conversation",
+      );
+      store.setProjectDraftThreadId(projectRef, draftId, { threadId });
+      store.setPrompt(draftId, "Use this context");
+      store.addThreadContexts(draftId, [reference]);
+      const before = useComposerDraftStore.getState();
+
+      store.setDraftThreadContext(draftId, {
+        projectRef: remoteProjectRef,
+        environmentSelection,
+        loadBalancedEnvironmentId:
+          environmentSelection === "auto" ? OTHER_TEST_ENVIRONMENT_ID : null,
+      });
+
+      expect(store.getDraftThread(draftId)).toEqual(before.draftThreadsByThreadKey[draftId]);
+      expect(store.getComposerDraft(draftId)).toEqual(before.draftsByThreadKey[draftId]);
+
+      store.setThreadContexts(draftId, []);
+      store.setDraftThreadContext(draftId, { projectRef: remoteProjectRef });
+      expect(store.getDraftThread(draftId)?.environmentId).toBe(OTHER_TEST_ENVIRONMENT_ID);
+      expect(store.getComposerDraft(draftId)?.prompt).toBe("Use this context");
+    },
+  );
+
+  it("protects referenced threads when a logical project or Scratch draft is remapped", () => {
+    const store = useComposerDraftStore.getState();
+    const reference = threadContextRecord(
+      scopeThreadRef(TEST_ENVIRONMENT_ID, otherThreadId),
+      "Reference conversation",
+    );
+    store.setLogicalProjectDraftThreadId("scratch-local", projectRef, draftId, { threadId });
+    store.addThreadContexts(draftId, [reference]);
+    const before = useComposerDraftStore.getState();
+
+    store.setLogicalProjectDraftThreadId("scratch-remote", remoteProjectRef, draftId);
+
+    expect(useComposerDraftStore.getState()).toBe(before);
+    expect(store.getDraftSessionByLogicalProjectKey("scratch-local")?.draftId).toBe(draftId);
+    expect(store.getDraftSessionByLogicalProjectKey("scratch-remote")).toBeNull();
+
+    store.setLogicalProjectDraftThreadId("scratch-local", otherProjectRef, draftId);
+    expect(store.getDraftThread(draftId)?.projectId).toBe(otherProjectId);
+    expect(store.getComposerDraft(draftId)?.threadContexts).toEqual([reference]);
+
+    store.setThreadContexts(draftId, []);
+    store.setLogicalProjectDraftThreadId("scratch-remote", remoteProjectRef, draftId);
+    expect(store.getDraftThread(draftId)?.environmentId).toBe(OTHER_TEST_ENVIRONMENT_ID);
+    expect(store.getDraftSessionByLogicalProjectKey("scratch-local")).toBeNull();
+  });
+
+  it("can return a persisted mismatched reference to its source machine", () => {
+    const store = useComposerDraftStore.getState();
+    const reference = threadContextRecord(
+      scopeThreadRef(TEST_ENVIRONMENT_ID, otherThreadId),
+      "Reference conversation",
+    );
+    store.setProjectDraftThreadId(remoteProjectRef, draftId, { threadId });
+    store.addThreadContexts(draftId, [reference]);
+    const merge = useComposerDraftStore.persist.getOptions().merge!;
+    useComposerDraftStore.setState(
+      merge(
+        JSON.parse(
+          JSON.stringify(partializeComposerDraftStoreState(useComposerDraftStore.getState())),
+        ),
+        useComposerDraftStore.getInitialState(),
+      ),
+    );
+
+    store.setDraftThreadContext(draftId, { projectRef });
+
+    expect(store.getDraftThread(draftId)?.environmentId).toBe(TEST_ENVIRONMENT_ID);
+    expect(store.getComposerDraft(draftId)?.threadContexts).toEqual([reference]);
+  });
+
   it("clears branch and worktree but keeps env mode when changing a draft thread project ref", () => {
     const store = useComposerDraftStore.getState();
     store.setProjectDraftThreadId(projectRef, draftId, {
