@@ -20,7 +20,6 @@ export interface PanelLayoutControlsProps {
   threadPanelPopoverHandle?: ReturnType<typeof PopoverCreateHandle>;
   errorBannersRef?: RefObject<HTMLElement | null>;
   threadPanelShortcutLabel: string | null;
-  threadPanelHasAttention: boolean;
   rightPanelAvailable: boolean;
   rightPanelOpen: boolean;
   rightPanelShortcutLabel: string | null;
@@ -42,7 +41,6 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
   threadPanelPopoverHandle,
   errorBannersRef,
   threadPanelShortcutLabel,
-  threadPanelHasAttention,
   rightPanelAvailable,
   rightPanelOpen,
   rightPanelShortcutLabel,
@@ -60,12 +58,6 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
       size="sm"
     >
       <SquareMenuIcon className="size-4" />
-      {threadPanelHasAttention ? (
-        <span
-          className="absolute right-1 top-1 size-1.5 rounded-full bg-warning ring-2 ring-background"
-          aria-hidden="true"
-        />
-      ) : null}
     </Toggle>
   );
   const threadPanelTooltip = (trigger: ReactElement) => (
