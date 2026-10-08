@@ -30,7 +30,6 @@ import {
   shouldShowDesktopUpdateCheckIcon,
 } from "./DesktopUpdateStatusIcon";
 import { SidebarUpdateReleaseNotes } from "./SidebarUpdateReleaseNotes";
-import { PersonalUpdateStatus } from "../PersonalUpdateStatus";
 import { refreshPersonalUpdateStatus } from "../../hooks/usePersonalUpdateStatus";
 
 type SidebarUpdatePopoverChangeDetails = Parameters<
@@ -91,12 +90,7 @@ function resolveSidebarUpdatePresentation({
 }
 
 export function SidebarUpdateArchitectureWarning() {
-  return (
-    <>
-      <PersonalUpdateStatus compact />
-      {isElectron ? <SidebarUpdateArchitectureWarningContent /> : null}
-    </>
-  );
+  return isElectron ? <SidebarUpdateArchitectureWarningContent /> : null;
 }
 
 function SidebarUpdateArchitectureWarningContent() {

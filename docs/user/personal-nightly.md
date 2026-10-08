@@ -3,8 +3,8 @@
 This fork combines the official nightly with the personal changes on
 `personal-nightly`. Updates use the existing T3 Code update and restart controls.
 If a nightly has merge conflicts or fails its checks, the current build stays
-available. The sidebar and Settings → General → About show the stopped update
-and link to its details.
+available. A dismissible notification shows the stopped update without shifting
+the app layout. Settings → General → About keeps its details and workflow link.
 
 Install a release from [this fork](https://github.com/NikitaMGrimm/t3code/releases)
 once before using its updater. An official T3 Code installation follows the
