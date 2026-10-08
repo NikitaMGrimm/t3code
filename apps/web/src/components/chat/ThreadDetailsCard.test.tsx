@@ -35,7 +35,6 @@ function Fixture() {
           threadPanelPopoverHandle={handle}
           errorBannersRef={errorBannersRef}
           threadPanelShortcutLabel={null}
-          threadPanelHasAttention={false}
           rightPanelAvailable={false}
           rightPanelOpen={false}
           rightPanelShortcutLabel={null}
