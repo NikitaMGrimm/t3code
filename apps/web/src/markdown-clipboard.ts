@@ -82,7 +82,9 @@ function resolveCodeBlockLanguage(pre: Element): string | null {
 export function serializeCodeBlockToMarkdown(source: string, language: string | null): string {
   const code = source.replace(/\n$/, "");
   const fence = codeFenceFor(code);
-  return `${fence}${language ?? ""}\n${code}\n${fence}\n\n`;
+  // Backtick fences cannot carry backticks or line breaks in their info string.
+  const info = language && !/[`\r\n]/.test(language) ? language : "";
+  return `${fence}${info}\n${code}\n${fence}\n\n`;
 }
 
 function serializeCodeBlock(pre: Element): string {
@@ -128,13 +130,8 @@ function serializeListItem(item: Element, ordered: boolean, index: number): stri
   );
   const task = checkbox ? `[${(checkbox as HTMLInputElement).checked ? "x" : " "}] ` : "";
   const marker = ordered ? `${index}. ${task}` : `- ${task}`;
-  let content = serializeChildren(item)
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
   // Tight list items (no paragraph children) keep nested lists on adjacent lines.
-  if (!item.querySelector(":scope > p")) {
-    content = content.replace(/\n{2,}/g, "\n");
-  }
+  const content = tidyMarkdown(serializeChildren(item), !item.querySelector(":scope > p"));
   const continuationIndent = " ".repeat(marker.length);
   const [first = "", ...rest] = content.split("\n");
   return [
@@ -151,9 +148,7 @@ function serializeList(list: Element, ordered: boolean): string {
 }
 
 function serializeBlockquote(quote: Element): string {
-  const content = serializeChildren(quote)
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  const content = tidyMarkdown(serializeChildren(quote));
   if (!content) return "";
   const quoted = content
     .split("\n")
@@ -330,14 +325,20 @@ function soleCodeBlock(container: Node): Element | null {
 }
 
 /** Collapses serializer spacing artifacts without touching fenced code content. */
-function tidyMarkdown(markdown: string): string {
-  return markdown
-    .split(/(```[\s\S]*?(?:```|$))/)
-    .map((part, index) =>
-      index % 2 === 1 ? part : part.replace(/[ \t]+(?=\n)/g, "").replace(/\n{3,}/g, "\n\n"),
-    )
-    .join("")
-    .trim();
+function tidyMarkdown(markdown: string, tight = false): string {
+  const tidySpacing = (text: string) =>
+    text.replace(/[ \t]+(?=\n)/g, "").replace(tight ? /\n{2,}/g : /\n{3,}/g, tight ? "\n" : "\n\n");
+  let result = "";
+  let offset = 0;
+  // Serialized fences can be longer than three backticks when the source contains them.
+  // Each prefix consumes its trailing whitespace once to avoid nested-prefix backtracking.
+  for (const block of markdown.matchAll(
+    /^[ \t]*(?:>[ \t]+|(?:[-*+]|\d+[.)])[ \t]+(?:\[[ x]\][ \t]+)?)*(`{3,})[^`\n]*\n[\s\S]*?(?:^[ \t]*(?:>[ \t]*)*\1`*[ \t]*(?=\n|$)|(?![\s\S]))/gm,
+  )) {
+    result += tidySpacing(markdown.slice(offset, block.index)) + block[0];
+    offset = block.index + block[0].length;
+  }
+  return (result + tidySpacing(markdown.slice(offset))).trim();
 }
 
 export function serializeRenderedMarkdownFragment(container: Node): string {
