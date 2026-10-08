@@ -165,6 +165,7 @@ jobs:
         with:
           token: ${{ secrets.PERSONAL_NIGHTLY_TOKEN }}
           ref: ${{ needs.prepare.outputs.ref }}
+          fetch-depth: 0
       - uses: actions/download-artifact@v8
         with:
           pattern: desktop-*
