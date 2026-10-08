@@ -111,16 +111,123 @@ def prepare(repo, tag, run_number, published_releases=()):
     return status
 
 
+def nightly_version_key(tag):
+    match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)-nightly\.(\d{8})\.(\d+)", tag)
+    return tuple(map(int, match.groups())) if match else None
+
+
+def release_change_items(body):
+    """Keep upstream changes without contributor lists or comparison footers."""
+    items = []
+    for line in (body or "").splitlines():
+        line = line.strip()
+        heading = re.sub(r"[#*_\x60]", "", line).strip().casefold()
+        if heading == "new contributors" or heading.startswith("full changelog"):
+            break
+        if not line or line.startswith("#") or "/compare/" in line:
+            continue
+        line = re.sub(r"^(?:[-*]\s+|\d+[.)]\s+)", "", line)
+        if line not in items:
+            items.append(line)
+    return items
+
+
+def release_notes(repo, ref, version, personal_releases, upstream_releases):
+    """Compare with the last published build, including fixes outside the PR manifest."""
+    version_key = nightly_version_key(version)
+    if version_key is None:
+        raise ValueError("Release notes require an exact personal nightly version")
+    config = json.loads(git("show", f"{ref}:personal-nightly.json", cwd=repo).stdout)
+    upstream_tag = config["upstreamTag"]
+    upstream_key = nightly_version_key(upstream_tag)
+    if upstream_key is None:
+        raise ValueError("The incorporated upstream nightly is invalid")
+    upstream_sha = git("rev-parse", f"{upstream_tag}^{{commit}}", cwd=repo).stdout.strip()
+    previous = max(
+        (release for release in personal_releases
+         if release.get("draft") is False
+         and (key := nightly_version_key(release.get("tag_name", ""))) is not None
+         and key < version_key),
+        key=lambda release: nightly_version_key(release["tag_name"]),
+        default=None,
+    )
+    previous_sha = None
+    previous_key = None
+    if previous is not None:
+        previous_sha = previous["target_commitish"]
+        if re.fullmatch(r"[0-9a-f]{40}", previous_sha) is None:
+            raise ValueError("The previous personal release must identify its exact source commit")
+        git("merge-base", "--is-ancestor", previous_sha, ref, cwd=repo)
+        previous_config = json.loads(git("show", f"{previous_sha}:personal-nightly.json", cwd=repo).stdout)
+        previous_key = nightly_version_key(previous_config["upstreamTag"])
+        if previous_key is None or previous_key > upstream_key:
+            raise ValueError("The previous build must not use a newer upstream nightly")
+
+    official = [release for release in upstream_releases
+                if release.get("draft") is False
+                and nightly_version_key(release.get("tag_name", "")) is not None]
+    if not any(release["tag_name"] == upstream_tag for release in official):
+        raise ValueError(f"Missing official release metadata for {upstream_tag}")
+    included = sorted(
+        (release for release in official
+         if (previous_key is None and release["tag_name"] == upstream_tag)
+         or (previous_key is not None
+             and previous_key < nightly_version_key(release["tag_name"]) <= upstream_key)),
+        key=lambda release: nightly_version_key(release["tag_name"]),
+    )
+    lines = ["## Upstream changes"]
+    seen = set()
+    for release in included:
+        items = release_change_items(release.get("body"))
+        if not items:
+            raise ValueError(f"Missing official change notes for {release['tag_name']}")
+        lines += ["", f"### [{release['tag_name']}](https://github.com/{config['upstreamRepository']}/releases/tag/{release['tag_name']})", ""]
+        for item in items:
+            if item not in seen:
+                lines.append(f"- {item}")
+                seen.add(item)
+    if not included:
+        lines += ["", f"### Unchanged from [{upstream_tag}](https://github.com/{config['upstreamRepository']}/releases/tag/{upstream_tag})."]
+
+    excluded = [f"^{upstream_sha}"] + ([f"^{previous_sha}"] if previous_sha else [])
+    commits = git("log", "--reverse", "--no-merges", "--format=%H%x00%s", ref, *excluded, "--", cwd=repo).stdout.splitlines()
+    personal = []
+    for commit in commits:
+        sha, subject = commit.split("\0", 1)
+        if re.fullmatch(r"chore: track v\d+\.\d+\.\d+-nightly\.\d{8}\.\d+", subject):
+            continue
+        subject = re.sub(r"personal import #(\d+)", lambda match: f"personal import [#{match[1]}](https://github.com/{config['upstreamRepository']}/pull/{match[1]})", subject)
+        personal.append(f"- {subject} ([{sha[:7]}](https://github.com/{config['repository']}/commit/{sha}))")
+    if personal:
+        lines += ["", "## Personal changes", "", *personal]
+    else:
+        lines += ["", "## Personal changes (none)"]
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["prepare", "status"])
+    parser.add_argument("command", choices=["prepare", "status", "notes"])
     parser.add_argument("--tag")
     parser.add_argument("--run-number", default=os.environ.get("GITHUB_RUN_ID"))
     parser.add_argument("--phase", choices=["ready", "failed", "conflict"])
     parser.add_argument("--release-index", type=Path)
+    parser.add_argument("--upstream-release-index", type=Path)
+    parser.add_argument("--notes-file", type=Path)
+    parser.add_argument("--ref", default="HEAD")
+    parser.add_argument("--version")
     args = parser.parse_args()
     repo = Path.cwd()
     status_path = Path(os.environ.get("RUNNER_TEMP", tempfile.gettempdir())) / "personal-nightly-status.json"
+    if args.command == "notes":
+        if not all([args.release_index, args.upstream_release_index, args.notes_file, args.version]):
+            parser.error("notes requires --release-index, --upstream-release-index, --notes-file, and --version")
+        upstream = json.loads(args.upstream_release_index.read_text())
+        if upstream and isinstance(upstream[0], list):
+            upstream = [release for page in upstream for release in page]
+        notes = release_notes(repo, args.ref, args.version, json.loads(args.release_index.read_text()), upstream)
+        args.notes_file.write_text(notes)
+        return
     if args.command == "prepare":
         releases = json.loads(args.release_index.read_text()) if args.release_index else []
         status = prepare(repo, args.tag, args.run_number, releases)

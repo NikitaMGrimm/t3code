@@ -42,7 +42,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh api --paginate repos/pingdotgg/t3code/releases --jq '.[] | select(.draft == false) | .tag_name' > "$RUNNER_TEMP/upstream-releases.txt"
+          gh api --paginate --slurp repos/pingdotgg/t3code/releases > "$RUNNER_TEMP/upstream-releases.json"
+          jq -r '.[][] | select(.draft == false) | .tag_name' "$RUNNER_TEMP/upstream-releases.json" > "$RUNNER_TEMP/upstream-releases.txt"
           tag=$(awk '/^v[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}\.[0-9]+$/ {print; exit}' "$RUNNER_TEMP/upstream-releases.txt")
           test -n "$tag"
           git fetch https://github.com/pingdotgg/t3code.git "refs/tags/$tag:refs/tags/$tag"
@@ -55,11 +56,17 @@ jobs:
         run: |
           gh api 'repos/NikitaMGrimm/t3code/releases?per_page=100' > "$RUNNER_TEMP/personal-releases.json"
           python3 scripts/personal-nightly.py prepare --release-index "$RUNNER_TEMP/personal-releases.json" --tag '${{ steps.upstream.outputs.tag }}'
+          if test "$(jq -r .phase "$RUNNER_TEMP/personal-nightly-status.json")" = building; then
+            version=$(jq -r .candidateVersion "$RUNNER_TEMP/personal-nightly-status.json")
+            python3 scripts/personal-nightly.py notes --version "$version" --release-index "$RUNNER_TEMP/personal-releases.json" --upstream-release-index "$RUNNER_TEMP/upstream-releases.json" --notes-file "$RUNNER_TEMP/personal-nightly-notes.md"
+          fi
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: personal-nightly-status
-          path: ${{ runner.temp }}/personal-nightly-status.json
+          path: |
+            ${{ runner.temp }}/personal-nightly-status.json
+            ${{ runner.temp }}/personal-nightly-notes.md
           if-no-files-found: error
 
   bundle:
@@ -198,8 +205,9 @@ jobs:
               exit 0
             fi
           else
-            gh release create "v$VERSION" --target "$REF" --prerelease --draft --title "Personal nightly $VERSION" --notes "Official nightly merged with the fixes in personal-nightly.json. Checks and all four platform builds passed."
+            gh release create "v$VERSION" --target "$REF" --prerelease --draft --title "Personal nightly $VERSION" --notes-file "$RUNNER_TEMP/personal-nightly-notes.md"
           fi
+          gh release edit "v$VERSION" --notes-file "$RUNNER_TEMP/personal-nightly-notes.md"
           gh release upload "v$VERSION" release-assets/* --clobber
           git push origin "$REF:refs/heads/personal-nightly"
           gh release edit "v$VERSION" --draft=false
