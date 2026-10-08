@@ -239,6 +239,40 @@ class NightlyIntegrationTests(unittest.TestCase):
         nightly.git("fetch", "origin", "personal-update-status", cwd=self.repo)
         self.assertEqual(json.loads(nightly.git("show", "FETCH_HEAD:status.json", cwd=self.repo).stdout), latest)
 
+    def test_published_candidate_stays_ready_after_another_personal_fix(self):
+        version = "0.0.46-nightly.20261007.200"
+        release = self.published_release(version)
+        candidate = release["target_commitish"]
+        (self.repo / "later.txt").write_text("next fix")
+        self.commit("fix: next personal change")
+        self.assertNotEqual(candidate, nightly.git("rev-parse", "HEAD", cwd=self.repo).stdout.strip())
+        self.assertTrue(nightly.published_release_ready(self.repo, release, candidate, version, "HEAD"))
+        for invalid in [dict(release, draft=True), dict(release, target_commitish="0" * 40),
+                        dict(release, tag_name="v0.0.46-nightly.20261007.100")]:
+            self.assertFalse(nightly.published_release_ready(self.repo, invalid, candidate, version, "HEAD"))
+        nightly.git("checkout", "upstream", cwd=self.repo)
+        self.assertFalse(nightly.published_release_ready(self.repo, release, candidate, version, "HEAD"))
+
+    def test_missing_artifact_recovers_a_verified_published_release(self):
+        version = "0.0.46-nightly.20261007.200"
+        release = self.published_release(version)
+        remote = Path(self.temp.name) / "remote.git"
+        nightly.git("init", "--bare", str(remote))
+        nightly.git("remote", "add", "origin", str(remote), cwd=self.repo)
+        nightly.git("push", "origin", "HEAD:refs/heads/personal-nightly", cwd=self.repo)
+        nightly.git("fetch", "origin", "personal-nightly", cwd=self.repo)
+        result = Path(self.temp.name) / "release.json"
+        result.write_text(json.dumps(release))
+        arguments = ["personal-nightly", "status", "--phase", "failed", "--version", version,
+                     "--ref", release["target_commitish"], "--published-release", str(result)]
+        with patch.object(Path, "cwd", return_value=self.repo), patch.object(sys, "argv", arguments), patch.dict(os.environ, {"RUNNER_TEMP": self.temp.name, "GITHUB_RUN_ID": "123", "PERSONAL_NIGHTLY_SEQUENCE": "200"}):
+            nightly.main()
+        nightly.git("fetch", "origin", "personal-update-status", cwd=self.repo)
+        status = json.loads(nightly.git("show", "FETCH_HEAD:status.json", cwd=self.repo).stdout)
+        self.assertEqual(status["phase"], "ready")
+        self.assertEqual(status["releasedVersion"], version)
+        self.assertEqual(status["candidateCommit"], release["target_commitish"])
+
     def test_unchanged_run_repairs_a_failed_status_without_candidate_push(self):
         self.upstream("upstream\n")
         nightly.prepare(self.repo, self.tag, "123")

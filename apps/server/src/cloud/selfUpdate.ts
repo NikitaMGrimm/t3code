@@ -284,6 +284,10 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
         }
         yield* reportProgress("installing");
         yield* onHandoffAccepted();
+        // The independent coordinator deduplicates submissions and owns the
+        // deployment lifetime. Let this server retry if that deployment fails
+        // before replacing it, while still serializing preparation above.
+        yield* Ref.set(inFlight, false);
         // The coordinator ID is not a boot-launcher trial ID. Remote clients
         // verify the requested version when this container reconnects.
         return { targetVersion, method: "respawn" as const };

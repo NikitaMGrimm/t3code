@@ -89,8 +89,8 @@ jobs:
       - name: Verify the personal update boundaries
         run: |
           python3 -m unittest discover -s scripts -p 'test_personal_nightly.py'
-          vp test run scripts/install.test.ts packages/shared/src/cliRelease.test.ts packages/ssh/src/tunnel.test.ts packages/shared/src/personalUpdate.test.ts packages/client-runtime/src/state/server.test.ts apps/server/src/cloud/selfUpdate.test.ts apps/server/src/environment/ServerEnvironment.test.ts apps/server/src/auth/PairingGrantStore.test.ts apps/web/src/components/desktopUpdate.logic.test.ts apps/web/src/components/PersonalUpdateStatus.test.tsx
-          vp test run apps/server/src/provider/ProviderRegistry.test.ts apps/server/src/vcs/GitVcsDriverCore.test.ts apps/web/src/components/ChatMarkdown.test.tsx apps/web/src/components/Sidebar.logic.test.ts apps/web/src/components/chat/MermaidDiagram.test.tsx apps/web/src/components/chat/MessagesTimeline.test.tsx apps/web/src/components/chat/ThreadDetailsCard.test.tsx apps/web/src/components/chat/ThreadDetailsPanel.test.tsx apps/web/src/composerDraftStore.test.ts apps/web/src/markdown-clipboard.mermaid.test.ts
+          vp test run scripts/install.test.ts packages/shared/src/cliRelease.test.ts packages/ssh/src/tunnel.test.ts packages/shared/src/personalUpdate.test.ts packages/client-runtime/src/state/server.test.ts apps/server/src/cloud/selfUpdate.test.ts apps/server/src/environment/ServerEnvironment.test.ts apps/server/src/auth/PairingGrantStore.test.ts apps/web/src/components/desktopUpdate.logic.test.ts apps/web/src/components/PersonalUpdateStatus.test.tsx apps/web/src/components/settings/ConnectionsSettings.updateTargets.logic.test.ts
+          vp test run apps/server/src/provider/ProviderRegistry.test.ts apps/server/src/vcs/GitVcsDriverCore.test.ts apps/web/src/components/ChatMarkdown.test.tsx apps/web/src/components/Sidebar.logic.test.ts apps/web/src/components/chat/MermaidDiagram.test.tsx apps/web/src/components/chat/MessagesTimeline.test.tsx apps/web/src/components/chat/ThreadDetailsCard.test.tsx apps/web/src/components/chat/ThreadDetailsPanel.test.tsx apps/web/src/composerDraftStore.test.ts apps/web/src/markdown-clipboard.mermaid.test.ts apps/web/src/markdown-clipboard.test.ts
           vp run --filter t3 --filter @t3tools/web --filter @t3tools/desktop typecheck
       - run: node scripts/update-release-package-versions.ts '${{ needs.prepare.outputs.version }}'
       - run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev pkg-config
@@ -221,6 +221,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: personal-nightly
+          fetch-depth: 0
       - uses: actions/download-artifact@v8
         continue-on-error: true
         with:
@@ -233,11 +234,8 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
           REF: ${{ needs.prepare.outputs.ref }}
         run: |
-          phase=failed
-          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION" > "$RUNNER_TEMP/release-result.json"; then
-            git fetch origin personal-nightly
-            if test "$(git rev-parse FETCH_HEAD)" = "$REF" && python3 -c 'import json,os; r=json.load(open(os.environ["RUNNER_TEMP"]+"/release-result.json")); assert r["draft"] is False and r["target_commitish"] == os.environ["REF"]'; then
-              phase=ready
-            fi
+          release_args=()
+          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION" > "$RUNNER_TEMP/release-result.json" && git fetch origin personal-nightly; then
+            release_args=(--published-release "$RUNNER_TEMP/release-result.json")
           fi
-          python3 scripts/personal-nightly.py status --phase "$phase"
+          python3 scripts/personal-nightly.py status --phase failed --version "$VERSION" --ref "$REF" "${release_args[@]}"

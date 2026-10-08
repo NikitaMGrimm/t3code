@@ -11,7 +11,7 @@ import { ToastProvider } from "./ui/toast";
 
 vi.mock("@tanstack/react-router", () => ({ useParams: () => ({}) }));
 
-it("keeps dismissed failures quiet across polling and shows new conflicts until recovery", async () => {
+it("keeps dismissed failures quiet across polling and shows a failed rerun of the same workflow", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal(
     "ResizeObserver",
@@ -28,6 +28,7 @@ it("keeps dismissed failures quiet across polling and shows new conflicts until 
   });
   let status = {
     schema: 1,
+    sequence: 1791417149067,
     phase: "failed",
     upstreamTag: "v0.0.46-nightly.20261008.2801",
     conflicts: [] as string[],
@@ -45,6 +46,12 @@ it("keeps dismissed failures quiet across polling and shows new conflicts until 
     );
   const detailsLink = () =>
     [...document.querySelectorAll("a")].find((element) => !element.closest("[data-ending-style]"));
+  const dismiss = () =>
+    act(() =>
+      [...document.querySelectorAll<HTMLButtonElement>('button[aria-label="Dismiss notification"]')]
+        .find((element) => !element.closest("[data-ending-style]"))!
+        .click(),
+    );
 
   try {
     await act(() =>
@@ -62,12 +69,28 @@ it("keeps dismissed failures quiet across polling and shows new conflicts until 
     expect(container.textContent).toBe("");
     expect(detailsLink()?.href).toBe(status.runUrl);
 
-    await act(() =>
-      (
-        document.querySelector('button[aria-label="Dismiss notification"]') as HTMLButtonElement
-      ).click(),
-    );
+    await dismiss();
     await refresh();
+    await refresh();
+    expect(notices()).toHaveLength(0);
+
+    status = { ...status, phase: "building" };
+    await refresh();
+    status = { ...status, phase: "failed" };
+    await refresh();
+    expect(notices()).toHaveLength(0);
+
+    status = { ...status, phase: "building", sequence: status.sequence + 1 };
+    await refresh();
+    expect(notices()).toHaveLength(0);
+    status = { ...status, phase: "failed" };
+    await refresh();
+    expect(notices()).toHaveLength(1);
+    expect(detailsLink()?.href).toBe(status.runUrl);
+    await refresh();
+    expect(notices()).toHaveLength(1);
+
+    await dismiss();
     await refresh();
     expect(notices()).toHaveLength(0);
 

@@ -21,6 +21,7 @@ import * as ServerSelfUpdate from "./selfUpdate.ts";
 
 interface HarnessOptions {
   readonly externalUpdate?: { readonly stdout: string; readonly exitCode?: number };
+  readonly beforeExternalUpdate?: Effect.Effect<void>;
   readonly mode?: "web" | "desktop";
   readonly managed?: boolean;
   readonly preflight?: "ready" | "blocked";
@@ -62,6 +63,9 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
       Effect.gen(function* () {
         if (input.command === "/usr/local/bin/t3-update") {
           order.push(`external:${input.args.join(",")}`);
+          if (options.beforeExternalUpdate !== undefined) {
+            yield* options.beforeExternalUpdate;
+          }
           return {
             stdout: options.externalUpdate?.stdout ?? "",
             stderr: "",
@@ -199,6 +203,73 @@ it.layer(NodeServices.layer)("server self update", (it) => {
           .pipe(Effect.exit);
         expect(exit._tag).toBe("Failure");
       }
+      expect(order).toEqual(["external:1.1.0", "external:1.1.0"]);
+    }),
+  );
+
+  it.effect("allows another external submission after the coordinator accepts the handoff", () =>
+    Effect.gen(function* () {
+      const { selfUpdate, order } = yield* makeHarness({
+        managed: false,
+        externalUpdate: {
+          stdout:
+            '{"schema":1,"targetVersion":"1.1.0","updateId":"20261007T120000Z-0123456789abcdef"}',
+        },
+      });
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        expect(yield* selfUpdate.update({ targetVersion: "1.1.0" })).toEqual({
+          targetVersion: "1.1.0",
+          method: "respawn",
+        });
+      }
+      expect(order).toEqual(["external:1.1.0", "external:1.1.0"]);
+    }),
+  );
+
+  it.effect(
+    "rejects overlapping external preparation and permits submission after it finishes",
+    () =>
+      Effect.gen(function* () {
+        const requested = yield* Deferred.make<void>();
+        const accepted = yield* Deferred.make<void>();
+        const { selfUpdate, order } = yield* makeHarness({
+          managed: false,
+          beforeExternalUpdate: Deferred.succeed(requested, undefined).pipe(
+            Effect.andThen(Deferred.await(accepted)),
+          ),
+          externalUpdate: {
+            stdout:
+              '{"schema":1,"targetVersion":"1.1.0","updateId":"20261007T120000Z-0123456789abcdef"}',
+          },
+        });
+        const first = yield* Effect.forkChild(selfUpdate.update({ targetVersion: "1.1.0" }), {
+          startImmediately: true,
+        });
+        yield* Deferred.await(requested);
+        expect(
+          (yield* selfUpdate.update({ targetVersion: "1.1.0" }).pipe(Effect.flip)).reason,
+        ).toBe("A server update is already in progress.");
+        expect(order).toEqual(["external:1.1.0"]);
+        yield* Deferred.succeed(accepted, undefined);
+        expect((yield* Fiber.join(first)).method).toBe("respawn");
+        expect((yield* selfUpdate.update({ targetVersion: "1.1.0" })).method).toBe("respawn");
+        expect(order).toEqual(["external:1.1.0", "external:1.1.0"]);
+      }),
+  );
+
+  it.effect("permits retry when the external coordinator refuses a preparation", () =>
+    Effect.gen(function* () {
+      const externalUpdate = {
+        stdout:
+          '{"schema":1,"targetVersion":"1.1.0","updateId":"20261007T120000Z-0123456789abcdef"}',
+        exitCode: 1,
+      };
+      const { selfUpdate, order } = yield* makeHarness({ managed: false, externalUpdate });
+      expect((yield* selfUpdate.update({ targetVersion: "1.1.0" }).pipe(Effect.flip)).reason).toBe(
+        "The deployment coordinator refused the update. Inspect the VPS update operation for details.",
+      );
+      externalUpdate.exitCode = 0;
+      expect((yield* selfUpdate.update({ targetVersion: "1.1.0" })).method).toBe("respawn");
       expect(order).toEqual(["external:1.1.0", "external:1.1.0"]);
     }),
   );
@@ -495,6 +566,9 @@ it.layer(NodeServices.layer)("server self update", (it) => {
       );
       yield* Deferred.succeed(accepted, "launcher-id");
       expect((yield* Fiber.join(first)).updateId).toBe("launcher-id");
+      expect((yield* selfUpdate.update({ targetVersion: "1.1.1" }).pipe(Effect.flip)).reason).toBe(
+        "A server update is already in progress.",
+      );
     }),
   );
 });

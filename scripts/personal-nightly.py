@@ -116,6 +116,18 @@ def nightly_version_key(tag):
     return tuple(map(int, match.groups())) if match else None
 
 
+def published_release_ready(repo, release, ref, version, branch="FETCH_HEAD"):
+    """A later personal fix does not invalidate an already published candidate."""
+    return (
+        re.fullmatch(r"[0-9a-f]{40}", ref) is not None
+        and nightly_version_key(version) is not None
+        and release.get("draft") is False
+        and release.get("target_commitish") == ref
+        and release.get("tag_name") == f"v{version}"
+        and git("merge-base", "--is-ancestor", ref, branch, cwd=repo, check=False).returncode == 0
+    )
+
+
 def release_change_items(body):
     """Keep upstream changes without contributor lists or comparison footers."""
     items = []
@@ -216,6 +228,7 @@ def main():
     parser.add_argument("--notes-file", type=Path)
     parser.add_argument("--ref", default="HEAD")
     parser.add_argument("--version")
+    parser.add_argument("--published-release", type=Path)
     args = parser.parse_args()
     repo = Path.cwd()
     status_path = Path(os.environ.get("RUNNER_TEMP", tempfile.gettempdir())) / "personal-nightly-status.json"
@@ -253,8 +266,17 @@ def main():
         else:
             config = json.loads((repo / "personal-nightly.json").read_text())
             status = {"schema": 1, "upstreamTag": config["upstreamTag"], "conflicts": [], "releasedVersion": None, "sequence": int(os.environ["PERSONAL_NIGHTLY_SEQUENCE"]), "runUrl": f"https://github.com/{config['repository']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"}
-        status["phase"] = args.phase
-        if args.phase == "ready":
+        phase = args.phase
+        if args.published_release:
+            release = json.loads(args.published_release.read_text())
+            phase = "ready" if published_release_ready(repo, release, args.ref, args.version or "") else "failed"
+        status["phase"] = phase
+        if phase == "ready":
+            if "candidateVersion" not in status:
+                if nightly_version_key(args.version or "") is None:
+                    parser.error("ready status without an artifact requires --version")
+                status["candidateVersion"] = args.version
+                status["candidateCommit"] = args.ref
             status["releasedVersion"] = status["candidateVersion"]
         write_status(repo, status)
 

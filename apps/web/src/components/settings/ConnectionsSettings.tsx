@@ -1,4 +1,4 @@
-import { newerPersonalRelease } from "@t3tools/shared/personalUpdate";
+import { newerPersonalRelease, type PersonalUpdateStatus } from "@t3tools/shared/personalUpdate";
 import { usePersonalUpdateStatus } from "~/hooks/usePersonalUpdateStatus";
 import {
   ChevronRightIcon,
@@ -51,6 +51,7 @@ import {
   type DesktopServerExposureState,
   type DesktopWslState,
   type EnvironmentId,
+  type ServerConfig,
   resolveEnvironmentMachineKind,
 } from "@t3tools/contracts";
 import {
@@ -1639,19 +1640,10 @@ function SavedBackendListRow({
     },
   });
   const { status: personalUpdateStatus } = usePersonalUpdateStatus();
-  const personalVersion =
-    resolveServerSelfUpdateCapability(environment.serverConfig) === "respawn"
-      ? newerPersonalRelease(
-          personalUpdateStatus,
-          environment.serverConfig?.environment.serverVersion,
-        )
-      : null;
-  const versionMismatch = personalVersion
-    ? {
-        clientVersion: personalVersion,
-        serverVersion: environment.serverConfig?.environment.serverVersion ?? "",
-      }
-    : resolveServerConfigVersionMismatch(environment.serverConfig);
+  const versionMismatch = resolveConnectionServerVersionMismatch(
+    environment.serverConfig,
+    personalUpdateStatus,
+  );
   const serverUpdateState = useAtomValue(serverEnvironment.updateStateAtom(environmentId));
   const resumingServerUpdate =
     serverUpdateState.status === "running" && serverUpdateState.stage === "resuming";
@@ -2104,11 +2096,29 @@ function CloudRemoteEnvironmentRows({
   ) : null;
 }
 
+export function resolveConnectionServerVersionMismatch(
+  serverConfig: Pick<ServerConfig, "environment"> | null | undefined,
+  personalUpdateStatus: PersonalUpdateStatus | null,
+) {
+  const selfUpdate = resolveServerSelfUpdateCapability(serverConfig);
+  const personalVersion =
+    selfUpdate === "respawn" || selfUpdate === "boot-service"
+      ? newerPersonalRelease(personalUpdateStatus, serverConfig?.environment.serverVersion)
+      : null;
+  return personalVersion
+    ? {
+        clientVersion: personalVersion,
+        serverVersion: serverConfig?.environment.serverVersion ?? "",
+      }
+    : resolveServerConfigVersionMismatch(serverConfig);
+}
+
 export function ConnectionsSettings() {
   const desktopBridge = window.desktopBridge;
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const { environments } = useEnvironments();
   const primaryEnvironment = usePrimaryEnvironment();
+  const { status: personalUpdateStatus } = usePersonalUpdateStatus();
   const connectPairing = useAtomCommand(connectPairingAtom, { reportFailure: false });
   const connectSshEnvironment = useAtomCommand(connectSshEnvironmentAtom, {
     reportFailure: false,
@@ -2145,8 +2155,8 @@ export function ConnectionsSettings() {
       ),
     [savedEnvironments],
   );
-  // Machines "Update all" can reach: switched on, connected, behind the client
-  // version, remotely updatable, and not already mid-update. The button only
+  // Machines "Update all" can reach: switched on, connected, behind the update
+  // target, remotely updatable, and not already mid-update. The button only
   // renders when this list is non-empty.
   const savedServerUpdateStatesAtom = useMemo(
     () =>
@@ -2162,7 +2172,10 @@ export function ConnectionsSettings() {
   const savedServerUpdateTargets = useMemo(
     () =>
       savedServerUpdateStates.flatMap(({ environment, updateStatus }): ServerUpdateTarget[] => {
-        const mismatch = resolveServerConfigVersionMismatch(environment.serverConfig);
+        const mismatch = resolveConnectionServerVersionMismatch(
+          environment.serverConfig,
+          personalUpdateStatus,
+        );
         const selfUpdate = resolveServerSelfUpdateCapability(environment.serverConfig);
         const desktopAppUpdate = supportsDesktopAppUpdate(environment.serverConfig);
         if (
@@ -2191,7 +2204,7 @@ export function ConnectionsSettings() {
           },
         ];
       }),
-    [savedServerUpdateStates],
+    [savedServerUpdateStates, personalUpdateStatus],
   );
   // Switched-off machines never receive threads, so they stay out of the
   // load balancing and GitHub sharing lists. The WSL backend has no row in
@@ -2294,17 +2307,10 @@ export function ConnectionsSettings() {
     DesktopServerExposureState["mode"] | null
   >(null);
   const primaryServerConfig = primaryEnvironment?.serverConfig ?? null;
-  const { status: personalUpdateStatus } = usePersonalUpdateStatus();
-  const personalVersion =
-    resolveServerSelfUpdateCapability(primaryServerConfig) === "respawn"
-      ? newerPersonalRelease(personalUpdateStatus, primaryServerConfig?.environment.serverVersion)
-      : null;
-  const primaryVersionMismatch = personalVersion
-    ? {
-        clientVersion: personalVersion,
-        serverVersion: primaryServerConfig?.environment.serverVersion ?? "",
-      }
-    : resolveServerConfigVersionMismatch(primaryServerConfig);
+  const primaryVersionMismatch = resolveConnectionServerVersionMismatch(
+    primaryServerConfig,
+    personalUpdateStatus,
+  );
   const primaryServerUpdateState = useAtomValue(
     serverEnvironment.updateStateAtom(primaryEnvironmentId),
   );

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { decodePersonalUpdateStatus, personalUpdateMessage } from "./personalUpdate.ts";
 
 const status = {
@@ -27,5 +27,12 @@ describe("personal nightly status", () => {
     expect(
       decodePersonalUpdateStatus({ ...status, releasedVersion: null }).releasedVersion,
     ).toBeNull();
+  });
+  it("preserves the producer's attempt sequence and accepts older feeds without it", () => {
+    expect(decodePersonalUpdateStatus({ ...status, sequence: 1791417149067 }).sequence).toBe(
+      1791417149067,
+    );
+    expect(decodePersonalUpdateStatus(status).sequence).toBeUndefined();
+    expect(() => decodePersonalUpdateStatus({ ...status, sequence: "1791417149067" })).toThrow();
   });
 });

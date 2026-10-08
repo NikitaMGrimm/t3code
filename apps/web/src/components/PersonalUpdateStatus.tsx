@@ -15,7 +15,7 @@ export function PersonalUpdateNotification() {
       if (notice.current) toastManager.close(notice.current.id);
       return;
     }
-    const attempt = `${status.runUrl}:${status.phase}`;
+    const attempt = `${status.runUrl}:${status.sequence ?? status.phase}`;
     // Polling and Strict Mode must not reopen a dismissed notice for the same attempt.
     if (notice.current?.attempt === attempt) return;
     if (notice.current) toastManager.close(notice.current.id);

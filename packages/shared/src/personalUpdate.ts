@@ -8,6 +8,7 @@ const NightlyVersion = Schema.String.check(Schema.isPattern(/^\d+\.\d+\.\d+-nigh
 
 export const PersonalUpdateStatus = Schema.Struct({
   schema: Schema.Literal(1),
+  sequence: Schema.optional(Schema.Int),
   phase: Schema.Literals(["building", "ready", "conflict", "failed"]),
   upstreamTag: Schema.String,
   conflicts: Schema.Array(Schema.String),
