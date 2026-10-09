@@ -205,7 +205,9 @@ session** in the command palette on web and desktop. The conversation continues,
 and your next message starts the agent again with the new setup.
 
 Provider commands must start the message to run. T3 Code commands such as
-`/model` and `/plan`, and skill mentions, work on any line.
+`/model` and `/plan`, and skills, can be picked from a `/` at the start of any
+word, so `Use /review` offers your review skill mid-sentence. A word with a
+second slash, such as `/tmp/build.sh`, stays plain text.
 
 Send `/compact` in an existing conversation to reduce context usage when the
 provider supports it. Web and desktop also offer compaction from the context meter.

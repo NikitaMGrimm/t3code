@@ -61,35 +61,22 @@ export function detectComposerTrigger(
   const lineStart = text.lastIndexOf("\n", Math.max(0, cursor - 1)) + 1;
   const linePrefix = text.slice(lineStart, cursor);
 
-  if (linePrefix.startsWith("/")) {
-    const commandMatch = /^\/(\S*)$/.exec(linePrefix);
-    if (commandMatch) {
-      const commandQuery = commandMatch[1] ?? "";
-      if (commandQuery.toLowerCase() === "model") {
-        return {
-          kind: "slash-model",
-          query: "",
-          rangeStart: lineStart,
-          rangeEnd: cursor,
-        };
-      }
-      return {
-        kind: "slash-command",
-        query: commandQuery,
-        rangeStart: lineStart,
-        rangeEnd: cursor,
-      };
-    }
-
-    const modelMatch = /^\/model(?:\s+(.*))?$/.exec(linePrefix);
-    if (modelMatch) {
-      return {
-        kind: "slash-model",
-        query: (modelMatch[1] ?? "").trim(),
-        rangeStart: lineStart,
-        rangeEnd: cursor,
-      };
-    }
+  if (linePrefix.toLowerCase() === "/model") {
+    return {
+      kind: "slash-model",
+      query: "",
+      rangeStart: lineStart,
+      rangeEnd: cursor,
+    };
+  }
+  const modelMatch = /^\/model\s+(.*)$/.exec(linePrefix);
+  if (modelMatch) {
+    return {
+      kind: "slash-model",
+      query: (modelMatch[1] ?? "").trim(),
+      rangeStart: lineStart,
+      rangeEnd: cursor,
+    };
   }
 
   const wsCheck = isWhitespaceChar ?? isWhitespace;
@@ -100,6 +87,21 @@ export function detectComposerTrigger(
   const tokenStart = tokenIdx + 1;
 
   const token = text.slice(tokenStart, cursor);
+  if (token.startsWith("/")) {
+    let tokenEnd = cursor;
+    while (tokenEnd < text.length && !wsCheck(text[tokenEnd] ?? "")) {
+      tokenEnd += 1;
+    }
+    // A second slash anywhere in the word makes it a path such as /tmp/build.sh,
+    // even while the caret is still before that slash.
+    if (text.slice(tokenStart + 1, tokenEnd).includes("/")) return null;
+    return {
+      kind: "slash-command",
+      query: token.slice(1),
+      rangeStart: tokenStart,
+      rangeEnd: cursor,
+    };
+  }
   const pullRequestMatch = /^#([\p{L}\p{N}][\p{L}\p{N}_-]*)?$/u.exec(token);
   if (pullRequestMatch)
     return {
