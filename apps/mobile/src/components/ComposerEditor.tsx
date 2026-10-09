@@ -119,6 +119,11 @@ export function ComposerEditor({
           "Some attachments could not be copied",
           "Reconnect to the source environment and copy them again. References without their files are marked unavailable.",
         );
+      else if (result.skippedThreads.length > 0)
+        Alert.alert(
+          "Threads from another machine weren't pasted",
+          `This machine's agent can't read ${result.skippedThreads.map((title) => `"${title}"`).join(", ")}, so the references are marked unavailable.`,
+        );
     } catch (error) {
       if (!controller.signal.aborted)
         Alert.alert(
