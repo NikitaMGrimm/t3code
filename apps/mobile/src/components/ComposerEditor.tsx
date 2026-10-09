@@ -101,6 +101,7 @@ export function ComposerEditor({
         retained.attachments.length,
         controller.signal,
         retained.context?.records.length ?? 0,
+        environmentId,
       );
       if (!result) {
         insertComposerDraftText(draftKey, clipboard.text, insertion);

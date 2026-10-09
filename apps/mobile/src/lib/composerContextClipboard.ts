@@ -66,6 +66,7 @@ export async function importComposerContextClipboard(
   existingCount: number,
   signal: AbortSignal,
   existingContextCount = 0,
+  destinationEnvironmentId?: EnvironmentId,
 ) {
   const fragment =
     decodeComposerContextFragment(input.fragment) ?? decodeComposerContextClipboardHtml(input.html);
@@ -81,6 +82,13 @@ export async function importComposerContextClipboard(
     for (const record of imported.context.records) {
       checkAborted(signal);
       if (!("attachmentId" in record)) {
+        // The agent can only read threads on its own server; a pasted foreign one is dropped.
+        if (
+          record.kind === "thread" &&
+          "threadId" in record &&
+          record.environmentId !== destinationEnvironmentId
+        )
+          continue;
         records.push(record);
         continue;
       }
