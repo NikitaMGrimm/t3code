@@ -20,6 +20,7 @@ import * as ProviderEventLoggers from "@t3tools/provider-core/server/ProviderEve
 import * as ProviderMaintenance from "@t3tools/provider-core/server/maintenanceResolver";
 import * as OpenCodeRuntime from "./OpenCodeRuntime.ts";
 import {
+  OPENCODE_1_RESPONSES,
   OPENCODE_2_RESPONSES,
   OPENCODE_2_WORKSPACE_RESPONSES,
   replayOpenCodeServer,
@@ -109,6 +110,36 @@ it.layer(layer)("OpenCodeDriver runtime selection", (it) => {
       );
       assert.include(requested, "/api/skill");
       assert.deepStrictEqual(serverStarts, []);
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect("keeps an OpenCode 1.x workspace's commands pending when listing them fails", () =>
+    Effect.gen(function* () {
+      const openCode1Runtime = {
+        connectToOpenCodeServer: () =>
+          Effect.succeed({
+            url: "http://127.0.0.1:4096",
+            version: "1.18.32",
+            exitCode: null,
+            external: true,
+          }),
+        createOpenCodeSdkClient: () => ({
+          command: { list: () => Promise.reject(new Error("command.list failed")) },
+        }),
+        loadOpenCodeSkills: () =>
+          Effect.succeed([{ name: "plum", location: "/work/.opencode/skills/plum/SKILL.md" }]),
+      } as unknown as OpenCodeRuntime.OpenCodeRuntimeShape;
+      const instance = yield* create(
+        { serverUrl: "http://127.0.0.1:4096", serverPassword: "secret" },
+        replayOpenCodeServer(OPENCODE_1_RESPONSES, "secret"),
+      ).pipe(Effect.provideService(OpenCodeRuntime.OpenCodeRuntime, openCode1Runtime));
+
+      const workspace = yield* instance.snapshotForCwd!("/work");
+      assert.deepStrictEqual(
+        workspace.skills.map((skill) => skill.name),
+        ["plum"],
+      );
+      assert.strictEqual(workspace.slashCommandsPending, true);
     }).pipe(Effect.scoped),
   );
 
