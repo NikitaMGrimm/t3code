@@ -75,7 +75,7 @@ function PopoverPopup({
         className={cn(
           "h-(--positioner-height) w-(--positioner-width) max-w-(--available-width) transition-transform data-instant:transition-none",
           variant === "panel"
-            ? "z-(--z-sheet) w-[min(var(--thread-details-panel-width),var(--anchor-width))] transition-none"
+            ? "z-(--z-floating-panel) w-[min(var(--thread-details-panel-width),var(--anchor-width))] transition-none"
             : "z-[130]",
         )}
         data-slot="popover-positioner"
