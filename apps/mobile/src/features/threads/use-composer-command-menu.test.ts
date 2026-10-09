@@ -194,10 +194,11 @@ describe("mobile slash menu position", () => {
     vi.unstubAllGlobals();
   });
 
-  it("offers provider commands only when the slash opens the message", async () => {
+  it("offers provider commands only before any prompt text", async () => {
     expect(await itemLabelsFor("/rev")).toEqual(["/review-pr", "skill:review"]);
+    expect(await itemLabelsFor("  /rev")).toEqual(["/review-pr", "skill:review"]);
     expect(await itemLabelsFor("Use /rev")).toEqual(["skill:review"]);
-    expect(await itemLabelsFor("  /rev")).toEqual(["skill:review"]);
+    expect(await itemLabelsFor("Use\n/rev")).toEqual(["skill:review"]);
   });
 
   it("keeps a path literal", async () => {
