@@ -2573,14 +2573,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     cwd: isPathTrigger ? gitCwd : null,
     query: isPathTrigger ? pathTriggerQuery : null,
   });
+  // The trigger's range indexes the text in the editor, which is the custom answer
+  // while a pending question is open.
+  const composerEditorText = activePendingProgress ? activePendingProgress.customAnswer : prompt;
   // Sends are trimmed, so a provider command after leading whitespace still opens the message.
   const slashCommandAtPromptStart =
     composerTrigger?.kind === "slash-command" &&
-    prompt.slice(0, composerTrigger.rangeStart).trim() === "";
+    composerEditorText.slice(0, composerTrigger.rangeStart).trim() === "";
   const compactSlashCommandAvailable =
     slashCommandAtPromptStart &&
     !compactThreadUnavailable &&
-    prompt.slice(composerTrigger.rangeEnd).trim() === "" &&
+    composerEditorText.slice(composerTrigger.rangeEnd).trim() === "" &&
     composerImages.length + composerFiles.length === 0 &&
     composerDraft.persistedAttachments.length === 0 &&
     composerTerminalContexts.length === 0 &&
