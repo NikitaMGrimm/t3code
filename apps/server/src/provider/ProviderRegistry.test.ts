@@ -1995,7 +1995,21 @@ it.layer(
           yield* registry.refreshWorkspaceSnapshot({ instanceId, cwd: "/workspace" });
           assert.deepStrictEqual((yield* workspaceOf)?.skills, []);
 
+          // A driver that discovers its own commands reports them even while
+          // health is in error.
+          const discoveredCommand = { name: "review", description: "Review changes" };
+          yield* Ref.set(scanResult, {
+            ...unhealthyProvider,
+            slashCommands: [discoveredCommand],
+            slashCommandsPending: false,
+          });
+          yield* registry.refreshWorkspaceSnapshot({ instanceId, cwd: "/workspace" });
+          const discovered = yield* workspaceOf;
+          assert.deepStrictEqual(discovered?.slashCommands, [discoveredCommand]);
+          assert.strictEqual(discovered?.slashCommandsPending, undefined);
+
           // Once health recovers, the next scan restores the full entry.
+          yield* TestClock.adjust(PROVIDER_WORKSPACE_SNAPSHOT_TTL_MS);
           yield* Ref.set(scanResult, { ...healthyProvider, skills: laterSkills });
           yield* registry.refreshWorkspaceSnapshot({ instanceId, cwd: "/workspace" });
           const recovered = yield* workspaceOf;
