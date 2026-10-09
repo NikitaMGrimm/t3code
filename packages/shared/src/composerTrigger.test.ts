@@ -15,6 +15,36 @@ describe("detectComposerTrigger", () => {
       });
     },
   );
+
+  it.each(["Use /rev", "Use\n  /rev", "  /rev"])(
+    "detects a slash command that starts a word in %j",
+    (text) => {
+      expect(detectComposerTrigger(text, text.length)).toEqual({
+        kind: "slash-command",
+        query: "rev",
+        rangeStart: text.length - "/rev".length,
+        rangeEnd: text.length,
+      });
+    },
+  );
+
+  it.each([
+    ["Use /tmp/build.sh", "Use /tmp/build.sh".length],
+    ["Use /etc/hosts", "Use /etc/hosts".length],
+    ["/etc/hosts", "/etc/hosts".length],
+    ["Use /etc/hosts now", "Use /et".length],
+    ["see https://example.com/a", "see https://example.com/a".length],
+  ])("keeps paths and URLs literal in %j", (text, cursor) => {
+    expect(detectComposerTrigger(text, cursor)).toBeNull();
+  });
+
+  it("keeps the line-leading model picker query", () => {
+    expect(detectComposerTrigger("/model", 6)).toMatchObject({ kind: "slash-model", query: "" });
+    expect(detectComposerTrigger("/model openai/gpt", 17)).toMatchObject({
+      kind: "slash-model",
+      query: "openai/gpt",
+    });
+  });
 });
 
 describe("serializeComposerFileLink", () => {
