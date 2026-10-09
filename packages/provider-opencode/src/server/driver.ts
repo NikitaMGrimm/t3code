@@ -410,10 +410,18 @@ export const OpenCodeDriver: ProviderDriver<
             skills: openCodeRuntime.loadOpenCodeSkills(client),
             commands: OpenCodeRuntime.loadOpenCodeCommands(client).pipe(
               Effect.timeout("10 seconds"),
-              Effect.orElseSucceed(() => []),
+              Effect.option,
             ),
           },
           { concurrency: "unbounded" },
+        ).pipe(
+          // A failed command lookup leaves the commands pending, so the
+          // registry keeps the last known ones and rescans.
+          Effect.map(({ skills, commands }) => ({
+            skills,
+            commands: Option.getOrElse(commands, () => []),
+            slashCommandsPending: Option.isNone(commands),
+          })),
         );
       const loadWorkspaceForCwd = (cwd: string) =>
         effectiveConfig.serverUrl.trim().length > 0
@@ -524,11 +532,11 @@ export const OpenCodeDriver: ProviderDriver<
                   snapshot.getSnapshot,
                   loadWorkspaceForCwd(cwd).pipe(Effect.timeout("20 seconds")),
                 ]).pipe(
-                  Effect.map(([machineSnapshot, { skills, commands }]) => ({
+                  Effect.map(([machineSnapshot, { skills, commands, slashCommandsPending }]) => ({
                     ...machineSnapshot,
                     skills: openCodeSkillsToServerProviderSkills(skills),
                     slashCommands: openCodeCommandsToServerProviderSlashCommands(commands),
-                    slashCommandsPending: false,
+                    slashCommandsPending,
                   })),
                   Effect.mapError(
                     (cause) =>
