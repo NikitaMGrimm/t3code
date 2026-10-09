@@ -517,6 +517,7 @@ export const OpenCodeDriver: ProviderDriver<
                     ...machineSnapshot,
                     skills: openCode2SkillsToServerProviderSkills(skills),
                     slashCommands: openCode2CommandsToServerProviderSlashCommands(commands),
+                    slashCommandsPending: false,
                   })),
                 ),
                 v1: Effect.all([
@@ -527,6 +528,7 @@ export const OpenCodeDriver: ProviderDriver<
                     ...machineSnapshot,
                     skills: openCodeSkillsToServerProviderSkills(skills),
                     slashCommands: openCodeCommandsToServerProviderSlashCommands(commands),
+                    slashCommandsPending: false,
                   })),
                   Effect.mapError(
                     (cause) =>
