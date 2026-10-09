@@ -8799,8 +8799,13 @@ export default function ChatView(props: ChatViewProps) {
           : "Choose a machine to continue",
         description: loadBalancing.pending
           ? "Resource checks are still running. You can choose a machine in the composer."
-          : draftThreadContexts?.length
-            ? "No eligible machine can read every attached thread. Choose a machine in the composer or remove the threads."
+          : draftThreadContexts?.length &&
+              !logicalProjectEnvironments.some((candidate) =>
+                draftThreadContexts.every(
+                  (record) => record.environmentId === candidate.environmentId,
+                ),
+              )
+            ? "No machine can read every attached thread. Choose a machine in the composer or remove the threads."
             : "No eligible machine has available resources. Choose a machine in the composer to override.",
       });
       return;
