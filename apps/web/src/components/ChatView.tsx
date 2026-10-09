@@ -39,6 +39,7 @@ import {
 import { feedbackBannerItem } from "./chat/ComposerFeedback";
 import { usageLimitsBannerItem } from "./chat/ComposerUsageLimits";
 import { getTerminalLabel } from "@t3tools/shared/terminalLabels";
+import { threadContextsOutsideEnvironment } from "@t3tools/shared/composerContextReferences";
 import * as Schema from "effect/Schema";
 import {
   questionAttachmentDraftId,
@@ -1805,6 +1806,9 @@ export default function ChatView(props: ChatViewProps) {
     const draft = store.getComposerDraft(composerDraftTarget);
     return (draft?.images.length ?? 0) > 0 || (draft?.files.length ?? 0) > 0;
   });
+  const draftThreadContexts = useComposerDraftStore(
+    (store) => store.getComposerDraft(composerDraftTarget)?.threadContexts ?? null,
+  );
   // Anything beyond the prompt text: attachments, terminal or element contexts, annotations.
   const composerHasNonPromptContent = useComposerDraftStore((store) => {
     const draft = store.getComposerDraft(composerDraftTarget);
@@ -4351,6 +4355,10 @@ export default function ChatView(props: ChatViewProps) {
               return (
                 environment?.connection.phase === "connected" &&
                 (loadBalancingSettings.loadBalancingWeights[candidate.environmentId] ?? 50) > 0 &&
+                // Only a machine that owns every attached thread can read them.
+                (draftThreadContexts ?? []).every(
+                  (record) => record.environmentId === candidate.environmentId,
+                ) &&
                 environment.serverConfig?.providers.some(
                   (provider) =>
                     (activeProviderInstanceId === null ||
@@ -4370,6 +4378,7 @@ export default function ChatView(props: ChatViewProps) {
       needsLoadBalancing,
       logicalProjectEnvironments,
       environmentById,
+      draftThreadContexts,
       loadBalancingSettings.loadBalancingWeights,
       activeProviderInstanceId,
       selectedProvider,
@@ -8900,6 +8909,22 @@ export default function ChatView(props: ChatViewProps) {
           previewAnnotationContextReference(directAnnotation.annotation),
         ])
       : promptRef.current;
+    const strandedThread = threadContextsOutsideEnvironment({
+      text: promptForSend,
+      records: composerThreadContexts,
+      environmentId,
+    })[0];
+    if (strandedThread) {
+      const owner = environmentById.get(strandedThread.environmentId)?.label ?? "another machine";
+      toastManager.add(
+        stackedThreadToast({
+          type: "warning",
+          title: "Attached thread is on another machine",
+          description: `This machine's agent can't read "${strandedThread.title}". Remove it, or switch back to ${owner} to send.`,
+        }),
+      );
+      return;
+    }
     if (editingQueuedRun !== null) {
       // Edit mode repurposes the composer: sending saves the queued message
       // in place instead of dispatching a new turn.
