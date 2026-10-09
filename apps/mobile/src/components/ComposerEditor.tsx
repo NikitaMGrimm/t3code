@@ -114,15 +114,22 @@ export function ComposerEditor({
         );
         return;
       }
-      if (result.failures.length > 0)
+      const warnings = [
+        ...(result.failures.length > 0
+          ? [
+              "Some attachments could not be copied. Reconnect to the source environment and copy them again.",
+            ]
+          : []),
+        ...(result.skippedThreads.length > 0
+          ? [
+              `Threads from another machine weren't pasted: this machine's agent can't read ${result.skippedThreads.map((title) => `"${title}"`).join(", ")}.`,
+            ]
+          : []),
+      ];
+      if (warnings.length > 0)
         Alert.alert(
-          "Some attachments could not be copied",
-          "Reconnect to the source environment and copy them again. References without their files are marked unavailable.",
-        );
-      else if (result.skippedThreads.length > 0)
-        Alert.alert(
-          "Threads from another machine weren't pasted",
-          `This machine's agent can't read ${result.skippedThreads.map((title) => `"${title}"`).join(", ")}, so the references are marked unavailable.`,
+          "Some context could not be pasted",
+          [...warnings, "Those references are marked unavailable."].join("\n\n"),
         );
     } catch (error) {
       if (!controller.signal.aborted)
