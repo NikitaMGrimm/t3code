@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { ComposerContextId, EnvironmentId, ThreadId } from "@t3tools/contracts";
+import {
+  COMPOSER_CONTEXT_MAX_RECORDS,
+  ComposerContextId,
+  EnvironmentId,
+  ThreadId,
+} from "@t3tools/contracts";
 import { encodeComposerContextFragment } from "@t3tools/shared/composerContextClipboard";
 
 const mocks = vi.hoisted(() => ({
@@ -164,10 +169,12 @@ describe("mobile context clipboard imports", () => {
       },
       0,
       new AbortController().signal,
-      0,
+      // Only one slot is free: the dropped thread must not count against it.
+      COMPOSER_CONTEXT_MAX_RECORDS - 1,
       EnvironmentId.make("destination"),
     );
     expect(result?.context.records.map((record) => record.label)).toEqual(["local"]);
+    expect(result?.skippedThreads).toEqual(["foreign"]);
   });
 
   it("refuses an overflowing context paste before copying files", async () => {
