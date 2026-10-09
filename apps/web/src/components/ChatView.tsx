@@ -8799,7 +8799,9 @@ export default function ChatView(props: ChatViewProps) {
           : "Choose a machine to continue",
         description: loadBalancing.pending
           ? "Resource checks are still running. You can choose a machine in the composer."
-          : "No eligible machine has available resources. Choose a machine in the composer to override.",
+          : draftThreadContexts?.length
+            ? "No eligible machine can read every attached thread. Choose a machine in the composer or remove the threads."
+            : "No eligible machine has available resources. Choose a machine in the composer to override.",
       });
       return;
     }
@@ -8915,7 +8917,7 @@ export default function ChatView(props: ChatViewProps) {
       environmentId,
     })[0];
     if (strandedThread) {
-      const owner = environmentById.get(strandedThread.environmentId)?.label ?? "another machine";
+      const owner = environmentById.get(strandedThread.environmentId)?.label ?? "its machine";
       toastManager.add(
         stackedThreadToast({
           type: "warning",

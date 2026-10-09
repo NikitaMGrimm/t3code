@@ -1300,7 +1300,7 @@ export function NewTaskDraftScreen(props: {
       const owner =
         flow.environments.find(
           (environment) => environment.environmentId === strandedThread.environmentId,
-        )?.environmentLabel ?? "another machine";
+        )?.environmentLabel ?? "its machine";
       Alert.alert(
         "Attached thread is on another machine",
         `This machine's agent can't read "${strandedThread.title}". Remove it, or switch back to ${owner} to send.`,

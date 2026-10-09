@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { ComposerContextId, EnvironmentId } from "@t3tools/contracts";
+import { ComposerContextId, EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { encodeComposerContextFragment } from "@t3tools/shared/composerContextClipboard";
 
 const mocks = vi.hoisted(() => ({
@@ -140,6 +140,34 @@ describe("mobile context clipboard imports", () => {
     });
     expect(mocks.execute).not.toHaveBeenCalled();
     expect(mocks.download).not.toHaveBeenCalled();
+  });
+
+  it("drops threads owned by another machine than the destination", async () => {
+    const thread = (id: string, environmentId: string) => ({
+      version: 1 as const,
+      kind: "thread" as const,
+      contextId: ComposerContextId.make(id),
+      label: id,
+      environmentId: EnvironmentId.make(environmentId),
+      threadId: ThreadId.make(id),
+      title: id,
+    });
+    const result = await importComposerContextClipboard(
+      {
+        text: "[local](t3-context://v1/thread/local) [foreign](t3-context://v1/thread/foreign)",
+        fragment: encodeComposerContextFragment({
+          version: 1,
+          source: { environmentId: EnvironmentId.make("source") },
+          records: [thread("local", "destination"), thread("foreign", "source")],
+        })!,
+        html: "",
+      },
+      0,
+      new AbortController().signal,
+      0,
+      EnvironmentId.make("destination"),
+    );
+    expect(result?.context.records.map((record) => record.label)).toEqual(["local"]);
   });
 
   it("refuses an overflowing context paste before copying files", async () => {
