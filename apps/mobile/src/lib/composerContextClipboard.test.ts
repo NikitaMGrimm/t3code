@@ -147,16 +147,17 @@ describe("mobile context clipboard imports", () => {
     expect(mocks.download).not.toHaveBeenCalled();
   });
 
+  const thread = (id: string, environmentId: string) => ({
+    version: 1 as const,
+    kind: "thread" as const,
+    contextId: ComposerContextId.make(id),
+    label: id,
+    environmentId: EnvironmentId.make(environmentId),
+    threadId: ThreadId.make(id),
+    title: id,
+  });
+
   it("drops threads owned by another machine than the destination", async () => {
-    const thread = (id: string, environmentId: string) => ({
-      version: 1 as const,
-      kind: "thread" as const,
-      contextId: ComposerContextId.make(id),
-      label: id,
-      environmentId: EnvironmentId.make(environmentId),
-      threadId: ThreadId.make(id),
-      title: id,
-    });
     const result = await importComposerContextClipboard(
       {
         text: "[local](t3-context://v1/thread/local) [foreign](t3-context://v1/thread/foreign)",
@@ -175,6 +176,24 @@ describe("mobile context clipboard imports", () => {
     );
     expect(result?.context.records.map((record) => record.label)).toEqual(["local"]);
     expect(result?.skippedThreads).toEqual(["foreign"]);
+  });
+
+  it("keeps threads when the destination machine is unknown", async () => {
+    const result = await importComposerContextClipboard(
+      {
+        text: "[foreign](t3-context://v1/thread/foreign)",
+        fragment: encodeComposerContextFragment({
+          version: 1,
+          source: { environmentId: EnvironmentId.make("source") },
+          records: [thread("foreign", "source")],
+        })!,
+        html: "",
+      },
+      0,
+      new AbortController().signal,
+    );
+    expect(result?.context.records.map((record) => record.label)).toEqual(["foreign"]);
+    expect(result?.skippedThreads).toEqual([]);
   });
 
   it("refuses an overflowing context paste before copying files", async () => {

@@ -79,6 +79,7 @@ export async function importComposerContextClipboard(
     if (
       record.kind !== "thread" ||
       !("threadId" in record) ||
+      destinationEnvironmentId === undefined ||
       record.environmentId === destinationEnvironmentId
     )
       return true;
