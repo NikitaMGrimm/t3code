@@ -1,15 +1,17 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.0.46-nightly.20261010.2948",
+  "upstreamTag": "v0.0.46-nightly.20261011.2955",
   "conflicts": [
+    "apps/web/src/components/ChatMarkdown.test.tsx",
     "apps/web/src/components/ChatView.tsx",
     "apps/web/src/components/chat/DraftHeroHeadline.tsx",
+    "apps/web/src/components/chat/ThreadDetailsCard.tsx",
     "apps/web/src/components/settings/ConnectionsSettings.tsx",
     "packages/shared/package.json"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38095731121",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38116510598",
   "releasedVersion": "0.0.46-nightly.20261008.1791477230712",
   "baseCommit": "bd7cd7be8bf813ffe7c91be249bd61328dfa10d9",
-  "sequence": 1791675517293
+  "sequence": 1791698298214
 }
