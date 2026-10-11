@@ -122,13 +122,13 @@ export function ComposerEditor({
           : []),
         ...(result.skippedThreads.length > 0
           ? [
-              `Threads from another machine weren't pasted: this machine's agent can't read ${result.skippedThreads.map((title) => `"${title}"`).join(", ")}.`,
+              `${result.skippedThreads.map((title) => `"${title}"`).join(", ")} ${result.skippedThreads.length === 1 ? "is" : "are"} on another machine.`,
             ]
           : []),
       ];
       if (warnings.length > 0)
         Alert.alert(
-          "Some context could not be pasted",
+          "Some context is unavailable",
           [...warnings, "Those references are marked unavailable."].join("\n\n"),
         );
     } catch (error) {

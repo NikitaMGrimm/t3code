@@ -1310,8 +1310,8 @@ export function NewTaskDraftScreen(props: {
           (environment) => environment.environmentId === strandedThread.environmentId,
         )?.environmentLabel ?? "its machine";
       Alert.alert(
-        "Attached thread is on another machine",
-        `This machine's agent can't read "${strandedThread.title}". Remove it, or switch back to ${owner} to send.`,
+        "Attached thread unavailable",
+        `"${strandedThread.title}" is on another machine. Switch back to ${owner} or remove it from the draft.`,
       );
       return;
     }
