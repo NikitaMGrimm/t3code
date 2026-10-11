@@ -101,7 +101,6 @@ export function ComposerEditor({
         retained.attachments.length,
         controller.signal,
         retained.context?.records.length ?? 0,
-        environmentId,
       );
       if (!result) {
         insertComposerDraftText(draftKey, clipboard.text, insertion);
@@ -114,22 +113,10 @@ export function ComposerEditor({
         );
         return;
       }
-      const warnings = [
-        ...(result.failures.length > 0
-          ? [
-              "Some attachments could not be copied. Reconnect to the source environment and copy them again.",
-            ]
-          : []),
-        ...(result.skippedThreads.length > 0
-          ? [
-              `Threads from another machine weren't pasted: this machine's agent can't read ${result.skippedThreads.map((title) => `"${title}"`).join(", ")}.`,
-            ]
-          : []),
-      ];
-      if (warnings.length > 0)
+      if (result.failures.length > 0)
         Alert.alert(
-          "Some context could not be pasted",
-          [...warnings, "Those references are marked unavailable."].join("\n\n"),
+          "Some attachments could not be copied",
+          "Reconnect to the source environment and copy them again. References without their files are marked unavailable.",
         );
     } catch (error) {
       if (!controller.signal.aborted)
