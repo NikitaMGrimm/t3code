@@ -330,17 +330,6 @@ function ComposerPreviewAnnotationDetails({
   );
 }
 
-/** Sending is blocked while an attached thread lives on another machine than the draft. */
-function ComposerThreadContextChip(props: { record: ThreadContextRecord }) {
-  const { environmentId } = use(ComposerContextActionsContext);
-  return (
-    <ThreadContextChip
-      record={props.record}
-      unreadable={environmentId !== null && props.record.environmentId !== environmentId}
-    />
-  );
-}
-
 function UnresolvedContextChip(props: { label: string }) {
   return (
     <UnresolvedChip
@@ -450,7 +439,7 @@ const composerContextPresentationRegistry = createContextPresentationRegistry<
       canRender: (entry) => entry.kind === "thread",
       render: (entry, context) =>
         entry.kind === "thread" ? (
-          <ComposerThreadContextChip record={entry.record} />
+          <ThreadContextChip record={entry.record} />
         ) : (
           <UnresolvedContextChip label={context.label} />
         ),
