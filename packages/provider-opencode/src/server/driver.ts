@@ -525,7 +525,9 @@ export const OpenCodeDriver: ProviderDriver<
                     ...machineSnapshot,
                     skills: openCode2SkillsToServerProviderSkills(skills),
                     slashCommands: openCode2CommandsToServerProviderSlashCommands(commands),
-                    slashCommandsPending: false,
+                    // A finished scan lists at least the built-ins. None means it
+                    // timed out, so the registry keeps the last ones and rescans.
+                    slashCommandsPending: commands.length === 0,
                   })),
                 ),
                 v1: Effect.all([

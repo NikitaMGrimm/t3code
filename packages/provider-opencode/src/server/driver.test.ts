@@ -117,6 +117,34 @@ it.layer(layer)("OpenCodeDriver runtime selection", (it) => {
     }).pipe(Effect.scoped),
   );
 
+  it.effect("keeps an OpenCode 2 workspace's commands pending when its scan never ends", () =>
+    Effect.gen(function* () {
+      const instance = yield* create(
+        { serverUrl: "http://127.0.0.1:4096", serverPassword: "secret" },
+        replayOpenCodeServer(
+          {
+            ...OPENCODE_2_RESPONSES,
+            ...OPENCODE_2_WORKSPACE_RESPONSES,
+            "/api/command": {
+              ...OPENCODE_2_WORKSPACE_RESPONSES["/api/command"],
+              body: '{"location":{"directory":"/work"},"data":[]}',
+            },
+          },
+          "secret",
+        ),
+      );
+
+      const scan = yield* instance.snapshotForCwd!("/work").pipe(Effect.forkChild);
+      yield* TestClock.adjust("10 seconds");
+      const workspace = yield* Fiber.join(scan);
+      assert.includeMembers(
+        workspace.skills.map((skill) => skill.name),
+        ["plum"],
+      );
+      assert.strictEqual(workspace.slashCommandsPending, true);
+    }).pipe(Effect.scoped, Effect.provide(TestClock.layer())),
+  );
+
   it.effect("keeps an OpenCode 1.x workspace's commands pending when listing them fails", () =>
     Effect.gen(function* () {
       const openCode1Runtime = {
