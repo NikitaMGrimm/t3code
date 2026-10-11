@@ -192,6 +192,7 @@ describe("ChatMarkdown Mermaid streaming", () => {
     ["> ```mermaid\n> flowchart LR\n> A --> B\n>     ```", "\n> ```"],
     ["- Diagram\n\n  ```mermaid\n  flowchart LR\n  A --> B\n      ```", "\n  ```"],
     ["```mermaid\r\nflowchart LR\r\nA --> B\r\n\t```", "\r\n```"],
+    ["```mermaid\r\nflowchart LR\r\nA --> B\r\n\t```\r", "\n```"],
   ])("reveals a finished fence before the message finishes: %s", async (open, closing) => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     let renderer: ReactTestRenderer | undefined;

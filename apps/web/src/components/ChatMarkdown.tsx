@@ -496,8 +496,9 @@ function isClosedCodeFence(
     opening[0] === closing[0] &&
     closing.length >= opening.length &&
     // A real closer is excluded from the parsed code. Invalid, overindented
-    // markers remain in it, so the source must have an extra fence line.
-    source.split(/\r\n|\r|\n/).length > code.split(/\r\n|\r|\n/).length
+    // markers remain in it, so the source must have an extra fence line. A
+    // stream cut inside a CRLF leaves a lone CR that is not a line of its own.
+    source.replace(/\r$/, "").split(/\r\n|\r|\n/).length > code.split(/\r\n|\r|\n/).length
   );
 }
 
