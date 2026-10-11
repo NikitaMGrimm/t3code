@@ -10,8 +10,8 @@
     "apps/web/src/components/settings/ConnectionsSettings.tsx",
     "packages/shared/package.json"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38149264277",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38171893360",
   "releasedVersion": "0.0.46-nightly.20261008.1791477230712",
   "baseCommit": "bd7cd7be8bf813ffe7c91be249bd61328dfa10d9",
-  "sequence": 1791730634756
+  "sequence": 1791750116356
 }
