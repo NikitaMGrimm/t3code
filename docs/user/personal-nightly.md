@@ -19,14 +19,18 @@ deployment coordinator so the app can update its managed container safely.
 The Personal nightly GitHub workflow checks for an official nightly and all open
 upstream PRs by this fork's owner every five minutes. It waits until changed PR
 inputs have stayed unchanged for two minutes before building. GitHub can delay
-scheduled checks. A manual run builds immediately. To activate it, publish the `personal-nightly`
+scheduled checks. Only one build runs at a time. After a build finishes, checks
+wait 30 minutes before starting another; changes during the build and cooldown
+are grouped into the next snapshot. The active build finishes from the PR heads
+it started with, so new PR pushes do not discard its packages. No rebuild happens
+when the inputs are unchanged. To activate it, publish the `personal-nightly`
 branch, make it the fork's default branch, and disable the fork's original Release
 workflow. Add the Actions secret `PERSONAL_NIGHTLY_TOKEN`: a fine-grained GitHub
 token restricted to this fork with Contents and Workflows write permissions. It
 is needed to merge upstream workflow changes. The workflow publishes only after
 the focused checks and Windows/Linux x64/arm64 builds pass. An unchanged published
 head repairs the status feed without rebuilding. An unchanged failed candidate
-waits for changed inputs or a manual retry instead of repeatedly packaging it.
+waits for changed inputs or a forced manual retry instead of repeatedly packaging it.
 
 ## Adding your own fixes
 
@@ -43,8 +47,9 @@ Direct commits are included automatically and stay separate from the refreshed
 PR imports; you do not need to add them to `personal-nightly.json`. Use clear commit titles: they become the personal entries
 in the release notes.
 
-Run **Actions → Personal nightly → Run workflow** on `personal-nightly` to build
-immediately, or wait for the next scheduled check. The existing update controls
+Run **Actions → Personal nightly → Run workflow** on `personal-nightly` and select
+**force** to bypass the debounce and cooldown when an immediate build is needed.
+Otherwise, wait for the next eligible scheduled check. The existing update controls
 offer the release after its checks and builds pass.
 
 Each changelog combines the official nightly notes since the previous successful

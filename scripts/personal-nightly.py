@@ -51,7 +51,8 @@ def write_state(repo, name, state):
         git("worktree", "add", "--detach", str(checkout), ref, cwd=repo)
         if (checkout / name).exists():
             previous = json.loads((checkout / name).read_text())
-        if state.get("sequence", 0) < previous.get("sequence", 0):
+        if (state.get("sequence", 0) < previous.get("sequence", 0)
+                or (name == "build-timing.json" and state.get("sequence") == previous.get("sequence"))):
             git("worktree", "remove", str(checkout), cwd=repo)
             return
         if name == "status.json" and state["phase"] != "ready":
@@ -134,10 +135,16 @@ def debounce_inputs(previous, inputs, now, seconds=120):
     return state, now - state["observedAt"] >= seconds
 
 
-def candidate_is_current(repo, status, config, pulls):
+def build_is_cooling_down(timing, now):
+    completed = timing.get("completedAt")
+    return completed is not None and now < completed + 30 * 60
+
+
+def candidate_is_current(repo, status, config):
+    # PR changes during a build belong to the next snapshot. Direct pushes to the
+    # integration branch still block publication so they cannot be overwritten.
     branch = git("ls-remote", "origin", f"refs/heads/{config['branch']}", cwd=repo).stdout.split()
-    return (bool(branch) and branch[0] in {status["baseCommit"], status.get("candidateCommit")}
-            and pull_request_inputs(pulls) == status["inputs"]["pullRequests"])
+    return bool(branch) and branch[0] in {status["baseCommit"], status.get("candidateCommit")}
 
 
 def fetch_pull_requests(repo, config, pulls):
@@ -430,8 +437,8 @@ def main():
     if args.command == "verify":
         status = json.loads(status_path.read_text())
         config = json.loads((repo / "personal-nightly.json").read_text())
-        if not candidate_is_current(repo, status, config, discover_pull_requests(config)):
-            raise RuntimeError("Personal changes or PR inputs advanced during this build; the next check will rebuild")
+        if not candidate_is_current(repo, status, config):
+            raise RuntimeError("Personal changes advanced during this build; the next check will rebuild")
         return
     if args.command == "notes":
         if not all([args.release_index, args.upstream_release_index, args.notes_file, args.version]):
@@ -449,16 +456,19 @@ def main():
             config = json.loads((repo / "personal-nightly.json").read_text())
             pulls = discover_pull_requests(config)
             inputs = {"upstreamTag": args.tag, "pullRequests": pull_request_inputs(pulls)}
-            automatic = os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
+            forced = (os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+                      and os.environ.get("PERSONAL_NIGHTLY_FORCE") == "true")
             previous = read_state(repo, "status.json")
             original = git("rev-parse", "HEAD", cwd=repo).stdout.strip()
-            retry_suppressed = (automatic and previous.get("phase") in ("failed", "conflict")
+            retry_suppressed = (not forced and previous.get("phase") in ("failed", "conflict")
                                 and previous.get("inputs") == inputs and previous.get("baseCommit") == original)
             observed = read_state(repo, "inputs.json")
             observation, stable = debounce_inputs(observed, inputs, time.time())
             if observation != observed:
                 write_state(repo, "inputs.json", observation)
-            if retry_suppressed or (automatic and not stable):
+            timing = read_state(repo, "build-timing.json")
+            cooling_down = build_is_cooling_down(timing, time.time())
+            if retry_suppressed or (not forced and (not stable or cooling_down)):
                 # Waiting does not erase the last failure or advertise an unpublished release.
                 status_path.write_text(json.dumps({"phase": "debouncing"}))
                 if output := os.environ.get("GITHUB_OUTPUT"):
@@ -485,7 +495,7 @@ def main():
             write_status(repo, status)
         else:
             candidate_branch = f"personal-nightly-candidate-{args.run_number}-{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
-            git("push", "origin", f"HEAD:refs/heads/{candidate_branch}")
+            git("push", "origin", f"HEAD:refs/heads/{candidate_branch}", cwd=repo)
             write_status(repo, status)
     else:
         if status_path.exists():
@@ -505,6 +515,10 @@ def main():
                 status["candidateVersion"] = args.version
                 status["candidateCommit"] = args.ref
             status["releasedVersion"] = status["candidateVersion"]
+        if re.fullmatch(r"[0-9a-f]{40}", status.get("candidateCommit", args.ref)):
+            write_state(repo, "build-timing.json", {
+                "completedAt": time.time(), "sequence": status["sequence"],
+            })
         write_status(repo, status)
 
 

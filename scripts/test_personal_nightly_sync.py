@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import os
+import sys
 import subprocess
 import tempfile
 import unittest
@@ -55,6 +56,91 @@ class PrSynchronizationTests(unittest.TestCase):
 
     def manifest(self):
         return json.loads((self.repo / "personal-nightly.json").read_text())
+
+    def remote(self):
+        remote = Path(self.temp.name) / "remote.git"
+        nightly.git("init", "--bare", str(remote))
+        nightly.git("remote", "add", "origin", str(remote), cwd=self.repo)
+        nightly.git("push", "origin", "HEAD:refs/heads/personal-nightly", cwd=self.repo)
+
+    def run_prepare(self, pulls, now, forced=False, manual=False):
+        env = {"RUNNER_TEMP": self.temp.name, "GITHUB_OUTPUT": str(Path(self.temp.name) / "output"),
+               "GITHUB_EVENT_NAME": "workflow_dispatch" if forced or manual else "schedule",
+               "GITHUB_RUN_ID": "123", "PERSONAL_NIGHTLY_FORCE": "true" if forced else "false"}
+        args = ["personal-nightly", "prepare", "--sync-prs", "--tag", self.tag]
+        with patch.object(Path, "cwd", return_value=self.repo), patch.object(sys, "argv", args), \
+                patch.dict(os.environ, env), patch.object(nightly.time, "time", return_value=now), \
+                patch.object(nightly, "discover_pull_requests", return_value=pulls), \
+                patch.object(nightly, "fetch_pull_requests") as fetch:
+            nightly.main()
+        return json.loads((Path(self.temp.name) / "personal-nightly-status.json").read_text()), fetch
+
+    def test_cooldown_coalesces_changed_inputs_without_fetching_or_building(self):
+        self.remote()
+        first = self.pull(1, {"pr.txt": "first\n"})
+        previous = {"phase": "ready", "sequence": 1, "releasedVersion": self.tag.removeprefix("v")}
+        nightly.write_status(self.repo, previous)
+        timing = {"completedAt": 100, "sequence": 1}
+        nightly.write_state(self.repo, "build-timing.json", timing)
+        nightly.write_state(self.repo, "inputs.json", {
+            "inputs": {"upstreamTag": self.tag, "pullRequests": nightly.pull_request_inputs([first])},
+            "observedAt": 1,
+        })
+        head = self.head()
+        status, fetch = self.run_prepare([first], 500)
+        self.assertEqual(status["phase"], "debouncing")
+        fetch.assert_not_called()
+        self.assertEqual(self.head(), head)
+        updated = self.pull(1, {"pr.txt": "latest\n"})
+        status, fetch = self.run_prepare([updated], 600)
+        fetch.assert_not_called()
+        self.assertEqual(status["phase"], "debouncing")
+        self.assertEqual(nightly.read_state(self.repo, "status.json"), previous)
+        self.assertEqual(nightly.read_state(self.repo, "build-timing.json"), timing)
+        status, fetch = self.run_prepare([updated], 1900)
+        fetch.assert_called_once()
+        self.assertEqual(status["phase"], "building")
+        self.assertEqual((self.repo / "pr.txt").read_text(), "latest\n")
+
+    def test_only_an_explicit_manual_force_bypasses_cooldown_and_debounce(self):
+        self.remote()
+        first = self.pull(1, {"pr.txt": "new\n"})
+        nightly.write_state(self.repo, "build-timing.json", {"completedAt": 100, "sequence": 1})
+        status, fetch = self.run_prepare([first], 101, forced=True)
+        fetch.assert_called_once()
+        self.assertEqual(status["phase"], "building")
+        self.assertEqual((self.repo / "pr.txt").read_text(), "new\n")
+
+    def test_an_ordinary_manual_check_does_not_bypass_cooldown(self):
+        self.remote()
+        first = self.pull(1, {"pr.txt": "new\n"})
+        nightly.write_state(self.repo, "build-timing.json", {"completedAt": 100, "sequence": 1})
+        status, fetch = self.run_prepare([first], 500, manual=True)
+        fetch.assert_not_called()
+        self.assertEqual(status["phase"], "debouncing")
+
+    def test_failed_build_records_completion_time_and_unchanged_checks_do_not_extend_it(self):
+        self.remote()
+        status = self.prepare([])
+        status_path = Path(self.temp.name) / "personal-nightly-status.json"
+        status_path.write_text(json.dumps(status))
+        args = ["personal-nightly", "status", "--phase", "failed"]
+        with patch.object(Path, "cwd", return_value=self.repo), patch.object(sys, "argv", args), \
+                patch.dict(os.environ, {"RUNNER_TEMP": self.temp.name}), \
+                patch.object(nightly.time, "time", return_value=300):
+            nightly.main()
+        timing = nightly.read_state(self.repo, "build-timing.json")
+        self.assertEqual(timing["completedAt"], 300)
+        self.assertEqual(timing["sequence"], status["sequence"])
+        with patch.object(Path, "cwd", return_value=self.repo), patch.object(sys, "argv", args), \
+                patch.dict(os.environ, {"RUNNER_TEMP": self.temp.name}), \
+                patch.object(nightly.time, "time", return_value=1000):
+            nightly.main()
+        self.assertEqual(nightly.read_state(self.repo, "build-timing.json"), timing)
+        phase, fetch = self.run_prepare([], 400)
+        self.assertEqual(phase["phase"], "debouncing")
+        fetch.assert_not_called()
+        self.assertEqual(nightly.read_state(self.repo, "build-timing.json"), timing)
 
     def test_new_updated_force_pushed_and_closed_prs_replace_the_previous_patch_set(self):
         first = self.pull(1, {"shared.txt": "first PR version\n"})
@@ -149,24 +235,25 @@ class PrSynchronizationTests(unittest.TestCase):
         updated = self.pull(1, {"shared.txt": "new\n"})
         self.assertNotIn("skipBuild", self.prepare([updated], [release]))
 
-    def test_candidate_verification_rejects_new_pr_heads_and_direct_pushes(self):
+    def test_candidate_snapshot_can_publish_after_pr_updates_but_not_direct_pushes(self):
         remote = Path(self.temp.name) / "remote.git"
         nightly.git("init", "--bare", str(remote))
         nightly.git("remote", "add", "origin", str(remote), cwd=self.repo)
         nightly.git("push", "origin", "HEAD:refs/heads/personal-nightly", cwd=self.repo)
         first = self.pull(1, {"pr.txt": "old"})
         status = {"baseCommit": self.head(), "inputs": {"pullRequests": nightly.pull_request_inputs([first])}}
-        self.assertTrue(nightly.candidate_is_current(self.repo, status, self.config, [first]))
+        self.assertTrue(nightly.candidate_is_current(self.repo, status, self.config))
         updated = self.pull(1, {"pr.txt": "new"})
-        self.assertFalse(nightly.candidate_is_current(self.repo, status, self.config, [updated]))
+        self.assertNotEqual(first["headSha"], updated["headSha"])
+        self.assertTrue(nightly.candidate_is_current(self.repo, status, self.config))
         candidate = self.prepare([first])["candidateCommit"]
         status["candidateCommit"] = candidate
         nightly.git("push", "origin", "HEAD:refs/heads/personal-nightly", cwd=self.repo)
-        self.assertTrue(nightly.candidate_is_current(self.repo, status, self.config, [first]))
+        self.assertTrue(nightly.candidate_is_current(self.repo, status, self.config))
         (self.repo / "personal.txt").write_text("new direct fix")
         self.commit("new direct fix")
         nightly.git("push", "origin", "HEAD:refs/heads/personal-nightly", cwd=self.repo)
-        self.assertFalse(nightly.candidate_is_current(self.repo, status, self.config, [first]))
+        self.assertFalse(nightly.candidate_is_current(self.repo, status, self.config))
 
     def test_git_reuses_a_recorded_resolution_but_stops_on_a_different_conflict(self):
         first = self.pull(1, {"shared.txt": "one\n"})
@@ -226,6 +313,13 @@ class InputDiscoveryTests(unittest.TestCase):
         reset, stable = nightly.debounce_inputs(observed, updated, 230)
         self.assertFalse(stable)
         self.assertEqual(reset["observedAt"], 230)
+
+    def test_cooldown_starts_at_completion_and_expires_without_sliding(self):
+        self.assertFalse(nightly.build_is_cooling_down({}, 100))
+        timing = {"completedAt": 500}
+        self.assertTrue(nightly.build_is_cooling_down(timing, 500))
+        self.assertTrue(nightly.build_is_cooling_down(timing, 2299))
+        self.assertFalse(nightly.build_is_cooling_down(timing, 2300))
 
 
 if __name__ == "__main__":

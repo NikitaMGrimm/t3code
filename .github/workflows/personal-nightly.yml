@@ -2,6 +2,11 @@ name: Personal nightly
 
 on:
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Build now, bypassing debounce, cooldown, and unchanged failure suppression"
+        type: boolean
+        default: false
   schedule:
     - cron: "*/5 * * * *"
 
@@ -53,6 +58,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PERSONAL_NIGHTLY_SEQUENCE: ${{ steps.attempt.outputs.sequence }}
+          PERSONAL_NIGHTLY_FORCE: ${{ inputs.force || false }}
         run: |
           gh api --paginate --jq '.[]' 'repos/NikitaMGrimm/t3code/releases?per_page=100' | jq -s . > "$RUNNER_TEMP/personal-releases.json"
           python3 scripts/personal-nightly.py prepare --sync-prs --release-index "$RUNNER_TEMP/personal-releases.json" --tag '${{ steps.upstream.outputs.tag }}'
