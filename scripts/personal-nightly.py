@@ -170,9 +170,12 @@ def discover_included_pull_requests(repo, config, tag, selected):
         response = subprocess.run(["gh", "api", f"repos/{config['upstreamRepository']}/pulls/{number}"],
                                   check=True, capture_output=True, text=True)
         pull = json.loads(response.stdout)
-        if pull["state"] == "closed":
-            if not pull["merged"]:
+        if pull["state"] == "closed" and not pull["merged"]:
+            # Selecting a PR is the choice to keep it: its last head stays included
+            # after upstream declines it. Unselected owned PRs leave when closed.
+            if number not in selected:
                 continue
+        elif pull["state"] == "closed":
             merge = pull["merge_commit_sha"]
             if not isinstance(merge, str) or re.fullmatch(r"[0-9a-f]{40}", merge) is None:
                 raise ValueError(f"Merged PR #{number} requires an exact merge commit")

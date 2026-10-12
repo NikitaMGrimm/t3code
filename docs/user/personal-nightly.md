@@ -36,20 +36,26 @@ waits for changed inputs or a forced manual retry instead of repeatedly packagin
 
 Open or update an upstream PR under this fork's owner's account to include it
 automatically, including drafts. Each build uses the current open PR heads;
-closing an unmerged PR removes its personal import. A merged PR stays included
+closing an unmerged PR removes its personal import unless you selected it as
+described below. A merged PR stays included
 until an official nightly contains its merge, then becomes part of that nightly.
 Updated or force-pushed PRs replace their previous imports, and stacked
 PRs are assembled after their dependencies. A new conflict keeps the previous
 release available.
 
-To include someone else's upstream PR, open **Actions → Personal nightly → Run
-workflow** and put its GitHub URL or number in **include_prs**. Separate multiple
+To select an upstream PR, open **Actions → Personal nightly → Run workflow** and
+put its GitHub URL or number in **include_prs**. Separate multiple
 PRs with spaces or commas. The selection is saved even if the candidate conflicts;
 if a build is running, the selection request waits in the queue without replacing
 or interrupting that build. Future checks follow each PR's latest head automatically. Put the same URL or
 number in **remove_prs** to stop following it. Your own open PRs remain automatic.
-A selected PR that closes without merging leaves the build; reopening it includes
-it again until you remove its selection. Release notes link the included PR changes.
+Release notes link the included PR changes.
+
+A selected PR stays until you remove it. If upstream closes it without merging,
+its last version remains in your build, so select a PR you want to keep whatever
+upstream decides, including one of your own. A closed PR no longer receives its
+owner's fixes: when it starts conflicting with a newer nightly, remove it or
+commit the reconciled change directly as a personal fix.
 
 When an owner pushes a conflict fix, the next eligible check retries their new
 head with the normal debounce and cooldown. Conflicts with another included PR,

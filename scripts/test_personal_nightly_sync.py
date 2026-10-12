@@ -403,18 +403,28 @@ class InputDiscoveryTests(unittest.TestCase):
         self.assertEqual(pulls[1]["url"], "https://github.com/pingdotgg/t3code/pull/2")
         run.assert_called_once()
 
-    def test_selected_pr_follows_latest_heads_and_recovers_when_reopened(self):
+    def test_selected_pr_follows_latest_heads_and_keeps_its_last_head_when_closed_unmerged(self):
         with patch.object(nightly, "discover_pull_requests", return_value=[]), \
                 patch.object(nightly.subprocess, "run", side_effect=[
                     self.rest_response(self.rest_pull(2)),
-                    self.rest_response(self.rest_pull(2, state="closed")),
                     self.rest_response(self.rest_pull(2, head="c" * 40)),
+                    self.rest_response(self.rest_pull(2, state="closed", head="c" * 40)),
                 ]):
             first = nightly.discover_included_pull_requests(Path("unused"), self.config, "tag", {2})
+            updated = nightly.discover_included_pull_requests(Path("unused"), self.config, "tag", {2})
             closed = nightly.discover_included_pull_requests(Path("unused"), self.config, "tag", {2})
-            reopened = nightly.discover_included_pull_requests(Path("unused"), self.config, "tag", {2})
-        self.assertEqual(closed, [])
-        self.assertNotEqual(nightly.pull_request_inputs(first), nightly.pull_request_inputs(reopened))
+        self.assertNotEqual(nightly.pull_request_inputs(first), nightly.pull_request_inputs(updated))
+        self.assertEqual(nightly.pull_request_inputs(updated), nightly.pull_request_inputs(closed))
+
+    def test_owned_pr_closed_unmerged_leaves_unless_it_was_selected(self):
+        config = {**self.config, "pullRequests": [{"number": 1, "author": "NikitaMGrimm"}]}
+        closed = self.rest_response(self.rest_pull(1, state="closed"))
+        with patch.object(nightly, "discover_pull_requests", return_value=[]), \
+                patch.object(nightly.subprocess, "run", return_value=closed):
+            automatic = nightly.discover_included_pull_requests(Path("unused"), config, "tag", set())
+            kept = nightly.discover_included_pull_requests(Path("unused"), config, "tag", {1})
+        self.assertEqual(automatic, [])
+        self.assertEqual([pull["number"] for pull in kept], [1])
 
     def test_removing_a_selected_other_authors_pr_stops_tracking_it(self):
         config = {**self.config, "pullRequests": [{"number": 2, "author": "someone"}]}

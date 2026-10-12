@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       include_prs:
-        description: "Follow other upstream PRs: URLs or numbers, separated by spaces or commas"
+        description: "Follow upstream PRs and keep them even if they close unmerged: URLs or numbers, separated by spaces or commas"
         type: string
         default: ""
       remove_prs:
