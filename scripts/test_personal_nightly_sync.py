@@ -71,7 +71,7 @@ class PrSynchronizationTests(unittest.TestCase):
         args = ["personal-nightly", "prepare", "--sync-prs", "--tag", self.tag]
         with patch.object(Path, "cwd", return_value=self.repo), patch.object(sys, "argv", args), \
                 patch.dict(os.environ, env), patch.object(nightly.time, "time", return_value=now), \
-                patch.object(nightly, "discover_pull_requests", return_value=pulls), \
+                patch.object(nightly, "discover_included_pull_requests", return_value=pulls), \
                 patch.object(nightly, "fetch_pull_requests") as fetch:
             nightly.main()
         return json.loads((Path(self.temp.name) / "personal-nightly-status.json").read_text()), fetch
