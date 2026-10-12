@@ -3,7 +3,7 @@ name: Personal nightly
 on:
   workflow_dispatch:
   schedule:
-    - cron: "23 */4 * * *"
+    - cron: "*/5 * * * *"
 
 concurrency:
   group: personal-nightly
@@ -48,14 +48,14 @@ jobs:
           test -n "$tag"
           git fetch https://github.com/pingdotgg/t3code.git "refs/tags/$tag:refs/tags/$tag"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-      - name: Merge into an isolated candidate
+      - name: Synchronize PRs into an isolated candidate
         id: prepare
         env:
           GH_TOKEN: ${{ github.token }}
           PERSONAL_NIGHTLY_SEQUENCE: ${{ steps.attempt.outputs.sequence }}
         run: |
-          gh api 'repos/NikitaMGrimm/t3code/releases?per_page=100' > "$RUNNER_TEMP/personal-releases.json"
-          python3 scripts/personal-nightly.py prepare --release-index "$RUNNER_TEMP/personal-releases.json" --tag '${{ steps.upstream.outputs.tag }}'
+          gh api --paginate --jq '.[]' 'repos/NikitaMGrimm/t3code/releases?per_page=100' | jq -s . > "$RUNNER_TEMP/personal-releases.json"
+          python3 scripts/personal-nightly.py prepare --sync-prs --release-index "$RUNNER_TEMP/personal-releases.json" --tag '${{ steps.upstream.outputs.tag }}'
           if test "$(jq -r .phase "$RUNNER_TEMP/personal-nightly-status.json")" = building; then
             version=$(jq -r .candidateVersion "$RUNNER_TEMP/personal-nightly-status.json")
             python3 scripts/personal-nightly.py notes --version "$version" --release-index "$RUNNER_TEMP/personal-releases.json" --upstream-release-index "$RUNNER_TEMP/upstream-releases.json" --notes-file "$RUNNER_TEMP/personal-nightly-notes.md"
@@ -88,9 +88,9 @@ jobs:
           cache: true
       - name: Verify the personal update boundaries
         run: |
-          python3 -m unittest discover -s scripts -p 'test_personal_nightly.py'
-          vp test run scripts/install.test.ts packages/shared/src/cliRelease.test.ts packages/ssh/src/tunnel.test.ts packages/shared/src/personalUpdate.test.ts packages/client-runtime/src/state/server.test.ts apps/server/src/cloud/selfUpdate.test.ts apps/server/src/environment/ServerEnvironment.test.ts apps/server/src/auth/PairingGrantStore.test.ts apps/web/src/components/desktopUpdate.logic.test.ts apps/web/src/components/PersonalUpdateStatus.test.tsx apps/web/src/components/settings/ConnectionsSettings.updateTargets.logic.test.ts
-          vp test run apps/server/src/provider/ProviderRegistry.test.ts apps/server/src/vcs/GitVcsDriverCore.test.ts apps/web/src/components/ChatMarkdown.test.tsx apps/web/src/components/Sidebar.logic.test.ts apps/web/src/components/chat/MermaidDiagram.test.tsx apps/web/src/components/chat/MessagesTimeline.test.tsx apps/web/src/components/chat/ThreadDetailsCard.test.tsx apps/web/src/components/chat/ThreadDetailsPanel.test.tsx apps/web/src/composerDraftStore.test.ts apps/web/src/markdown-clipboard.mermaid.test.ts apps/web/src/markdown-clipboard.test.ts
+          python3 -m unittest discover -s scripts -p 'test_personal_nightly*.py'
+          vp test run scripts/install.test.ts packages/shared/src/cliRelease.test.ts packages/ssh/src/tunnel.test.ts packages/shared/src/personalUpdate.test.ts packages/client-runtime/src/state/server.test.ts apps/server/src/cloud/selfUpdate.test.ts apps/server/src/environment/ServerEnvironment.test.ts apps/server/src/auth/PairingGrantStore.test.ts apps/web/src/components/desktopUpdate.logic.test.ts apps/web/src/components/PersonalUpdateStatus.test.tsx apps/web/src/components/settings/ConnectionsSettings.updateTargets.logic.test.ts apps/web/src/components/sidebar/updateEverything.logic.test.ts
+          vp test run apps/server/src/provider/ProviderRegistry.test.ts apps/server/src/vcs/GitVcsDriverCore.test.ts apps/web/src/components/ChatMarkdown.test.tsx apps/web/src/components/Sidebar.logic.test.ts apps/web/src/components/chat/MermaidDiagram.test.tsx apps/web/src/components/chat/MessagesTimeline.test.tsx apps/web/src/components/chat/ThreadDetailsControl.test.tsx apps/web/src/components/chat/ThreadDetailsPanel.test.tsx apps/web/src/composerDraftStore.test.ts apps/web/src/markdown-clipboard.mermaid.test.ts apps/web/src/markdown-clipboard.test.ts
           vp run --filter t3 --filter @t3tools/web --filter @t3tools/desktop typecheck
       - run: node scripts/update-release-package-versions.ts '${{ needs.prepare.outputs.version }}'
       - run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev pkg-config
@@ -198,6 +198,7 @@ jobs:
           test -f release-assets/nightly.yml
           test -f "release-assets/t3-$VERSION-linux-arm64.tar.gz"
           test -f "release-assets/t3-$VERSION-linux-x64.tar.gz"
+          python3 scripts/personal-nightly.py verify
           (cd release-assets && sha256sum t3-* > SHA256SUMS)
           cp "$RUNNER_TEMP/personal-nightly-status.json" release-assets/provenance.json
           if gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION" > "$RUNNER_TEMP/existing-release.json"; then
@@ -215,7 +216,7 @@ jobs:
 
   status:
     needs: [prepare, bundle, desktop, publish]
-    if: always() && github.repository == 'NikitaMGrimm/t3code' && needs.prepare.outputs.phase != 'conflict' && needs.prepare.outputs.phase != 'unchanged'
+    if: always() && github.repository == 'NikitaMGrimm/t3code' && needs.prepare.outputs.phase != 'conflict' && needs.prepare.outputs.phase != 'unchanged' && needs.prepare.outputs.phase != 'debouncing'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6

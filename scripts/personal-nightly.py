@@ -27,6 +27,10 @@ def merge_nightly(repo, tag):
 
 
 def write_status(repo, status):
+    write_state(repo, "status.json", status)
+
+
+def write_state(repo, name, state):
     """Use a separate data branch so failed candidates never enter the updater feed."""
     with tempfile.TemporaryDirectory(prefix="t3-nightly-status-") as directory:
         checkout = Path(directory) / "checkout"
@@ -45,22 +49,189 @@ def write_status(repo, status):
             ref = git("commit-tree", empty_tree, "-m", "chore: initialize personal update status", cwd=repo).stdout.strip()
         # Worktrees share checkout's scoped Actions credentials; independent clones do not.
         git("worktree", "add", "--detach", str(checkout), ref, cwd=repo)
-        if (checkout / "status.json").exists():
-            previous = json.loads((checkout / "status.json").read_text())
-        if status.get("sequence", 0) < previous.get("sequence", 0):
+        if (checkout / name).exists():
+            previous = json.loads((checkout / name).read_text())
+        if state.get("sequence", 0) < previous.get("sequence", 0):
             git("worktree", "remove", str(checkout), cwd=repo)
             return
-        if status["phase"] != "ready":
-            status["releasedVersion"] = previous.get("releasedVersion")
-        (checkout / "status.json").write_text(json.dumps(status, indent=2) + "\n")
-        git("add", "status.json", cwd=checkout)
+        if name == "status.json" and state["phase"] != "ready":
+            state["releasedVersion"] = previous.get("releasedVersion")
+        (checkout / name).write_text(json.dumps(state, indent=2) + "\n")
+        git("add", name, cwd=checkout)
         if git("diff", "--cached", "--quiet", cwd=checkout, check=False).returncode:
             git("commit", "-m", "chore: record personal nightly update status", cwd=checkout)
         git("push", "origin", "HEAD:refs/heads/personal-update-status", cwd=checkout)
         git("worktree", "remove", str(checkout), cwd=repo)
 
 
-def prepare(repo, tag, run_number, published_releases=()):
+def read_state(repo, name):
+    fetched = git("fetch", "origin", "personal-update-status", cwd=repo, check=False)
+    if fetched.returncode:
+        if git("ls-remote", "origin", "refs/heads/personal-update-status", cwd=repo).stdout.strip():
+            raise RuntimeError("Could not fetch the existing update status branch")
+        return {}
+    files = git("ls-tree", "--name-only", "FETCH_HEAD", "--", name, cwd=repo).stdout.splitlines()
+    return json.loads(git("show", f"FETCH_HEAD:{name}", cwd=repo).stdout) if files else {}
+
+
+def discover_pull_requests(config):
+    """Search by author, including drafts, and paginate without the CLI's default limit."""
+    author = config["repository"].split("/")[0]
+    query = """query($searchQuery: String!, $cursor: String) {
+      search(query: $searchQuery, type: ISSUE, first: 100, after: $cursor) {
+        issueCount pageInfo { hasNextPage endCursor }
+        nodes { ... on PullRequest {
+          number title state headRefOid headRefName baseRefOid baseRefName author { login }
+        } }
+      }
+    }"""
+    cursor = None
+    pulls = []
+    expected_count = None
+    while True:
+        args = ["gh", "api", "graphql", "-f", f"query={query}", "-f",
+                f"searchQuery=repo:{config['upstreamRepository']} is:pr is:open author:{author}"]
+        if cursor is not None:
+            args += ["-f", f"cursor={cursor}"]
+        response = json.loads(subprocess.run(args, check=True, capture_output=True, text=True).stdout)
+        if response.get("errors"):
+            raise RuntimeError("GitHub could not return the complete PR input set")
+        search = response["data"]["search"]
+        if search["issueCount"] > 1000:
+            raise RuntimeError("The PR input set exceeds GitHub's search limit")
+        if expected_count is None:
+            expected_count = search["issueCount"]
+        elif expected_count != search["issueCount"]:
+            raise RuntimeError("The PR input set changed during pagination; retry discovery")
+        for pull in search["nodes"]:
+            if pull["author"]["login"].casefold() != author.casefold() or pull["state"] != "OPEN":
+                raise RuntimeError("GitHub returned a PR outside the configured author's open set")
+            if not all(re.fullmatch(r"[0-9a-f]{40}", pull[key]) for key in ("headRefOid", "baseRefOid")):
+                raise ValueError("PR inputs require exact commit IDs")
+            pulls.append({"number": pull["number"], "title": pull["title"],
+                          "headSha": pull["headRefOid"], "baseSha": pull["baseRefOid"],
+                          "headRef": pull["headRefName"], "baseRef": pull["baseRefName"]})
+        if not search["pageInfo"]["hasNextPage"]:
+            break
+        next_cursor = search["pageInfo"]["endCursor"]
+        if not next_cursor or next_cursor == cursor:
+            raise RuntimeError("GitHub did not advance PR pagination")
+        cursor = next_cursor
+    if len(pulls) != expected_count or len({pull["number"] for pull in pulls}) != len(pulls):
+        raise RuntimeError("The PR input set changed during pagination; retry discovery")
+    return sorted(pulls, key=lambda pull: pull["number"])
+
+
+def pull_request_inputs(pulls):
+    # Main moving and review comments do not change a PR's patch. A retarget or a
+    # rebased/force-pushed head does, including when the commit date stays the same.
+    return [{key: pull[key] for key in ("number", "headSha", "baseRef")}
+            for pull in sorted(pulls, key=lambda pull: pull["number"])]
+
+
+def debounce_inputs(previous, inputs, now, seconds=120):
+    state = previous if previous.get("inputs") == inputs else {"inputs": inputs, "observedAt": now}
+    return state, now - state["observedAt"] >= seconds
+
+
+def candidate_is_current(repo, status, config, pulls):
+    branch = git("ls-remote", "origin", f"refs/heads/{config['branch']}", cwd=repo).stdout.split()
+    return (bool(branch) and branch[0] in {status["baseCommit"], status.get("candidateCommit")}
+            and pull_request_inputs(pulls) == status["inputs"]["pullRequests"])
+
+
+def fetch_pull_requests(repo, config, pulls):
+    remote = f"https://github.com/{config['upstreamRepository']}.git"
+    if pulls:
+        git("fetch", remote, *[f"+refs/pull/{pull['number']}/head:refs/personal-sync/{pull['number']}"
+                               for pull in pulls], cwd=repo)
+    for pull in pulls:
+        fetched = git("rev-parse", f"refs/personal-sync/{pull['number']}", cwd=repo).stdout.strip()
+        if fetched != pull["headSha"]:
+            raise RuntimeError(f"PR #{pull['number']} changed while fetching; retry discovery")
+    missing = [sha for sha in sorted({pull["baseSha"] for pull in pulls})
+               if git("cat-file", "-e", f"{sha}^{{commit}}", cwd=repo, check=False).returncode]
+    if missing:
+        git("fetch", remote, *missing, cwd=repo)
+    for pull in pulls:
+        pull["baseSha"] = git("merge-base", pull["baseSha"], pull["headSha"], cwd=repo).stdout.strip()
+
+
+def ordered_pull_requests(pulls):
+    pending = sorted(pulls, key=lambda pull: pull["number"])
+    ordered = []
+    while pending:
+        heads = {pull["headRef"] for pull in pending}
+        ready = [pull for pull in pending if pull["baseRef"] not in heads]
+        if not ready:
+            raise ValueError("The PR input set has a cyclic branch dependency")
+        for pull in ready:
+            ordered.append(pull)
+            pending.remove(pull)
+    return ordered
+
+
+def merge_delta(repo, base, head):
+    """Give ort an explicit merge base without importing a PR's upstream history."""
+    current_tree = git("rev-parse", "HEAD^{tree}", cwd=repo).stdout.strip()
+    incoming_tree = git("rev-parse", f"{head}^{{tree}}", cwd=repo).stdout.strip()
+    current = git("commit-tree", current_tree, "-p", base, "-m", "Assembly base", cwd=repo).stdout.strip()
+    incoming = git("commit-tree", incoming_tree, "-p", base, "-m", "Assembly delta", cwd=repo).stdout.strip()
+    git("reset", "--hard", current, cwd=repo)
+    # Reuse only exact conflict resolutions recorded by Git; new conflicts still stop.
+    result = git("-c", "rerere.enabled=true", "-c", "rerere.autoupdate=true", "merge",
+                 "--no-commit", "--no-ff", incoming, cwd=repo, check=False)
+    conflicts = git("diff", "--name-only", "--diff-filter=U", cwd=repo).stdout.splitlines()
+    if result.returncode and not conflicts and not (Path(repo) / ".git" / "MERGE_HEAD").exists():
+        raise RuntimeError("The PR merge failed without file conflicts: " + result.stderr)
+    return conflicts
+
+
+def assemble(repo, tag, config, pulls, resolutions):
+    """Replace the PR baseline, then merge the personal-only delta onto it."""
+    if git("status", "--porcelain", cwd=repo).stdout:
+        raise ValueError("PR synchronization requires a clean checkout")
+    original = git("rev-parse", "HEAD", cwd=repo).stdout.strip()
+    upstream = git("rev-parse", f"{tag}^{{commit}}", cwd=repo).stdout.strip()
+    with tempfile.TemporaryDirectory(prefix="t3-nightly-assembly-") as directory:
+        checkout = Path(directory) / "checkout"
+        git("clone", "--shared", "--no-checkout", "--no-tags", str(repo), str(checkout))
+        git("config", "user.name", "personal-nightly", cwd=checkout)
+        git("config", "user.email", "personal-nightly@users.noreply.github.com", cwd=checkout)
+        git("checkout", "--detach", upstream, cwd=checkout)
+        for key, files in resolutions.items():
+            if not re.fullmatch(r"[0-9a-f]{40}", key) or set(files) != {"preimage", "postimage"}:
+                raise ValueError("Invalid recorded Git conflict resolution")
+            cache = checkout / ".git" / "rr-cache" / key
+            cache.mkdir(parents=True)
+            for name, content in files.items():
+                (cache / name).write_text(content)
+        for pull in ordered_pull_requests(pulls):
+            previous = git("rev-parse", "HEAD", cwd=checkout).stdout.strip()
+            conflicts = merge_delta(checkout, pull["baseSha"], pull["headSha"])
+            if conflicts:
+                return {"conflicts": conflicts, "conflictPullRequest": pull["number"]}
+            tree = git("write-tree", cwd=checkout).stdout.strip()
+            imported = git("commit-tree", tree, "-p", previous, "-m",
+                           f"{pull['title']} (personal import #{pull['number']})", cwd=checkout).stdout.strip()
+            git("reset", "--hard", imported, cwd=checkout)
+        baseline = git("rev-parse", "HEAD", cwd=checkout).stdout.strip()
+        conflicts = merge_delta(checkout, config["prBaseline"], original)
+        if conflicts:
+            return {"conflicts": conflicts}
+        config.update(upstreamTag=tag, pullRequests=pulls, prBaseline=baseline)
+        (checkout / "personal-nightly.json").write_text(json.dumps(config, indent=2) + "\n")
+        git("add", "personal-nightly.json", cwd=checkout)
+        tree = git("write-tree", cwd=checkout).stdout.strip()
+        candidate = git("commit-tree", tree, "-p", original, "-p", baseline,
+                        "-m", f"chore: synchronize personal PRs with {tag}", cwd=checkout).stdout.strip()
+        git("update-ref", "refs/heads/candidate", candidate, cwd=checkout)
+        git("fetch", str(checkout), "refs/heads/candidate", cwd=repo)
+        git("reset", "--hard", "FETCH_HEAD", cwd=repo)
+    return {"conflicts": []}
+
+
+def prepare(repo, tag, run_number, published_releases=(), pull_requests=None, resolutions=None):
     match = re.fullmatch(r"v(\d+\.\d+\.\d+-nightly\.\d{8})\.\d+", tag)
     if match is None:
         raise ValueError("Only an exact official nightly tag can be synchronized")
@@ -75,12 +246,17 @@ def prepare(repo, tag, run_number, published_releases=()):
         release.get("draft") is False and release.get("target_commitish") == base
         and re.fullmatch(r"v\d+\.\d+\.\d+-nightly\.\d{8}\.\d+", release.get("tag_name", ""))
     ), None)
-    if config["upstreamTag"] == tag and published is not None:
+    same_pulls = pull_requests is None or pull_request_inputs(config.get("pullRequests", [])) == pull_request_inputs(pull_requests)
+    if config["upstreamTag"] == tag and same_pulls and published is not None:
         return {"schema": 1, "phase": "ready", "skipBuild": True, "upstreamTag": tag,
                 "conflicts": [], "releasedVersion": published["tag_name"].removeprefix("v"),
                 "sequence": sequence, "candidateCommit": base,
                 "runUrl": f"https://github.com/{config['repository']}/actions/runs/{os.environ.get('GITHUB_RUN_ID', run_number)}"}
-    if config["upstreamTag"] == tag:
+    assembly = {}
+    if pull_requests is not None:
+        assembly = assemble(repo, tag, config, pull_requests, resolutions or {})
+        conflicts = assembly["conflicts"]
+    elif config["upstreamTag"] == tag:
         # Dispatch also builds newly added personal fixes against the same nightly.
         conflicts = []
     else:
@@ -94,6 +270,7 @@ def prepare(repo, tag, run_number, published_releases=()):
         "releasedVersion": None,
         "baseCommit": base,
         "sequence": sequence,
+        **assembly,
     }
     if conflicts:
         return status
@@ -165,6 +342,7 @@ def release_notes(repo, ref, version, personal_releases, upstream_releases):
     )
     previous_sha = None
     previous_key = None
+    previous_config = {}
     if previous is not None:
         previous_sha = previous["target_commitish"]
         if re.fullmatch(r"[0-9a-f]{40}", previous_sha) is None:
@@ -201,12 +379,28 @@ def release_notes(repo, ref, version, personal_releases, upstream_releases):
     if not included:
         lines += ["", f"### Unchanged from [{upstream_tag}](https://github.com/{config['upstreamRepository']}/releases/tag/{upstream_tag})."]
 
+    if config.get("prBaseline"):
+        old_pulls = {pull["number"]: pull for pull in previous_config.get("pullRequests", [])}
+        current_pulls = {pull["number"]: pull for pull in config.get("pullRequests", [])}
+        changes = []
+        for number in sorted(old_pulls.keys() | current_pulls.keys()):
+            old, current = old_pulls.get(number), current_pulls.get(number)
+            if old and current and old["headSha"] == current["headSha"]:
+                continue
+            label = "Removed" if current is None else "Added" if old is None else "Updated"
+            pull = current or old
+            changes.append(f"- {label} [#{number}](https://github.com/{config['upstreamRepository']}/pull/{number}): {pull['title']}")
+        if changes:
+            lines += ["", "## PR changes", "", *changes]
+
     excluded = [f"^{upstream_sha}"] + ([f"^{previous_sha}"] if previous_sha else [])
     commits = git("log", "--reverse", "--no-merges", "--format=%H%x00%s", ref, *excluded, "--", cwd=repo).stdout.splitlines()
     personal = []
     for commit in commits:
         sha, subject = commit.split("\0", 1)
         if re.fullmatch(r"chore: track v\d+\.\d+\.\d+-nightly\.\d{8}\.\d+", subject):
+            continue
+        if config.get("prBaseline") and "(personal import #" in subject:
             continue
         subject = re.sub(r"personal import #(\d+)", lambda match: f"personal import [#{match[1]}](https://github.com/{config['upstreamRepository']}/pull/{match[1]})", subject)
         personal.append(f"- {subject} ([{sha[:7]}](https://github.com/{config['repository']}/commit/{sha}))")
@@ -219,7 +413,7 @@ def release_notes(repo, ref, version, personal_releases, upstream_releases):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["prepare", "status", "notes"])
+    parser.add_argument("command", choices=["prepare", "status", "notes", "verify"])
     parser.add_argument("--tag")
     parser.add_argument("--run-number", default=os.environ.get("GITHUB_RUN_ID"))
     parser.add_argument("--phase", choices=["ready", "failed", "conflict"])
@@ -229,9 +423,16 @@ def main():
     parser.add_argument("--ref", default="HEAD")
     parser.add_argument("--version")
     parser.add_argument("--published-release", type=Path)
+    parser.add_argument("--sync-prs", action="store_true")
     args = parser.parse_args()
     repo = Path.cwd()
     status_path = Path(os.environ.get("RUNNER_TEMP", tempfile.gettempdir())) / "personal-nightly-status.json"
+    if args.command == "verify":
+        status = json.loads(status_path.read_text())
+        config = json.loads((repo / "personal-nightly.json").read_text())
+        if not candidate_is_current(repo, status, config, discover_pull_requests(config)):
+            raise RuntimeError("Personal changes or PR inputs advanced during this build; the next check will rebuild")
+        return
     if args.command == "notes":
         if not all([args.release_index, args.upstream_release_index, args.notes_file, args.version]):
             parser.error("notes requires --release-index, --upstream-release-index, --notes-file, and --version")
@@ -243,7 +444,33 @@ def main():
         return
     if args.command == "prepare":
         releases = json.loads(args.release_index.read_text()) if args.release_index else []
-        status = prepare(repo, args.tag, args.run_number, releases)
+        pulls, resolutions, inputs = None, None, None
+        if args.sync_prs:
+            config = json.loads((repo / "personal-nightly.json").read_text())
+            pulls = discover_pull_requests(config)
+            inputs = {"upstreamTag": args.tag, "pullRequests": pull_request_inputs(pulls)}
+            automatic = os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
+            previous = read_state(repo, "status.json")
+            original = git("rev-parse", "HEAD", cwd=repo).stdout.strip()
+            retry_suppressed = (automatic and previous.get("phase") in ("failed", "conflict")
+                                and previous.get("inputs") == inputs and previous.get("baseCommit") == original)
+            observed = read_state(repo, "inputs.json")
+            observation, stable = debounce_inputs(observed, inputs, time.time())
+            if observation != observed:
+                write_state(repo, "inputs.json", observation)
+            if retry_suppressed or (automatic and not stable):
+                # Waiting does not erase the last failure or advertise an unpublished release.
+                status_path.write_text(json.dumps({"phase": "debouncing"}))
+                if output := os.environ.get("GITHUB_OUTPUT"):
+                    with open(output, "a") as stream:
+                        stream.write("phase=debouncing\n")
+                return
+            fetch_pull_requests(repo, config, pulls)
+            resolutions = read_state(repo, "resolutions.json")
+        status = prepare(repo, args.tag, args.run_number, releases, pulls, resolutions)
+        if inputs is not None:
+            status["inputs"] = inputs
+            status["pullRequests"] = pulls
         status_path.write_text(json.dumps(status))
         output = os.environ.get("GITHUB_OUTPUT")
         if output:

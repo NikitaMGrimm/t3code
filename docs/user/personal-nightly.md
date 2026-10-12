@@ -16,25 +16,35 @@ use `t3 service install` for app-controlled server updates. It checks the releas
 checksum and retains versioned runtimes. The personal VPS uses its existing
 deployment coordinator so the app can update its managed container safely.
 
-The Personal nightly GitHub workflow checks for an official nightly every four
-hours and can be run manually. To activate it, publish the `personal-nightly`
+The Personal nightly GitHub workflow checks for an official nightly and all open
+upstream PRs by this fork's owner every five minutes. It waits until changed PR
+inputs have stayed unchanged for two minutes before building. GitHub can delay
+scheduled checks. A manual run builds immediately. To activate it, publish the `personal-nightly`
 branch, make it the fork's default branch, and disable the fork's original Release
 workflow. Add the Actions secret `PERSONAL_NIGHTLY_TOKEN`: a fine-grained GitHub
 token restricted to this fork with Contents and Workflows write permissions. It
 is needed to merge upstream workflow changes. The workflow publishes only after
 the focused checks and Windows/Linux x64/arm64 builds pass. An unchanged published
-head repairs the status feed without rebuilding.
+head repairs the status feed without rebuilding. An unchanged failed candidate
+waits for changed inputs or a manual retry instead of repeatedly packaging it.
 
 ## Adding your own fixes
 
+Open or update an upstream PR under this fork's owner's account to include it
+automatically, including drafts. Each build uses the current open PR heads;
+closing a PR removes its personal import. Merged changes arrive with an official
+nightly. Updated or force-pushed PRs replace their previous imports, and stacked
+PRs are assembled after their dependencies. A new conflict keeps the previous
+release available.
+
 Start a fix branch from this fork's `personal-nightly` branch. After testing,
 merge it back into `personal-nightly`, or cherry-pick the tested commits there.
-Direct commits are included automatically; you do not need to add them to
-`personal-nightly.json`. Use clear commit titles: they become the personal entries
+Direct commits are included automatically and stay separate from the refreshed
+PR imports; you do not need to add them to `personal-nightly.json`. Use clear commit titles: they become the personal entries
 in the release notes.
 
 Run **Actions → Personal nightly → Run workflow** on `personal-nightly` to build
-immediately, or wait for the next four-hour check. The existing update controls
+immediately, or wait for the next scheduled check. The existing update controls
 offer the release after its checks and builds pass.
 
 Each changelog combines the official nightly notes since the previous successful
