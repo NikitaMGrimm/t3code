@@ -5,12 +5,28 @@
   "upstreamTag": "v0.0.46-nightly.20261012.3010",
   "pullRequests": [
     {
+      "number": 14574,
+      "title": "feat(web): opt-in LaTeX math rendering in chat",
+      "headSha": "2d2a16f4dfe38ec41810b5624eae6fc3c60bd57f",
+      "baseSha": "4b6d9a09f80c4e782bdcf27ed1ef5c4f8fdd98db",
+      "headRef": "feat/chat-math-opt-in",
+      "baseRef": "main",
+      "author": "hkarlsen06",
+      "url": "https://github.com/pingdotgg/t3code/pull/14574",
+      "headRepository": "hkarlsen06/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
       "number": 15269,
       "title": "fix(web): allow Working threads to be dragged into chat as references",
       "headSha": "c621b507974efacda8836060ae80a3b7ac525b6e",
       "baseSha": "9bd1d8009a6b7c50f9dd9458e2bf27d481ff3b43",
       "headRef": "fix/working-thread-references",
-      "baseRef": "main"
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/15269",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
     },
     {
       "number": 16198,
@@ -18,7 +34,11 @@
       "headSha": "f1cc8f7d3d06701d2ebeba9285becd33371451ba",
       "baseSha": "ec80933ac8cd02fec5c97b342462ccc9567cdb1e",
       "headRef": "fix/mermaid-math",
-      "baseRef": "main"
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/16198",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
     },
     {
       "number": 16249,
@@ -26,7 +46,11 @@
       "headSha": "7c7a2d138bf87803592437b11d80bcef1ac573cd",
       "baseSha": "677d1527c3d96b90b2294d9a0aed7d8c8874b29b",
       "headRef": "feat/mermaid-selection-copy",
-      "baseRef": "main"
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/16249",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
     },
     {
       "number": 16453,
@@ -34,7 +58,11 @@
       "headSha": "c8418b15ff5fde993c5c0b408f121b4b13c306db",
       "baseSha": "9bd1d8009a6b7c50f9dd9458e2bf27d481ff3b43",
       "headRef": "fix/remote-diff-base",
-      "baseRef": "main"
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/16453",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
     },
     {
       "number": 17892,
@@ -42,7 +70,11 @@
       "headSha": "f32b07cd48392d3b027cdfa3561f09c8ce6ad535",
       "baseSha": "dacd2cb649eea06a00244bd181eb400735e923d5",
       "headRef": "fix/composer-compact-chip-order",
-      "baseRef": "main"
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/17892",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
     },
     {
       "number": 18308,
@@ -50,7 +82,11 @@
       "headSha": "4b20037e43448225e0105de81c52151a680d295e",
       "baseSha": "ac2cc78d4a4aa9508acb65ad5e9dab319dd1962a",
       "headRef": "resubmit/mermaid-streaming",
-      "baseRef": "main"
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/18308",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
     },
     {
       "number": 18309,
@@ -58,7 +94,11 @@
       "headSha": "7f4d0ef8112f8d791094652d4b6f850e94a46b25",
       "baseSha": "ac2cc78d4a4aa9508acb65ad5e9dab319dd1962a",
       "headRef": "resubmit/codex-skill-health",
-      "baseRef": "main"
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/18309",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
     },
     {
       "number": 18310,
@@ -66,7 +106,11 @@
       "headSha": "685b805192af24517a14b95d3a3ad53efbce1288",
       "baseSha": "ac2cc78d4a4aa9508acb65ad5e9dab319dd1962a",
       "headRef": "resubmit/reference-machine-selection",
-      "baseRef": "main"
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/18310",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
     },
     {
       "number": 18311,
@@ -74,7 +118,11 @@
       "headSha": "bcf1af7a6cf400f8dbd2d6a536e51601b8cc7a07",
       "baseSha": "ac2cc78d4a4aa9508acb65ad5e9dab319dd1962a",
       "headRef": "resubmit/inline-slash-skills",
-      "baseRef": "main"
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/18311",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
     },
     {
       "number": 18322,
@@ -82,8 +130,12 @@
       "headSha": "beda35de70953589b5d943dd4ad6078b938c8d6d",
       "baseSha": "ac2cc78d4a4aa9508acb65ad5e9dab319dd1962a",
       "headRef": "resubmit/reference-machine-selection-mobile",
-      "baseRef": "main"
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/18322",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "2add51f6b6d5a91dc1049ad49115be11e1e65b74"
+  "prBaseline": "21517ed5f3c83630c656ada8df660553330fbed6"
 }
