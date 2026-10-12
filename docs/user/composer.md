@@ -164,6 +164,13 @@ minutes long. Canceling, leaving the screen, or an audio interruption discards t
 recording and preserves your existing draft. While recording, the screen stays
 awake; it can sleep normally once recording stops.
 
+Voice input records from the first connected microphone in **Settings → Microphone**.
+The list mixes kinds (built-in, other wired, other Bluetooth, CarPlay) with wired and
+Bluetooth devices you have dictated with, listed by name. Drag to rank them together:
+for example, put **Other Bluetooth** above your AirPods so a new headset is preferred
+while the AirPods microphone stays low. By default, CarPlay comes after the built-in
+microphone.
+
 Transcription runs on your device. T3 Code deletes the temporary audio after
 transcription or cancellation; only the message text is sent when you submit.
 
@@ -205,7 +212,9 @@ session** in the command palette on web and desktop. The conversation continues,
 and your next message starts the agent again with the new setup.
 
 Provider commands must start the message to run. T3 Code commands such as
-`/model` and `/plan`, and skill mentions, work on any line.
+`/model` and `/plan`, and skills, can be picked from a `/` at the start of any
+word, so `Use /review` offers your review skill mid-sentence. A word with a
+second slash, such as `/tmp/build.sh`, stays plain text.
 
 Send `/compact` in an existing conversation to reduce context usage when the
 provider supports it. Web and desktop also offer compaction from the context meter.

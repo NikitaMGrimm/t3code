@@ -1,84 +1,68 @@
 // @vitest-environment jsdom
 
-import { act, Suspense } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 
-import { MermaidDiagram } from "./MermaidDiagram";
+import { sanitizeMermaidSvg } from "./MermaidDiagram";
 
-const { renderMermaid } = vi.hoisted(() => ({
-  renderMermaid: vi.fn(async () => ({ svg: "" })),
-}));
-
-vi.mock("mermaid", () => ({
-  default: { initialize: vi.fn(), render: renderMermaid },
-}));
-
-let root: Root;
-let container: HTMLDivElement;
-
-beforeEach(() => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-});
-
-afterEach(async () => {
-  await act(async () => root.unmount());
-  container.remove();
-  vi.unstubAllGlobals();
-  vi.clearAllMocks();
-});
-
-// Mermaid uses KaTeX's MathML output inside an HTML label, even with htmlLabels off.
-function diagramSvg(label: string) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50">
-    <foreignObject><div xmlns="http://www.w3.org/1999/xhtml">
-      <span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
-        <semantics><mrow>${label}</mrow></semantics>
-      </math></span>
-    </div></foreignObject>
-  </svg>`;
+// The label markup Mermaid's sequence diagrams emit for $$...$$ text.
+function noteSvg(label: string) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><foreignObject height="34" width="35" x="57" y="85"><div style="width: fit-content;" xmlns="http://www.w3.org/1999/xhtml"><div style="display: flex; align-items: center; justify-content: center; white-space: nowrap;"><span class="katex">${label}</span></div></div></foreignObject></svg>`;
 }
 
-async function renderDiagram(source: string, svg: string) {
-  renderMermaid.mockResolvedValueOnce({ svg });
-  await act(async () => {
-    root.render(
-      <Suspense fallback="Rendering diagram">
-        <MermaidDiagram source={source} theme="light" onExpand={vi.fn()} />
-      </Suspense>,
-    );
-  });
+function sanitize(svg: string) {
+  const host = document.createElement("div");
+  host.innerHTML = sanitizeMermaidSvg(svg);
+  return host;
 }
 
-describe("MermaidDiagram math", () => {
-  it("keeps MathML labels in the rendered diagram", async () => {
-    await renderDiagram(
-      "sequenceDiagram\nA->>B: $$x^2$$",
-      diagramSvg("<msup><mi>x</mi><mn>2</mn></msup>"),
+describe("sanitizeMermaidSvg", () => {
+  it("keeps the MathML Mermaid renders for math labels", () => {
+    const host = sanitize(
+      noteSvg(
+        '<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mfrac><mi>d</mi><mrow><mi>d</mi><mi>x</mi></mrow></mfrac><mrow><mo fence="true">(</mo><mi mathvariant="bold">v</mi><mo fence="true">)</mo></mrow><msqrt><mn>2</mn></msqrt></mrow></math>',
+      ),
     );
 
-    const formula = container.querySelector("math msup");
-    expect(formula?.namespaceURI).toBe("http://www.w3.org/1998/Math/MathML");
-    expect(formula?.textContent).toBe("x2");
-    expect(formula?.children).toHaveLength(2);
+    const math = host.querySelector(".katex > math");
+    expect(math?.namespaceURI).toBe("http://www.w3.org/1998/Math/MathML");
+    expect(math?.getAttribute("display")).toBe("block");
+    expect(math?.querySelector("mfrac")?.textContent).toBe("ddx");
+    expect(math?.querySelector("msqrt")?.textContent).toBe("2");
+    expect(math?.querySelector("mi[mathvariant='bold']")?.textContent).toBe("v");
+    expect(math?.querySelectorAll("mo[fence='true']")).toHaveLength(2);
   });
 
-  it("still strips active content from math labels", async () => {
-    await renderDiagram(
-      "sequenceDiagram\nA->>B: $$z^2$$",
-      diagramSvg(`
-        <msup onclick="alert(1)"><mi href="javascript:alert(1)">z</mi><mn>2</mn></msup>
-        <script>alert(1)</script>
-        <mtext><a href="https://example.com">link</a><img src="https://example.com/image.png" onerror="alert(1)"></mtext>
-      `),
+  it("keeps spaced math labels parseable as an SVG image", () => {
+    // KaTeX renders \text{total cost} with a no-break space.
+    const svg = sanitizeMermaidSvg(noteSvg("<math><mrow><mtext>total cost</mtext></mrow></math>"));
+
+    const image = new DOMParser().parseFromString(svg, "image/svg+xml");
+    expect(image.documentElement.localName).toBe("svg");
+    expect(image.querySelector("mtext")?.textContent).toBe("total cost");
+  });
+
+  it("strips links, scripts, and MathML outside what KaTeX emits", () => {
+    const host = sanitize(
+      noteSvg(
+        '<math href="javascript:alert(1)"><mi href="javascript:alert(1)" onclick="alert(1)">x</mi><maction actiontype="toggle"><mi>a</mi></maction><mglyph src="https://example.com/a.png"></mglyph><annotation-xml encoding="text/html"><img src="x" onerror="alert(1)"></annotation-xml><semantics><mi>y</mi><annotation encoding="application/x-tex">y</annotation></semantics></math>',
+      ),
     );
 
-    expect(container.querySelector("math msup")?.textContent).toBe("z2");
-    expect(container.querySelector("script, a, img, image")).toBeNull();
-    expect(container.querySelector("[onclick], [onerror], [href], [src]")).toBeNull();
-    expect(container.innerHTML).not.toContain("https://example.com");
+    const math = host.querySelector("math");
+    expect(math).not.toBeNull();
+    expect(math?.querySelector("mi")?.textContent).toBe("x");
+    expect(host.querySelector("[href], [onclick], [src], [onerror]")).toBeNull();
+    expect(host.querySelector("maction, mglyph, annotation-xml, annotation, semantics, img")).toBe(
+      null,
+    );
+  });
+
+  it("only accepts math as an HTML label and keeps its attributes on MathML", () => {
+    const host = sanitize(
+      '<svg xmlns="http://www.w3.org/2000/svg"><math><mi>x</mi></math><text mathvariant="bold" fence="true">label</text></svg>',
+    );
+
+    expect(host.querySelector("math, mi")).toBeNull();
+    expect(host.querySelector("text")?.getAttributeNames()).toEqual([]);
   });
 });

@@ -54,7 +54,6 @@ describe("ThreadDetailsPanel", () => {
 
     const props: ThreadDetailsPanelProps = {
       anchor: { current: null },
-      errorBannersRef: { current: null },
       handle: PopoverCreateHandle(),
       onPresentationChange: vi.fn(),
       environmentId,

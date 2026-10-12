@@ -9,8 +9,8 @@
  *
  * Historically this Layer composed four per-kind Live Layers
  * (`CodexProviderLive`, `ClaudeProviderLive`, …) that each exposed a
- * `ServerProviderShape`. Those Lives were deleted during the driver /
- * instance refactor — every driver now carries its `snapshot: ServerProviderShape`
+ * `ManagedServerProvider`. Those Lives were deleted during the driver /
+ * instance refactor — every driver now carries its `snapshot: ManagedServerProvider`
  * bundled onto the `ProviderInstance` the registry produces.
  *
  * Each configured instance (including multi-instance setups like
@@ -62,11 +62,14 @@ import {
   resolveProviderStatusCachePath,
   writeProviderStatusCache,
 } from "./providerStatusCache.ts";
-import type { ProviderInstance, ProviderWorkspaceSnapshot } from "./ProviderDriver.ts";
+import type {
+  ProviderInstance,
+  ProviderWorkspaceSnapshot,
+} from "@t3tools/provider-core/server/driver";
 import {
   makeManualOnlyProviderMaintenanceCapabilities,
   type ProviderMaintenanceCapabilities,
-} from "./providerMaintenance.ts";
+} from "@t3tools/provider-core/server/maintenanceResolver";
 import type { ProviderSnapshotSource } from "./builtInProviderCatalog.ts";
 
 export type ProviderMaintenanceActionKind = "update";
@@ -186,13 +189,10 @@ export function upsertProviderWorkspaceSnapshot(
   cwd: string,
   scopedSnapshot: ProviderWorkspaceSnapshot,
 ): ServerProvider {
-  const preserveSlashCommands =
-    scopedSnapshot.slashCommandsPending ||
-    (scopedSnapshot.status === "error" && scopedSnapshot.workspaceDiscoverySucceeded);
   const workspaceSnapshot = {
     cwd,
     checkedAt: scopedSnapshot.checkedAt,
-    slashCommands: preserveSlashCommands
+    slashCommands: scopedSnapshot.slashCommandsPending
       ? (provider.workspaceSnapshots?.find((snapshot) => snapshot.cwd === cwd)?.slashCommands ??
         scopedSnapshot.slashCommands)
       : scopedSnapshot.slashCommands,
@@ -260,7 +260,13 @@ const mergeProviderModels = (
   // Custom rows are derived from settings and every snapshot carries the full
   // current list, so a custom model missing from `nextModels` was removed by
   // the user and must not be resurrected from the previous snapshot.
-  const retainablePreviousModels = previousModels.filter((model) => !model.isCustom);
+  // A model the installed CLI is too old to run was offered by the pending
+  // snapshot, before the version was known; retaining it would make it
+  // selectable again.
+  const updateRequiredSlugs = new Set(provider.updateRequiredModels?.map((model) => model.slug));
+  const retainablePreviousModels = previousModels.filter(
+    (model) => !model.isCustom && !updateRequiredSlugs.has(model.slug),
+  );
 
   if (shouldRetainMissingModels && nextModels.length === 0 && retainablePreviousModels.length > 0) {
     return retainablePreviousModels;
@@ -1086,29 +1092,32 @@ export const layer = Layer.effect(
         : Effect.void;
       return yield* refreshMachineSnapshot.pipe(
         Effect.andThen(instance.snapshotForCwd(input.cwd)),
+        // A failed scan fails this effect, so a returned snapshot is a real
+        // inventory even while the provider's health check reports an error.
         Effect.flatMap((scopedSnapshot) =>
-          scopedSnapshot.status === "error" &&
-          scopedSnapshot.slashCommandsPending === undefined &&
-          !scopedSnapshot.workspaceDiscoverySucceeded
-            ? Ref.get(providersRef)
-            : instanceRegistry.getInstance(input.instanceId).pipe(
-                Effect.flatMap((currentInstance) => {
-                  if (currentInstance !== instance) return Ref.get(providersRef);
-                  // Write only if the cwd's snapshot did not change during the
-                  // scan. A session event or another scan that landed first is newer.
-                  return updateProviders((currentProviders) =>
-                    currentProviders.map((candidate) =>
-                      candidate.instanceId === input.instanceId &&
-                      Equal.equals(workspaceSnapshotOf(candidate), scannedFrom)
-                        ? upsertProviderWorkspaceSnapshot(candidate, input.cwd, {
-                            ...scopedSnapshot,
-                            checkedAt: scannedAt,
-                          })
-                        : candidate,
-                    ),
-                  );
-                }),
-              ),
+          instanceRegistry.getInstance(input.instanceId).pipe(
+            Effect.flatMap((currentInstance) => {
+              if (currentInstance !== instance) return Ref.get(providersRef);
+              // Write only if the cwd's snapshot did not change during the
+              // scan. A session event or another scan that landed first is newer.
+              return updateProviders((currentProviders) =>
+                currentProviders.map((candidate) =>
+                  candidate.instanceId === input.instanceId &&
+                  Equal.equals(workspaceSnapshotOf(candidate), scannedFrom)
+                    ? upsertProviderWorkspaceSnapshot(candidate, input.cwd, {
+                        ...scopedSnapshot,
+                        checkedAt: scannedAt,
+                        // Unless the driver reports its own command discovery,
+                        // commands come from the health check. A failed check
+                        // leaves them unknown, so keep the last ones and retry.
+                        slashCommandsPending:
+                          scopedSnapshot.slashCommandsPending ?? scopedSnapshot.status === "error",
+                      })
+                    : candidate,
+                ),
+              );
+            }),
+          ),
         ),
         Effect.ensuring(
           claimed

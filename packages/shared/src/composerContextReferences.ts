@@ -4,7 +4,9 @@ import {
   type ComposerContextKind,
   type ComposerContextRecord,
   type ElementContextDetails,
+  type EnvironmentId,
   type KnownComposerContextRecord,
+  type ThreadContextRecord,
 } from "@t3tools/contracts";
 
 /**
@@ -90,6 +92,20 @@ export function collectComposerContextReferences(
     });
   }
   return occurrences;
+}
+
+/** Text sent in place of an empty prompt when a message is attachments only. */
+export const ATTACHMENT_ONLY_BOOTSTRAP_PROMPT =
+  "[User attached one or more files without additional text. Respond using the conversation context and the attached files.]";
+
+/** Whether `text` is image references and nothing else, which is how an image-only prompt reads. */
+export function isImageReferencesOnly(text: string): boolean {
+  const references = collectComposerContextReferences(text);
+  return (
+    references.length > 0 &&
+    references.every((reference) => reference.kind === "image") &&
+    replaceComposerContextReferences(text, () => "").trim() === ""
+  );
 }
 
 export function replaceComposerContextReferences(
@@ -295,6 +311,27 @@ export function projectComposerContextForProvider(input: {
   }
   if (entries.length === 0) return body;
   return `${body}\n\n<${CONTEXT_ENVELOPE_TAG} version="1">\n${entries.join("\n")}\n</${CONTEXT_ENVELOPE_TAG}>`;
+}
+
+/**
+ * Attached threads an agent on `environmentId` cannot read: `t3_thread_read` only sees its own
+ * server's threads, so a draft moved to another machine strands these references.
+ */
+export function threadContextsOutsideEnvironment(input: {
+  text: string;
+  records: ReadonlyArray<ComposerContextRecord>;
+  environmentId: EnvironmentId;
+}): ThreadContextRecord[] {
+  const referenced = new Set(
+    collectComposerContextReferences(input.text).map((occurrence) => occurrence.contextId),
+  );
+  return input.records.filter(
+    (record): record is ThreadContextRecord =>
+      record.kind === "thread" &&
+      "threadId" in record &&
+      referenced.has(record.contextId) &&
+      record.environmentId !== input.environmentId,
+  );
 }
 
 /** Preserve context bindings when uploads become thread-owned attachments. */

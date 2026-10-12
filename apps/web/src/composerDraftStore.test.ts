@@ -89,6 +89,7 @@ import {
   type TerminalContextDraft,
 } from "./lib/terminalContext";
 import { createDeferredStorage } from "./lib/storage";
+import { applyPreviewServerSnapshot, resetPreviewStateForTests } from "./previewStateStore";
 
 function makeImage(input: {
   id: string;
@@ -1467,6 +1468,30 @@ describe("composerDraftStore project draft thread mapping", () => {
     expect(draftByKey(draftId)).toBeUndefined();
   });
 
+  it("keeps a draft with an open page when remapping a project to a new draft thread", () => {
+    const store = useComposerDraftStore.getState();
+    store.setProjectDraftThreadId(projectRef, draftId, { threadId });
+    // A link another app opened: the composer is empty, but the page is not.
+    applyPreviewServerSnapshot(scopeThreadRef(TEST_ENVIRONMENT_ID, threadId), {
+      threadId,
+      tabId: "tab-link",
+      navStatus: { _tag: "Success", url: "https://example.com/", title: "Example" },
+      canGoBack: false,
+      canGoForward: false,
+      updatedAt: "2026-10-09T00:00:00.000Z",
+    });
+    try {
+      store.setProjectDraftThreadId(projectRef, otherDraftId, { threadId: otherThreadId });
+
+      expect(useComposerDraftStore.getState().getDraftThread(draftId)?.threadId).toBe(threadId);
+      // It survives a reload too, so the page is still there when the app comes back.
+      const persisted = partializeComposerDraftStoreState(useComposerDraftStore.getState());
+      expect(persisted.draftThreadsByThreadKey[draftId]?.threadId).toBe(threadId);
+    } finally {
+      resetPreviewStateForTests();
+    }
+  });
+
   it("keeps invested composer drafts alive unmapped when remapping a project to a new draft thread", () => {
     const store = useComposerDraftStore.getState();
     store.setProjectDraftThreadId(projectRef, draftId, { threadId });
@@ -1877,86 +1902,6 @@ describe("composerDraftStore project draft thread mapping", () => {
       loadBalancedEnvironmentId: null,
     });
     expect(store.getComposerDraft(draftId)?.prompt).toBe("keep this prompt");
-  });
-
-  it.each(["manual", "auto"] as const)(
-    "keeps referenced threads readable during %s machine selection, including stale selections",
-    (environmentSelection) => {
-      const store = useComposerDraftStore.getState();
-      const reference = threadContextRecord(
-        scopeThreadRef(TEST_ENVIRONMENT_ID, otherThreadId),
-        "Reference conversation",
-      );
-      store.setProjectDraftThreadId(projectRef, draftId, { threadId });
-      store.setPrompt(draftId, "Use this context");
-      store.addThreadContexts(draftId, [reference]);
-      const before = useComposerDraftStore.getState();
-
-      store.setDraftThreadContext(draftId, {
-        projectRef: remoteProjectRef,
-        environmentSelection,
-        loadBalancedEnvironmentId:
-          environmentSelection === "auto" ? OTHER_TEST_ENVIRONMENT_ID : null,
-      });
-
-      expect(store.getDraftThread(draftId)).toEqual(before.draftThreadsByThreadKey[draftId]);
-      expect(store.getComposerDraft(draftId)).toEqual(before.draftsByThreadKey[draftId]);
-
-      store.setThreadContexts(draftId, []);
-      store.setDraftThreadContext(draftId, { projectRef: remoteProjectRef });
-      expect(store.getDraftThread(draftId)?.environmentId).toBe(OTHER_TEST_ENVIRONMENT_ID);
-      expect(store.getComposerDraft(draftId)?.prompt).toBe("Use this context");
-    },
-  );
-
-  it("protects referenced threads when a logical project or Scratch draft is remapped", () => {
-    const store = useComposerDraftStore.getState();
-    const reference = threadContextRecord(
-      scopeThreadRef(TEST_ENVIRONMENT_ID, otherThreadId),
-      "Reference conversation",
-    );
-    store.setLogicalProjectDraftThreadId("scratch-local", projectRef, draftId, { threadId });
-    store.addThreadContexts(draftId, [reference]);
-    const before = useComposerDraftStore.getState();
-
-    store.setLogicalProjectDraftThreadId("scratch-remote", remoteProjectRef, draftId);
-
-    expect(useComposerDraftStore.getState()).toBe(before);
-    expect(store.getDraftSessionByLogicalProjectKey("scratch-local")?.draftId).toBe(draftId);
-    expect(store.getDraftSessionByLogicalProjectKey("scratch-remote")).toBeNull();
-
-    store.setLogicalProjectDraftThreadId("scratch-local", otherProjectRef, draftId);
-    expect(store.getDraftThread(draftId)?.projectId).toBe(otherProjectId);
-    expect(store.getComposerDraft(draftId)?.threadContexts).toEqual([reference]);
-
-    store.setThreadContexts(draftId, []);
-    store.setLogicalProjectDraftThreadId("scratch-remote", remoteProjectRef, draftId);
-    expect(store.getDraftThread(draftId)?.environmentId).toBe(OTHER_TEST_ENVIRONMENT_ID);
-    expect(store.getDraftSessionByLogicalProjectKey("scratch-local")).toBeNull();
-  });
-
-  it("can return a persisted mismatched reference to its source machine", () => {
-    const store = useComposerDraftStore.getState();
-    const reference = threadContextRecord(
-      scopeThreadRef(TEST_ENVIRONMENT_ID, otherThreadId),
-      "Reference conversation",
-    );
-    store.setProjectDraftThreadId(remoteProjectRef, draftId, { threadId });
-    store.addThreadContexts(draftId, [reference]);
-    const merge = useComposerDraftStore.persist.getOptions().merge!;
-    useComposerDraftStore.setState(
-      merge(
-        JSON.parse(
-          JSON.stringify(partializeComposerDraftStoreState(useComposerDraftStore.getState())),
-        ),
-        useComposerDraftStore.getInitialState(),
-      ),
-    );
-
-    store.setDraftThreadContext(draftId, { projectRef });
-
-    expect(store.getDraftThread(draftId)?.environmentId).toBe(TEST_ENVIRONMENT_ID);
-    expect(store.getComposerDraft(draftId)?.threadContexts).toEqual([reference]);
   });
 
   it("clears branch and worktree but keeps env mode when changing a draft thread project ref", () => {

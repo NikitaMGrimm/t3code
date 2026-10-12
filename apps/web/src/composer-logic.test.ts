@@ -313,6 +313,53 @@ describe("detectComposerTrigger", () => {
     });
   });
 
+  it.each(["Use /rev", "Use\n  /rev", "  /rev"])(
+    "detects a slash command that starts a word in %j",
+    (text) => {
+      expect(detectComposerTrigger(text, text.length)).toEqual({
+        kind: "slash-command",
+        query: "rev",
+        rangeStart: text.length - "/rev".length,
+        rangeEnd: text.length,
+      });
+    },
+  );
+
+  it.each([
+    "Use /review afterwards",
+    "/review afterwards",
+    "  /review\tnext",
+    "$first /review\nnext",
+  ])("replaces the whole slash token with the caret inside %j", (text) => {
+    const rangeStart = text.indexOf("/");
+    const trigger = detectComposerTrigger(text, rangeStart + "/rev".length);
+
+    expect(trigger).toEqual({
+      kind: "slash-command",
+      query: "rev",
+      rangeStart,
+      rangeEnd: rangeStart + "/review".length,
+    });
+  });
+
+  it("opens the slash menu after a skill chip on the same line", () => {
+    expect(composerStateAtPromptEnd("$first /rev")).toEqual({
+      cursor: 6,
+      trigger: { kind: "slash-command", query: "rev", rangeStart: 7, rangeEnd: 11 },
+    });
+  });
+
+  it.each([
+    ["Use /tmp/build.sh", "Use /tmp/build.sh".length],
+    ["Use /etc/hosts", "Use /etc/hosts".length],
+    ["/etc/hosts", "/etc/hosts".length],
+    ["Use /etc/hosts now", "Use /et".length],
+    ["see https://example.com/a", "see https://example.com/a".length],
+    ["and/or", "and/".length],
+  ])("keeps paths and URLs literal in %j", (text, cursor) => {
+    expect(detectComposerTrigger(text, cursor)).toBeNull();
+  });
+
   it.each(["$", "€", "£", "¥", "₹", "₩", "₿", "𑿝"])(
     "detects %sskill trigger at cursor",
     (prefix) => {
@@ -815,5 +862,35 @@ describe("parseStandaloneComposerSlashCommand", () => {
 
   it("ignores slash commands with extra message text", () => {
     expect(parseStandaloneComposerSlashCommand("/plan explain this")).toBeNull();
+  });
+});
+
+describe("literal editor answer cursor state", () => {
+  const prefill = "- [X] done $my-skill ";
+
+  it("keeps character positions after token-like text for inserted lines and replacements", () => {
+    for (const replacement of ["\n", "\t", "edited\n  "]) {
+      const next = replaceTextRange(prefill, prefill.length, prefill.length, replacement);
+      const cursor = collapseExpandedComposerCursor(next.text, next.cursor, true);
+      expect(next.text).toBe(prefill + replacement);
+      expect(cursor).toBe(next.text.length);
+      expect(expandCollapsedComposerCursor(next.text, cursor, true)).toBe(next.cursor);
+      expect(clampCollapsedComposerCursor(next.text, cursor, true)).toBe(next.cursor);
+    }
+    const replaced = replaceTextRange(prefill, 11, 20, "$another-skill");
+    const cursor = collapseExpandedComposerCursor(replaced.text, replaced.cursor, true);
+    expect(replaced.text).toBe("- [X] done $another-skill ");
+    expect(cursor).toBe(25);
+    expect(expandCollapsedComposerCursor(replaced.text, cursor, true)).toBe(25);
+  });
+
+  it("does not open a skill or path menu when restoring an editor answer", () => {
+    for (const value of ["- [X] done $my-skill", "Use @README", ""]) {
+      expect(composerStateAtPromptEnd(value, true)).toEqual({
+        cursor: value.length,
+        trigger: null,
+      });
+    }
+    expect(composerStateAtPromptEnd("Use $my").trigger?.kind).toBe("skill");
   });
 });

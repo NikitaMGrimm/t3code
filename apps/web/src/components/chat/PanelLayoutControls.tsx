@@ -1,7 +1,7 @@
 import { PanelBottomIcon, PanelRightIcon, SquareMenuIcon } from "lucide-react";
 import { Maximize2, Minimize2 } from "lucide";
 import { MorphIcon } from "~/components/MorphIcon";
-import { memo, type ReactElement, type RefObject } from "react";
+import { memo, type ReactElement } from "react";
 
 import type { ThreadPanelPresentation } from "../../rightPanelLayout";
 import { PopoverCreateHandle, PopoverTrigger } from "../ui/popover";
@@ -18,7 +18,6 @@ export interface PanelLayoutControlsProps {
   threadPanelOpen: boolean;
   threadPanelPresentation: ThreadPanelPresentation;
   threadPanelPopoverHandle?: ReturnType<typeof PopoverCreateHandle>;
-  errorBannersRef?: RefObject<HTMLElement | null>;
   threadPanelShortcutLabel: string | null;
   rightPanelAvailable: boolean;
   rightPanelOpen: boolean;
@@ -39,7 +38,6 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
   threadPanelOpen,
   threadPanelPresentation,
   threadPanelPopoverHandle,
-  errorBannersRef,
   threadPanelShortcutLabel,
   rightPanelAvailable,
   rightPanelOpen,
@@ -81,15 +79,7 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
       {showThreadPanelControl
         ? threadPanelPresentation === "popover"
           ? threadPanelTooltip(
-              <PopoverTrigger
-                handle={threadPanelPopoverHandle}
-                render={threadPanelToggle}
-                onBlurCapture={(event) => {
-                  if (errorBannersRef?.current?.contains(event.relatedTarget)) {
-                    event.stopPropagation();
-                  }
-                }}
-              />,
+              <PopoverTrigger handle={threadPanelPopoverHandle} render={threadPanelToggle} />,
             )
           : threadPanelTooltip(threadPanelToggle)
         : null}
