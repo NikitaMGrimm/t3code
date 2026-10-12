@@ -75,6 +75,37 @@ def read_state(repo, name):
     return json.loads(git("show", f"FETCH_HEAD:{name}", cwd=repo).stdout) if files else {}
 
 
+def pull_request_numbers(value, repository):
+    numbers = set()
+    for item in re.split(r"[\s,]+", value.strip()):
+        if not item:
+            continue
+        match = re.fullmatch(r"#?([1-9]\d*)", item)
+        if match is None:
+            link = re.fullmatch(r"https://github\.com/([^/]+/[^/]+)/pull/([1-9]\d*)/?(?:[?#].*)?", item)
+            if link is None or link[1].casefold() != repository.casefold():
+                raise ValueError(f"Use PR numbers or links from {repository}: {item}")
+            numbers.add(int(link[2]))
+        else:
+            numbers.add(int(match[1]))
+    return numbers
+
+
+def update_selected_pull_requests(repo, config, include, remove, sequence):
+    additions = pull_request_numbers(include, config["upstreamRepository"])
+    removals = pull_request_numbers(remove, config["upstreamRepository"])
+    if additions & removals:
+        raise ValueError("A PR cannot be included and removed in the same request")
+    selected = read_state(repo, "included-prs.json")
+    current = set(selected.get("numbers", []))
+    updated = (current | additions) - removals
+    if updated != current:
+        # Selection is independent of candidates: a conflict must not discard the
+        # user's request to follow this PR when its owner next pushes a fix.
+        write_state(repo, "included-prs.json", {"numbers": sorted(updated), "sequence": sequence})
+    return updated
+
+
 def discover_pull_requests(config):
     """Search by author, including drafts, and paginate without the CLI's default limit."""
     author = config["repository"].split("/")[0]
@@ -83,6 +114,7 @@ def discover_pull_requests(config):
         issueCount pageInfo { hasNextPage endCursor }
         nodes { ... on PullRequest {
           number title state headRefOid headRefName baseRefOid baseRefName author { login }
+          headRepository { nameWithOwner } baseRepository { nameWithOwner }
         } }
       }
     }"""
@@ -111,7 +143,11 @@ def discover_pull_requests(config):
                 raise ValueError("PR inputs require exact commit IDs")
             pulls.append({"number": pull["number"], "title": pull["title"],
                           "headSha": pull["headRefOid"], "baseSha": pull["baseRefOid"],
-                          "headRef": pull["headRefName"], "baseRef": pull["baseRefName"]})
+                          "headRef": pull["headRefName"], "baseRef": pull["baseRefName"],
+                          "author": pull["author"]["login"],
+                          "url": f"https://github.com/{config['upstreamRepository']}/pull/{pull['number']}",
+                          "headRepository": (pull.get("headRepository") or {}).get("nameWithOwner"),
+                          "baseRepository": (pull.get("baseRepository") or {}).get("nameWithOwner")})
         if not search["pageInfo"]["hasNextPage"]:
             break
         next_cursor = search["pageInfo"]["endCursor"]
@@ -121,6 +157,42 @@ def discover_pull_requests(config):
     if len(pulls) != expected_count or len({pull["number"] for pull in pulls}) != len(pulls):
         raise RuntimeError("The PR input set changed during pagination; retry discovery")
     return sorted(pulls, key=lambda pull: pull["number"])
+
+
+def discover_included_pull_requests(repo, config, tag, selected):
+    pulls = {pull["number"]: pull for pull in discover_pull_requests(config)}
+    owner = config["repository"].split("/")[0].casefold()
+    # Previously included authored PRs may have merged ahead of the official
+    # nightly. Keep their patches until the nightly actually contains the merge.
+    previous_owned = {pull["number"] for pull in config.get("pullRequests", [])
+                      if pull.get("author", owner).casefold() == owner}
+    for number in sorted((set(selected) | previous_owned) - pulls.keys()):
+        response = subprocess.run(["gh", "api", f"repos/{config['upstreamRepository']}/pulls/{number}"],
+                                  check=True, capture_output=True, text=True)
+        pull = json.loads(response.stdout)
+        if pull["state"] == "closed":
+            if not pull["merged"]:
+                continue
+            merge = pull["merge_commit_sha"]
+            if not isinstance(merge, str) or re.fullmatch(r"[0-9a-f]{40}", merge) is None:
+                raise ValueError(f"Merged PR #{number} requires an exact merge commit")
+            if git("cat-file", "-e", f"{merge}^{{commit}}", cwd=repo, check=False).returncode:
+                git("fetch", f"https://github.com/{config['upstreamRepository']}.git", merge, cwd=repo)
+            included = git("merge-base", "--is-ancestor", merge, tag, cwd=repo, check=False)
+            if included.returncode == 0:
+                continue
+            if included.returncode != 1:
+                raise RuntimeError(f"Could not establish nightly inclusion for PR #{number}")
+        if not all(isinstance(pull[key]["sha"], str) and re.fullmatch(r"[0-9a-f]{40}", pull[key]["sha"])
+                   for key in ("head", "base")):
+            raise ValueError(f"PR #{number} requires exact commit IDs")
+        pulls[number] = {"number": number, "title": pull["title"],
+                         "headSha": pull["head"]["sha"], "baseSha": pull["base"]["sha"],
+                         "headRef": pull["head"]["ref"], "baseRef": pull["base"]["ref"],
+                         "author": pull["user"]["login"], "url": pull["html_url"],
+                         "headRepository": (pull["head"].get("repo") or {}).get("full_name"),
+                         "baseRepository": (pull["base"].get("repo") or {}).get("full_name")}
+    return sorted(pulls.values(), key=lambda pull: pull["number"])
 
 
 def pull_request_inputs(pulls):
@@ -168,8 +240,8 @@ def ordered_pull_requests(pulls):
     pending = sorted(pulls, key=lambda pull: pull["number"])
     ordered = []
     while pending:
-        heads = {pull["headRef"] for pull in pending}
-        ready = [pull for pull in pending if pull["baseRef"] not in heads]
+        heads = {(pull.get("headRepository"), pull["headRef"]) for pull in pending}
+        ready = [pull for pull in pending if (pull.get("baseRepository"), pull["baseRef"]) not in heads]
         if not ready:
             raise ValueError("The PR input set has a cyclic branch dependency")
         for pull in ready:
@@ -454,7 +526,14 @@ def main():
         pulls, resolutions, inputs = None, None, None
         if args.sync_prs:
             config = json.loads((repo / "personal-nightly.json").read_text())
-            pulls = discover_pull_requests(config)
+            if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
+                selected = update_selected_pull_requests(repo, config,
+                    os.environ.get("PERSONAL_NIGHTLY_INCLUDE_PRS", ""),
+                    os.environ.get("PERSONAL_NIGHTLY_REMOVE_PRS", ""),
+                    int(os.environ.get("PERSONAL_NIGHTLY_SEQUENCE") or time.time_ns() // 1_000_000))
+            else:
+                selected = set(read_state(repo, "included-prs.json").get("numbers", []))
+            pulls = discover_included_pull_requests(repo, config, args.tag, selected)
             inputs = {"upstreamTag": args.tag, "pullRequests": pull_request_inputs(pulls)}
             forced = (os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
                       and os.environ.get("PERSONAL_NIGHTLY_FORCE") == "true")

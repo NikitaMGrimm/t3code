@@ -63,10 +63,11 @@ class PrSynchronizationTests(unittest.TestCase):
         nightly.git("remote", "add", "origin", str(remote), cwd=self.repo)
         nightly.git("push", "origin", "HEAD:refs/heads/personal-nightly", cwd=self.repo)
 
-    def run_prepare(self, pulls, now, forced=False, manual=False):
+    def run_prepare(self, pulls, now, forced=False, manual=False, include="", remove=""):
         env = {"RUNNER_TEMP": self.temp.name, "GITHUB_OUTPUT": str(Path(self.temp.name) / "output"),
                "GITHUB_EVENT_NAME": "workflow_dispatch" if forced or manual else "schedule",
-               "GITHUB_RUN_ID": "123", "PERSONAL_NIGHTLY_FORCE": "true" if forced else "false"}
+               "GITHUB_RUN_ID": "123", "PERSONAL_NIGHTLY_FORCE": "true" if forced else "false",
+               "PERSONAL_NIGHTLY_INCLUDE_PRS": include, "PERSONAL_NIGHTLY_REMOVE_PRS": remove}
         args = ["personal-nightly", "prepare", "--sync-prs", "--tag", self.tag]
         with patch.object(Path, "cwd", return_value=self.repo), patch.object(sys, "argv", args), \
                 patch.dict(os.environ, env), patch.object(nightly.time, "time", return_value=now), \
@@ -186,6 +187,101 @@ class PrSynchronizationTests(unittest.TestCase):
         self.assertEqual((self.repo / "shared.txt").read_text(), "base\n")
         self.assertEqual(nightly.git("status", "--porcelain", cwd=self.repo).stdout, "")
 
+    def test_owner_fix_automatically_recovers_a_previously_conflicting_selected_pr(self):
+        self.remote()
+        first = self.pull(1, {"shared.txt": "PR change\n"})
+        nightly.git("checkout", "upstream", cwd=self.repo)
+        (self.repo / "shared.txt").write_text("new upstream change\n")
+        self.commit("new official nightly")
+        self.tag = "v0.0.46-nightly.20261012.2"
+        nightly.git("tag", self.tag, cwd=self.repo)
+        nightly.git("checkout", "personal-nightly", cwd=self.repo)
+        status, _ = self.run_prepare([first], 100, forced=True, include="1")
+        self.assertEqual(status["phase"], "conflict")
+        self.assertEqual(nightly.read_state(self.repo, "included-prs.json")["numbers"], [1])
+        suppressed, fetch = self.run_prepare([first], 200)
+        self.assertEqual(suppressed["phase"], "debouncing")
+        fetch.assert_not_called()
+        fixed = self.pull(1, {"shared.txt": "owner reconciled the new upstream change\n"})
+        waiting, _ = self.run_prepare([fixed], 300)
+        self.assertEqual(waiting["phase"], "debouncing")
+        recovered, fetch = self.run_prepare([fixed], 420)
+        fetch.assert_called_once()
+        self.assertEqual(recovered["phase"], "building")
+        self.assertEqual((self.repo / "shared.txt").read_text(), "owner reconciled the new upstream change\n")
+        self.assertEqual((self.repo / "personal.txt").read_text(), "my independent fix\n")
+
+    def test_conflict_between_selected_prs_waits_for_a_compatible_new_head(self):
+        first = self.pull(1, {"shared.txt": "first PR\n"})
+        second = self.pull(2, {"shared.txt": "conflicting second PR\n"})
+        before = self.head()
+        status = self.prepare([first, second])
+        self.assertEqual(status["phase"], "conflict")
+        self.assertEqual(status["conflictPullRequest"], 2)
+        self.assertEqual(self.head(), before)
+        fixed = self.pull(2, {"other.txt": "second PR without the overlapping edit\n"})
+        self.assertEqual(self.prepare([first, fixed])["phase"], "building")
+        self.assertEqual((self.repo / "shared.txt").read_text(), "first PR\n")
+        self.assertTrue((self.repo / "other.txt").exists())
+
+    def test_selected_merged_pr_transitions_to_upstream_without_losing_its_changes(self):
+        self.assert_merged_pr_transition("another-contributor", {1})
+
+    def test_owned_merged_pr_stays_included_until_the_official_nightly_contains_it(self):
+        self.assert_merged_pr_transition("NikitaMGrimm", set())
+
+    def assert_merged_pr_transition(self, author, selected):
+        first = self.pull(1, {"pr.txt": "accepted upstream fix\n"})
+        first["author"] = author
+        self.prepare([first])
+        nightly.git("checkout", "upstream", cwd=self.repo)
+        nightly.git("merge", "--no-ff", "pr-1", "-m", "Merge PR 1", cwd=self.repo)
+        merge = self.head()
+        nightly.git("checkout", "personal-nightly", cwd=self.repo)
+        data = {"number": 1, "title": first["title"], "state": "closed", "merged": True,
+                "merge_commit_sha": merge, "head": {"sha": first["headSha"], "ref": "pr-1"},
+                "base": {"sha": first["baseSha"], "ref": "main"},
+                "user": {"login": first["author"]}, "html_url": "https://github.com/pingdotgg/t3code/pull/1"}
+        original_run = nightly.subprocess.run
+        def github_or_git(args, **kwargs):
+            if args[0] == "gh":
+                return subprocess.CompletedProcess(args, 0, json.dumps(data), "")
+            return original_run(args, **kwargs)
+        with patch.object(nightly, "discover_pull_requests", return_value=[]), \
+                patch.object(nightly.subprocess, "run", side_effect=github_or_git):
+            waiting = nightly.discover_included_pull_requests(self.repo, self.manifest(), self.tag, selected)
+            self.assertEqual([pull["number"] for pull in waiting], [1])
+            self.prepare(waiting)
+            self.assertEqual((self.repo / "pr.txt").read_text(), "accepted upstream fix\n")
+            self.tag = "v0.0.46-nightly.20261012.2"
+            nightly.git("tag", self.tag, merge, cwd=self.repo)
+            landed = nightly.discover_included_pull_requests(self.repo, self.manifest(), self.tag, selected)
+            self.assertEqual(landed, [])
+            self.prepare(landed)
+        self.assertEqual((self.repo / "pr.txt").read_text(), "accepted upstream fix\n")
+        self.assertEqual(self.manifest()["pullRequests"], [])
+
+    def test_selection_changes_persist_without_building_during_cooldown(self):
+        self.remote()
+        nightly.write_state(self.repo, "build-timing.json", {"completedAt": 100, "sequence": 1})
+        head = self.head()
+        status, fetch = self.run_prepare([], 200, manual=True,
+            include="https://github.com/pingdotgg/t3code/pull/42, #43")
+        self.assertEqual(status["phase"], "debouncing")
+        fetch.assert_not_called()
+        self.assertEqual(self.head(), head)
+        self.assertEqual(nightly.read_state(self.repo, "included-prs.json")["numbers"], [42, 43])
+        self.run_prepare([], 300, manual=True, remove="42")
+        self.assertEqual(nightly.read_state(self.repo, "included-prs.json")["numbers"], [43])
+
+    def test_other_contributors_main_branches_are_not_false_stack_dependencies(self):
+        first = self.pull(1, {"first.txt": "first"})
+        second = self.pull(2, {"second.txt": "second"})
+        first.update(headRef="main", headRepository="someone/t3code", baseRepository="pingdotgg/t3code")
+        second.update(headRepository="NikitaMGrimm/t3code", baseRepository="pingdotgg/t3code")
+        self.assertEqual([pull["number"] for pull in nightly.ordered_pull_requests([first, second])], [1, 2])
+        self.assertEqual(self.prepare([first, second])["phase"], "building")
+
     def test_personal_overlay_conflict_does_not_overwrite_the_existing_fix(self):
         (self.repo / "shared.txt").write_text("independent personal change\n")
         self.commit("personal shared fix")
@@ -276,6 +372,8 @@ class PrSynchronizationTests(unittest.TestCase):
 
 
 class InputDiscoveryTests(unittest.TestCase):
+    config = {"repository": "NikitaMGrimm/t3code", "upstreamRepository": "pingdotgg/t3code"}
+
     def node(self, number):
         return {"number": number, "title": f"Fix {number}", "state": "OPEN",
                 "headRefOid": "a" * 40, "headRefName": f"pr-{number}",
@@ -285,6 +383,66 @@ class InputDiscoveryTests(unittest.TestCase):
         return subprocess.CompletedProcess([], 0, json.dumps({"data": {"search": {
             "issueCount": 2, "nodes": [self.node(number) for number in numbers],
             "pageInfo": {"hasNextPage": more, "endCursor": cursor}}}}), "")
+
+    def rest_pull(self, number, state="open", head="a" * 40):
+        return {"number": number, "title": f"Someone else's fix {number}", "state": state, "merged": False,
+                "head": {"sha": head, "ref": "main", "repo": {"full_name": "someone/t3code"}},
+                "base": {"sha": "b" * 40, "ref": "main", "repo": {"full_name": "pingdotgg/t3code"}},
+                "user": {"login": "someone"}, "html_url": f"https://github.com/pingdotgg/t3code/pull/{number}"}
+
+    def rest_response(self, pull):
+        return subprocess.CompletedProcess([], 0, json.dumps(pull), "")
+
+    def test_explicit_selection_includes_other_authors_and_deduplicates_own_prs(self):
+        own = {"number": 1, "headSha": "c" * 40, "baseRef": "main", "author": "NikitaMGrimm"}
+        with patch.object(nightly, "discover_pull_requests", return_value=[own]), \
+                patch.object(nightly.subprocess, "run", return_value=self.rest_response(self.rest_pull(2))) as run:
+            pulls = nightly.discover_included_pull_requests(Path("unused"), self.config, "tag", {1, 2})
+        self.assertEqual([pull["number"] for pull in pulls], [1, 2])
+        self.assertEqual(pulls[1]["author"], "someone")
+        self.assertEqual(pulls[1]["url"], "https://github.com/pingdotgg/t3code/pull/2")
+        run.assert_called_once()
+
+    def test_selected_pr_follows_latest_heads_and_recovers_when_reopened(self):
+        with patch.object(nightly, "discover_pull_requests", return_value=[]), \
+                patch.object(nightly.subprocess, "run", side_effect=[
+                    self.rest_response(self.rest_pull(2)),
+                    self.rest_response(self.rest_pull(2, state="closed")),
+                    self.rest_response(self.rest_pull(2, head="c" * 40)),
+                ]):
+            first = nightly.discover_included_pull_requests(Path("unused"), self.config, "tag", {2})
+            closed = nightly.discover_included_pull_requests(Path("unused"), self.config, "tag", {2})
+            reopened = nightly.discover_included_pull_requests(Path("unused"), self.config, "tag", {2})
+        self.assertEqual(closed, [])
+        self.assertNotEqual(nightly.pull_request_inputs(first), nightly.pull_request_inputs(reopened))
+
+    def test_removing_a_selected_other_authors_pr_stops_tracking_it(self):
+        config = {**self.config, "pullRequests": [{"number": 2, "author": "someone"}]}
+        with patch.object(nightly, "discover_pull_requests", return_value=[]), \
+                patch.object(nightly.subprocess, "run") as run:
+            self.assertEqual(nightly.discover_included_pull_requests(Path("unused"), config, "tag", set()), [])
+        run.assert_not_called()
+
+    def test_unavailable_selected_pr_fails_discovery_instead_of_publishing_a_partial_set(self):
+        with patch.object(nightly, "discover_pull_requests", return_value=[{"number": 1}]), \
+                patch.object(nightly.subprocess, "run", side_effect=subprocess.CalledProcessError(1, ["gh"])), \
+                self.assertRaises(subprocess.CalledProcessError):
+            nightly.discover_included_pull_requests(Path("unused"), self.config, "tag", {2})
+
+    def test_pr_link_input_supports_numbers_urls_and_multiple_links(self):
+        value = "42, #43\nhttps://github.com/pingdotgg/t3code/pull/44#issuecomment-123 42"
+        self.assertEqual(nightly.pull_request_numbers(value, "pingdotgg/t3code"), {42, 43, 44})
+        for invalid in ["0", "-42", "https://github.com/another/repo/pull/42",
+                        "https://github.com/pingdotgg/t3code/issues/42", "$(date)"]:
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                nightly.pull_request_numbers(invalid, "pingdotgg/t3code")
+
+    def test_ambiguous_add_and_remove_cannot_change_the_selection(self):
+        with patch.object(nightly, "read_state") as read, patch.object(nightly, "write_state") as write, \
+                self.assertRaisesRegex(ValueError, "same request"):
+            nightly.update_selected_pull_requests(Path("unused"), self.config, "42", "#42", 1)
+        read.assert_not_called()
+        write.assert_not_called()
 
     def test_discovery_paginates_and_includes_all_open_authored_prs(self):
         with patch.object(nightly.subprocess, "run", side_effect=[self.response([2], True, "next"), self.response([1])]) as run:

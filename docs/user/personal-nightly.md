@@ -16,8 +16,8 @@ use `t3 service install` for app-controlled server updates. It checks the releas
 checksum and retains versioned runtimes. The personal VPS uses its existing
 deployment coordinator so the app can update its managed container safely.
 
-The Personal nightly GitHub workflow checks for an official nightly and all open
-upstream PRs by this fork's owner every five minutes. It waits until changed PR
+The Personal nightly GitHub workflow checks for an official nightly, all open
+upstream PRs by this fork's owner, and selected upstream PRs every five minutes. It waits until changed PR
 inputs have stayed unchanged for two minutes before building. GitHub can delay
 scheduled checks. Only one build runs at a time. After a build finishes, checks
 wait 30 minutes before starting another; changes during the build and cooldown
@@ -36,10 +36,25 @@ waits for changed inputs or a forced manual retry instead of repeatedly packagin
 
 Open or update an upstream PR under this fork's owner's account to include it
 automatically, including drafts. Each build uses the current open PR heads;
-closing a PR removes its personal import. Merged changes arrive with an official
-nightly. Updated or force-pushed PRs replace their previous imports, and stacked
+closing an unmerged PR removes its personal import. A merged PR stays included
+until an official nightly contains its merge, then becomes part of that nightly.
+Updated or force-pushed PRs replace their previous imports, and stacked
 PRs are assembled after their dependencies. A new conflict keeps the previous
 release available.
+
+To include someone else's upstream PR, open **Actions → Personal nightly → Run
+workflow** and put its GitHub URL or number in **include_prs**. Separate multiple
+PRs with spaces or commas. The selection is saved even if the candidate conflicts;
+if a build is running, the selection request waits in the queue without replacing
+or interrupting that build. Future checks follow each PR's latest head automatically. Put the same URL or
+number in **remove_prs** to stop following it. Your own open PRs remain automatic.
+A selected PR that closes without merging leaves the build; reopening it includes
+it again until you remove its selection. Release notes link the included PR changes.
+
+When an owner pushes a conflict fix, the next eligible check retries their new
+head with the normal debounce and cooldown. Conflicts with another included PR,
+your personal fixes, or changes not yet present in the official nightly still
+need reconciliation. The last published release remains available meanwhile.
 
 Start a fix branch from this fork's `personal-nightly` branch. After testing,
 merge it back into `personal-nightly`, or cherry-pick the tested commits there.
