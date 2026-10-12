@@ -1,17 +1,149 @@
 {
   "schema": 1,
-  "phase": "conflict",
-  "upstreamTag": "v0.0.46-nightly.20261011.2994",
-  "conflicts": [
-    "apps/web/src/components/ChatMarkdown.test.tsx",
-    "apps/web/src/components/ChatView.tsx",
-    "apps/web/src/components/chat/DraftHeroHeadline.tsx",
-    "apps/web/src/components/chat/ThreadDetailsCard.tsx",
-    "apps/web/src/components/settings/ConnectionsSettings.tsx",
-    "packages/shared/package.json"
-  ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38211083308",
+  "phase": "building",
+  "upstreamTag": "v0.0.46-nightly.20261012.3010",
+  "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38256823805",
   "releasedVersion": "0.0.46-nightly.20261008.1791477230712",
-  "baseCommit": "bd7cd7be8bf813ffe7c91be249bd61328dfa10d9",
-  "sequence": 1791785300894
+  "baseCommit": "f25639458fcd364eab49a8e66dd27fcb2596a44f",
+  "sequence": 1791812175087,
+  "candidateCommit": "8cb9c53f381979e9bf0915aca08a31d9a5636d9e",
+  "candidateVersion": "0.0.46-nightly.20261012.1791812175087",
+  "inputs": {
+    "upstreamTag": "v0.0.46-nightly.20261012.3010",
+    "pullRequests": [
+      {
+        "number": 15269,
+        "headSha": "c621b507974efacda8836060ae80a3b7ac525b6e",
+        "baseRef": "main"
+      },
+      {
+        "number": 16198,
+        "headSha": "f1cc8f7d3d06701d2ebeba9285becd33371451ba",
+        "baseRef": "main"
+      },
+      {
+        "number": 16249,
+        "headSha": "7c7a2d138bf87803592437b11d80bcef1ac573cd",
+        "baseRef": "main"
+      },
+      {
+        "number": 16453,
+        "headSha": "c8418b15ff5fde993c5c0b408f121b4b13c306db",
+        "baseRef": "main"
+      },
+      {
+        "number": 17892,
+        "headSha": "f32b07cd48392d3b027cdfa3561f09c8ce6ad535",
+        "baseRef": "main"
+      },
+      {
+        "number": 18308,
+        "headSha": "4b20037e43448225e0105de81c52151a680d295e",
+        "baseRef": "main"
+      },
+      {
+        "number": 18309,
+        "headSha": "7f4d0ef8112f8d791094652d4b6f850e94a46b25",
+        "baseRef": "main"
+      },
+      {
+        "number": 18310,
+        "headSha": "685b805192af24517a14b95d3a3ad53efbce1288",
+        "baseRef": "main"
+      },
+      {
+        "number": 18311,
+        "headSha": "bcf1af7a6cf400f8dbd2d6a536e51601b8cc7a07",
+        "baseRef": "main"
+      },
+      {
+        "number": 18322,
+        "headSha": "beda35de70953589b5d943dd4ad6078b938c8d6d",
+        "baseRef": "main"
+      }
+    ]
+  },
+  "pullRequests": [
+    {
+      "number": 15269,
+      "title": "fix(web): allow Working threads to be dragged into chat as references",
+      "headSha": "c621b507974efacda8836060ae80a3b7ac525b6e",
+      "baseSha": "9bd1d8009a6b7c50f9dd9458e2bf27d481ff3b43",
+      "headRef": "fix/working-thread-references",
+      "baseRef": "main"
+    },
+    {
+      "number": 16198,
+      "title": "fix(web): show math labels in Mermaid diagrams",
+      "headSha": "f1cc8f7d3d06701d2ebeba9285becd33371451ba",
+      "baseSha": "ec80933ac8cd02fec5c97b342462ccc9567cdb1e",
+      "headRef": "fix/mermaid-math",
+      "baseRef": "main"
+    },
+    {
+      "number": 16249,
+      "title": "fix(web): preserve Mermaid source when copying selected text",
+      "headSha": "7c7a2d138bf87803592437b11d80bcef1ac573cd",
+      "baseSha": "677d1527c3d96b90b2294d9a0aed7d8c8874b29b",
+      "headRef": "feat/mermaid-selection-copy",
+      "baseRef": "main"
+    },
+    {
+      "number": 16453,
+      "title": "fix(server): honor configured remote diff bases",
+      "headSha": "c8418b15ff5fde993c5c0b408f121b4b13c306db",
+      "baseSha": "9bd1d8009a6b7c50f9dd9458e2bf27d481ff3b43",
+      "headRef": "fix/remote-diff-base",
+      "baseRef": "main"
+    },
+    {
+      "number": 17892,
+      "title": "fix(web): attach button no longer shifts when the Compact chip toggles",
+      "headSha": "f32b07cd48392d3b027cdfa3561f09c8ce6ad535",
+      "baseSha": "dacd2cb649eea06a00244bd181eb400735e923d5",
+      "headRef": "fix/composer-compact-chip-order",
+      "baseRef": "main"
+    },
+    {
+      "number": 18308,
+      "title": "fix(web): render completed Mermaid blocks while streaming",
+      "headSha": "4b20037e43448225e0105de81c52151a680d295e",
+      "baseSha": "ac2cc78d4a4aa9508acb65ad5e9dab319dd1962a",
+      "headRef": "resubmit/mermaid-streaming",
+      "baseRef": "main"
+    },
+    {
+      "number": 18309,
+      "title": "fix(server): keep workspace skills when provider health fails",
+      "headSha": "7f4d0ef8112f8d791094652d4b6f850e94a46b25",
+      "baseSha": "ac2cc78d4a4aa9508acb65ad5e9dab319dd1962a",
+      "headRef": "resubmit/codex-skill-health",
+      "baseRef": "main"
+    },
+    {
+      "number": 18310,
+      "title": "fix(composer): don't send attached threads to a machine that can't read them",
+      "headSha": "685b805192af24517a14b95d3a3ad53efbce1288",
+      "baseSha": "ac2cc78d4a4aa9508acb65ad5e9dab319dd1962a",
+      "headRef": "resubmit/reference-machine-selection",
+      "baseRef": "main"
+    },
+    {
+      "number": 18311,
+      "title": "fix(composer): open the slash menu at the start of any word",
+      "headSha": "bcf1af7a6cf400f8dbd2d6a536e51601b8cc7a07",
+      "baseSha": "ac2cc78d4a4aa9508acb65ad5e9dab319dd1962a",
+      "headRef": "resubmit/inline-slash-skills",
+      "baseRef": "main"
+    },
+    {
+      "number": 18322,
+      "title": "fix(mobile): don't send or paste attached threads a machine can't read",
+      "headSha": "beda35de70953589b5d943dd4ad6078b938c8d6d",
+      "baseSha": "ac2cc78d4a4aa9508acb65ad5e9dab319dd1962a",
+      "headRef": "resubmit/reference-machine-selection-mobile",
+      "baseRef": "main"
+    }
+  ]
 }
