@@ -18,11 +18,22 @@ import { Button } from "./ui/button";
 import { setMarkdownTaskChecked } from "./files/filePreviewMode";
 
 vi.mock("../hooks/useFileMetadata", () => ({ useFileMetadata: () => null }));
-vi.mock("@effect/atom-react", () => ({ useAtomValue: () => null }));
-vi.mock("./chat/MermaidDiagram", () => ({
-  // Real Mermaid needs layout APIs jsdom lacks; a rendered diagram is an SVG.
-  MermaidDiagram: () => <svg aria-label="Diagram" />,
+const { renderDiagram } = vi.hoisted(() => ({
+  renderDiagram: vi.fn<(source: string) => Promise<string> | undefined>(),
 }));
+vi.mock("./chat/MermaidDiagram", async () => {
+  const { use } = await import("react");
+  return {
+    // Real Mermaid needs layout APIs jsdom lacks; a rendered diagram is an SVG.
+    // Tests that return a promise from renderDiagram control when it appears.
+    MermaidDiagram({ source }: { source: string }) {
+      const pending = renderDiagram(source);
+      return <svg role="img" aria-label={pending ? use(pending) : "Diagram"} />;
+    },
+  };
+});
+
+vi.mock("@effect/atom-react", () => ({ useAtomValue: () => null }));
 vi.mock("../hooks/useTheme", () => ({ useTheme: () => ({ resolvedTheme: "dark" }) }));
 const settingsOverrides = vi.hoisted(() => ({ mathRenderingEnabled: false }));
 vi.mock("../hooks/useSettings", async (importOriginal) => {
@@ -171,6 +182,63 @@ describe("ChatMarkdown bare anchor placeholders", () => {
     ]);
     expect(document.querySelector("code")?.textContent).toBe("<A>");
     expect(document.querySelector("[data-markdown-details]")?.textContent).toContain("More");
+  });
+});
+
+describe("ChatMarkdown Mermaid streaming", () => {
+  it.each([
+    ["```mermaid\nflowchart LR\nA --> B", "\n```"],
+    ["~~~~mermaid\nflowchart LR\nA --> B\n~~~", "\n~~~~"],
+    ["> ```mermaid\n> flowchart LR\n> A --> B", "\n> ```"],
+    ["- Diagram\n\n  ```mermaid\n  flowchart LR\n  A --> B", "\n  ```"],
+    ["```mermaid\nflowchart LR\nA --> B\n    ```", "\n```"],
+    ["> ```mermaid\n> flowchart LR\n> A --> B\n>     ```", "\n> ```"],
+    ["- Diagram\n\n  ```mermaid\n  flowchart LR\n  A --> B\n      ```", "\n  ```"],
+    ["```mermaid\r\nflowchart LR\r\nA --> B\r\n\t```", "\r\n```"],
+    ["```mermaid\r\nflowchart LR\r\nA --> B\r\n\t```\r", "\n```"],
+  ])("reveals a finished fence before the message finishes: %s", async (open, closing) => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    let renderer: ReactTestRenderer | undefined;
+    let finishRender!: (label: string) => void;
+    const pending = new Promise<string>((resolve) => {
+      finishRender = resolve;
+    });
+    renderDiagram.mockReset().mockReturnValue(pending);
+    const message = (text: string, isStreaming = true) => (
+      <ChatMarkdown cwd={undefined} text={text} isStreaming={isStreaming} />
+    );
+    const closed = `${open}${closing}\n\n`;
+    try {
+      await act(async () => {
+        renderer = create(message(open));
+      });
+      expect(renderDiagram).not.toHaveBeenCalled();
+      await act(async () => {
+        renderer!.update(message(closed));
+      });
+      expect(renderDiagram).toHaveBeenCalled();
+      expect(renderer!.root.findAllByProps({ role: "img" })).toHaveLength(0);
+      expect(renderer!.root.findAllByProps({ className: "chat-markdown-shiki" })).toHaveLength(0);
+      expect(renderer!.root.findByType("pre").props["aria-hidden"]).toBe(true);
+
+      await act(async () => {
+        finishRender("Completed diagram");
+      });
+      const diagram = renderer!.root.findByProps({ role: "img" });
+      for (const streaming of [true, false]) {
+        await act(async () => {
+          renderer!.update(message(`${closed}The remaining explanation.`, streaming));
+        });
+        expect(renderer!.root.findByProps({ role: "img" })).toBe(diagram);
+        expect(
+          renderer!.root.findAll((node) => node.children.includes("The remaining explanation.")),
+        ).not.toHaveLength(0);
+      }
+    } finally {
+      await act(async () => renderer?.unmount());
+      vi.unstubAllGlobals();
+      renderDiagram.mockReset();
+    }
   });
 });
 
