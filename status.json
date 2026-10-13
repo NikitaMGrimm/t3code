@@ -1,13 +1,14 @@
 {
   "schema": 1,
-  "phase": "ready",
-  "skipBuild": true,
+  "phase": "building",
   "upstreamTag": "v0.0.46-nightly.20261013.3066",
   "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38464926888",
   "releasedVersion": "0.0.46-nightly.20261013.1791903282315",
-  "sequence": 1791923541137,
-  "candidateCommit": "e12711d3ca6a743f0148c34be21aceb8c9d7bd78",
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38463594369",
+  "baseCommit": "e12711d3ca6a743f0148c34be21aceb8c9d7bd78",
+  "sequence": 1791924144674,
+  "candidateCommit": "1caee139dc7c9e50003d06d19082bec5a19ec433",
+  "candidateVersion": "0.0.46-nightly.20261013.1791924144674",
   "inputs": {
     "upstreamTag": "v0.0.46-nightly.20261013.3066",
     "pullRequests": [
@@ -54,11 +55,6 @@
       {
         "number": 18310,
         "headSha": "685b805192af24517a14b95d3a3ad53efbce1288",
-        "baseRef": "main"
-      },
-      {
-        "number": 18311,
-        "headSha": "bcf1af7a6cf400f8dbd2d6a536e51601b8cc7a07",
         "baseRef": "main"
       },
       {
@@ -179,18 +175,6 @@
       "baseRef": "main",
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/18310",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 18311,
-      "title": "fix(composer): open the slash menu at the start of any word",
-      "headSha": "bcf1af7a6cf400f8dbd2d6a536e51601b8cc7a07",
-      "baseSha": "ac2cc78d4a4aa9508acb65ad5e9dab319dd1962a",
-      "headRef": "resubmit/inline-slash-skills",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/18311",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     },
