@@ -2642,17 +2642,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     cwd: isPathTrigger ? gitCwd : null,
     query: isPathTrigger ? pathTriggerQuery : null,
   });
-  // The trigger's range indexes the text in the editor, which is the custom answer
-  // while a pending question is open.
-  const composerEditorText = activePendingProgress ? activePendingProgress.customAnswer : prompt;
-  // Sends are trimmed, so a provider command after leading whitespace still opens the message.
-  const slashCommandAtPromptStart =
-    composerTrigger?.kind === "slash-command" &&
-    composerEditorText.slice(0, composerTrigger.rangeStart).trim() === "";
   const compactSlashCommandAvailable =
-    slashCommandAtPromptStart &&
+    composerTrigger?.kind === "slash-command" &&
+    prompt.slice(0, composerTrigger.rangeStart).trim() === "" &&
     !compactThreadUnavailable &&
-    composerEditorText.slice(composerTrigger.rangeEnd).trim() === "" &&
+    prompt.slice(composerTrigger.rangeEnd).trim() === "" &&
     composerImages.length + composerFiles.length === 0 &&
     composerDraft.persistedAttachments.length === 0 &&
     composerTerminalContexts.length === 0 &&
@@ -2803,7 +2797,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       );
       const slashCommandItems = slashCommandItemsForPromptPosition(
         [...builtInSlashCommandItems, ...visibleProviderSlashCommandItems, ...skillItems],
-        slashCommandAtPromptStart,
+        composerTrigger.rangeStart === 0,
       );
       return searchSlashCommandItems(slashCommandItems, query);
     }
@@ -2876,7 +2870,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activeThreadId,
     compactSlashCommandAvailable,
     composerTrigger,
-    slashCommandAtPromptStart,
     environmentId,
     environmentThreadShells,
     exactPullRequestLookup.data,

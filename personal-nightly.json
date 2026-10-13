@@ -113,18 +113,6 @@
       "baseRepository": "pingdotgg/t3code"
     },
     {
-      "number": 18311,
-      "title": "fix(composer): open the slash menu at the start of any word",
-      "headSha": "bcf1af7a6cf400f8dbd2d6a536e51601b8cc7a07",
-      "baseSha": "ac2cc78d4a4aa9508acb65ad5e9dab319dd1962a",
-      "headRef": "resubmit/inline-slash-skills",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/18311",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
       "number": 18322,
       "title": "fix(mobile): don't send or paste attached threads a machine can't read",
       "headSha": "beda35de70953589b5d943dd4ad6078b938c8d6d",
@@ -149,5 +137,5 @@
       "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "09710037e71f30f20a96764b2dd6f366707d4363"
+  "prBaseline": "13b9c888947313c2104e3a417c1f61dad3a07cc2"
 }
