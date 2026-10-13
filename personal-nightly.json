@@ -135,7 +135,19 @@
       "url": "https://github.com/pingdotgg/t3code/pull/18322",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 19044,
+      "title": "fix(web): stacked composer notices keep their right border",
+      "headSha": "6584d98cba8fc1b89b4aae0ae1b44a30c7535dba",
+      "baseSha": "6524a8d43795dc543f7cfb572388cdea3662ad48",
+      "headRef": "fix/stacked-notice-border-clip",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/19044",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "6f19d5b6c834db64d03383cf0b27d6ac07d2d419"
+  "prBaseline": "6a3cc5f69087ae0cf57540e392e4072ed6ef0c8b"
 }
