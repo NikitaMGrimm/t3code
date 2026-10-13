@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "phase": "ready",
+  "phase": "building",
   "upstreamTag": "v0.0.46-nightly.20261013.3080",
   "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38473238547",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38479091790",
   "releasedVersion": "0.0.46-nightly.20261013.1791928071000",
-  "baseCommit": "1caee139dc7c9e50003d06d19082bec5a19ec433",
-  "sequence": 1791928071000,
-  "candidateCommit": "ccdd1102d8467b646df594674f44d173cafb6cf6",
-  "candidateVersion": "0.0.46-nightly.20261013.1791928071000",
+  "baseCommit": "ccdd1102d8467b646df594674f44d173cafb6cf6",
+  "sequence": 1791931091483,
+  "candidateCommit": "66b934dd16fd427a005286b511cca8837cd2ca8a",
+  "candidateVersion": "0.0.46-nightly.20261013.1791931091483",
   "inputs": {
     "upstreamTag": "v0.0.46-nightly.20261013.3080",
     "pullRequests": [
@@ -65,6 +65,11 @@
       {
         "number": 19044,
         "headSha": "6584d98cba8fc1b89b4aae0ae1b44a30c7535dba",
+        "baseRef": "main"
+      },
+      {
+        "number": 19168,
+        "headSha": "6adac409123d95890179935b20781d8d27ca0aa4",
         "baseRef": "main"
       }
     ]
@@ -199,6 +204,18 @@
       "baseRef": "main",
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/19044",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 19168,
+      "title": "fix(composer): slash menu leaves paths alone and replaces the whole word",
+      "headSha": "6adac409123d95890179935b20781d8d27ca0aa4",
+      "baseSha": "a01c48f86245f2a779f9af84042f3b09fbdeb91f",
+      "headRef": "fix/slash-menu-word-edges",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/19168",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     }
