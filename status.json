@@ -5,9 +5,9 @@
   "upstreamTag": "v0.0.46-nightly.20261013.3066",
   "conflicts": [],
   "releasedVersion": "0.0.46-nightly.20261013.1791903282315",
-  "sequence": 1791919913912,
+  "sequence": 1791920216991,
   "candidateCommit": "e12711d3ca6a743f0148c34be21aceb8c9d7bd78",
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38455554529",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38456224866",
   "inputs": {
     "upstreamTag": "v0.0.46-nightly.20261013.3066",
     "pullRequests": [
