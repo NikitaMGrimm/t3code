@@ -135,7 +135,19 @@
       "url": "https://github.com/pingdotgg/t3code/pull/19044",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 19168,
+      "title": "fix(composer): slash menu leaves paths alone and replaces the whole word",
+      "headSha": "6adac409123d95890179935b20781d8d27ca0aa4",
+      "baseSha": "a01c48f86245f2a779f9af84042f3b09fbdeb91f",
+      "headRef": "fix/slash-menu-word-edges",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/19168",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "b181a9356ee9fea87e86fc30fcf8eb6546f45cd6"
+  "prBaseline": "2e2e0dae67a7ba823d6e65800368925ee0b9ae18"
 }
