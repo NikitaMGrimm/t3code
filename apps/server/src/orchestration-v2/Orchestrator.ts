@@ -2368,10 +2368,13 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             (cause) => new OrchestratorProjectionError({ threadId: command.threadId, cause }),
           ),
         );
-      const key = normalizeThreadPullRequestKey(command);
-      const link = threadPullRequestsOf(thread).find(
-        (candidate) =>
-          candidate.source !== "stack-dismissed" && threadPullRequestKeysEqual(candidate, key),
+      const links = threadPullRequestsOf(thread).filter(
+        (candidate) => candidate.source !== "stack-dismissed",
+      );
+      const ended = command.watches.some(
+        (update) =>
+          links.find((candidate) => threadPullRequestKeysEqual(candidate, update))?.watch
+            ?.startedAt !== update.startedAt,
       );
       // Same rule as a direct message.dispatch: a provider-native subagent takes no messages.
       const inactive =
@@ -2379,11 +2382,11 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         thread.settledOverride === "settled" ||
         thread.settledAt !== null ||
         isProviderNativeSubagentThread(thread);
-      if (link?.watch?.startedAt !== command.startedAt || (command.wake && inactive)) {
+      if (ended || (command.wake && inactive)) {
         return yield* new OrchestratorDispatchError({
           commandId: command.commandId,
           commandType: command.type,
-          cause: "The pull request watch ended or its thread settled while it was read.",
+          cause: "A pull request watch ended or its thread settled while it was read.",
         });
       }
       yield* dispatchThreadMutation(command, events, effects);
@@ -3139,8 +3142,24 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             updatedAt: command.type === "thread.pull-request-link.sync" ? thread.updatedAt : now,
           };
         }
-        case "thread.pull-request.watch":
         case "thread.pull-request-watch.sync": {
+          const linked = threadPullRequestsOf(thread);
+          const pullRequests = linked.map((link) => {
+            const update =
+              link.source === "stack-dismissed"
+                ? undefined
+                : command.watches.find((candidate) => threadPullRequestKeysEqual(link, candidate));
+            // Progress read before a stop or restart must not bring the old watch back.
+            return update === undefined || link.watch?.startedAt !== update.startedAt
+              ? link
+              : withPullRequestWatch(link, update.watch ?? undefined);
+          });
+          // Recorded progress is not activity, so `updatedAt` stays.
+          return pullRequests.every((link, index) => link === linked[index])
+            ? thread
+            : { ...thread, pullRequests };
+        }
+        case "thread.pull-request.watch": {
           const key = normalizeThreadPullRequestKey(command);
           const startedAt = DateTime.formatIso(now);
           const linked = threadPullRequestsOf(thread);
@@ -3148,10 +3167,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             link.source !== "stack-dismissed" && threadPullRequestKeysEqual(link, key);
           // A watch started on an unlinked (or dismissed) pull request links it in the same step.
           const links =
-            command.type === "thread.pull-request.watch" &&
-            command.watching &&
-            command.link !== undefined &&
-            !linked.some(visible)
+            command.watching && command.link !== undefined && !linked.some(visible)
               ? [
                   ...linked.filter((link) => !threadPullRequestKeysEqual(link, key)),
                   {
@@ -3166,33 +3182,27 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
               : linked;
           const existing = links.find(visible);
           if (existing === undefined) return thread;
-          const watch =
-            command.type === "thread.pull-request-watch.sync"
-              ? // Progress read before a stop or restart must not bring the old watch back.
-                existing.watch?.startedAt === command.startedAt
-                ? (command.watch ?? undefined)
-                : existing.watch
-              : !command.watching
-                ? undefined
-                : (existing.watch ?? {
-                    startedAt,
-                    headSha: null,
-                    failedChecks: [],
-                    passed: false,
-                    passedChecks: [],
-                    remarksThrough: startedAt,
-                    remarkIds: [],
-                    conflicting: false,
-                    wakes: 0,
-                  });
+          const watch = !command.watching
+            ? undefined
+            : (existing.watch ?? {
+                startedAt,
+                headSha: null,
+                failedChecks: [],
+                passed: false,
+                passedChecks: [],
+                remarksThrough: startedAt,
+                remarkIds: [],
+                conflicting: false,
+                wakes: 0,
+              });
           if (watch === existing.watch && links === linked) return thread;
           return {
             ...thread,
             pullRequests: links.map((link) =>
               link === existing ? withPullRequestWatch(link, watch) : link,
             ),
-            // A user or agent starting or stopping a watch is activity; recorded progress is not.
-            updatedAt: command.type === "thread.pull-request.watch" ? now : thread.updatedAt,
+            // A user or agent starting or stopping a watch is activity.
+            updatedAt: now,
           };
         }
         case "thread.pull-request.sync":
