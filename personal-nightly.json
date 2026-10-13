@@ -2,7 +2,7 @@
   "repository": "NikitaMGrimm/t3code",
   "branch": "personal-nightly",
   "upstreamRepository": "pingdotgg/t3code",
-  "upstreamTag": "v0.0.46-nightly.20261013.3042",
+  "upstreamTag": "v0.0.46-nightly.20261013.3053",
   "pullRequests": [
     {
       "number": 14574,
@@ -137,5 +137,5 @@
       "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "e635719091bb4d95d023c33b1d54932f55ef9d75"
+  "prBaseline": "6f19d5b6c834db64d03383cf0b27d6ac07d2d419"
 }
