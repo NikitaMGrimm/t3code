@@ -1,13 +1,14 @@
 {
   "schema": 1,
-  "phase": "ready",
-  "skipBuild": true,
+  "phase": "building",
   "upstreamTag": "v0.0.46-nightly.20261013.3053",
   "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38403932116",
   "releasedVersion": "0.0.46-nightly.20261013.1791879680584",
-  "sequence": 1791896923930,
-  "candidateCommit": "eb0411e51dd708b5105581073e51ab0dbe0ccb26",
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38402624046",
+  "baseCommit": "eb0411e51dd708b5105581073e51ab0dbe0ccb26",
+  "sequence": 1791897530276,
+  "candidateCommit": "99acaf9b67f28cfc0bf104da148562cfd4d733b1",
+  "candidateVersion": "0.0.46-nightly.20261013.1791897530276",
   "inputs": {
     "upstreamTag": "v0.0.46-nightly.20261013.3053",
     "pullRequests": [
@@ -64,6 +65,11 @@
       {
         "number": 18322,
         "headSha": "beda35de70953589b5d943dd4ad6078b938c8d6d",
+        "baseRef": "main"
+      },
+      {
+        "number": 19044,
+        "headSha": "6584d98cba8fc1b89b4aae0ae1b44a30c7535dba",
         "baseRef": "main"
       }
     ]
@@ -198,6 +204,18 @@
       "baseRef": "main",
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/18322",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 19044,
+      "title": "fix(web): stacked composer notices keep their right border",
+      "headSha": "6584d98cba8fc1b89b4aae0ae1b44a30c7535dba",
+      "baseSha": "6524a8d43795dc543f7cfb572388cdea3662ad48",
+      "headRef": "fix/stacked-notice-border-clip",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/19044",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     }
