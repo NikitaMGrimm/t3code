@@ -179,42 +179,101 @@ const SUMMARY: Record<PullRequestWatchChange["kind"], string> = {
   conflicting: "merge conflict",
 };
 
-/** The wake the agent reads and the timeline notification the user sees. */
-export function pullRequestWatchMessage(input: {
+/** What a pass has to tell a thread's agent about one pull request it watches. */
+export interface PullRequestWatchNews {
+  readonly repository: string;
+  readonly number: number;
+  /** The news itself, complete without the other pull requests' news. */
+  readonly text: string;
+  /** The watch goes on after this news. */
+  readonly watching: boolean;
+  readonly outcome: OrchestrationV2Notification["outcome"];
+  /** The news in a few words, for the timeline. */
+  readonly summary: string;
+}
+
+/** What changed on a watched pull request, as news for its agent. */
+export function pullRequestWatchNews(input: {
+  readonly repository: string;
   readonly number: number;
   readonly url: string;
   readonly baseBranch: string;
   readonly headSha: string | null;
   readonly report: PullRequestWatchReport;
-}): { readonly text: string; readonly notification: OrchestrationV2Notification } {
+}): PullRequestWatchNews {
   const { changes, exhausted } = input.report;
   const context = {
     baseBranch: input.baseBranch,
     commit: input.headSha === null ? "" : ` on ${input.headSha.slice(0, 7)}`,
   };
-  const text = [
-    `Update on pull request #${input.number} (${input.url}), which T3 Code is watching for you:`,
-    ...changes.flatMap((change) => changeLines(change, context)),
-    "",
-    exhausted
-      ? `T3 Code stopped watching after ${PULL_REQUEST_WATCH_WAKE_LIMIT} comment-only updates in a row. Call watch_pull_request to watch it again.`
-      : "Look into each item and act on it as your task requires. T3 Code keeps watching and wakes you on the next change, so end your turn when you are done. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.",
-  ].join("\n");
   const failed = changes.some(
     (change) => change.kind === "checks-failed" || change.kind === "conflicting",
   );
   const summary = changes.map((change) => SUMMARY[change.kind]);
   if (exhausted) summary.push("stopped watching");
   return {
+    repository: input.repository,
+    number: input.number,
+    text: [
+      `Update on pull request #${input.number} (${input.url}), which T3 Code is watching for you:`,
+      ...changes.flatMap((change) => changeLines(change, context)),
+      ...(exhausted
+        ? [
+            "",
+            `T3 Code stopped watching after ${PULL_REQUEST_WATCH_WAKE_LIMIT} comment-only updates in a row. Call watch_pull_request to watch it again.`,
+          ]
+        : []),
+    ].join("\n"),
+    watching: !exhausted,
+    outcome: failed
+      ? "failed"
+      : changes.every((change) => change.kind === "checks-passed")
+        ? "completed"
+        : "updated",
+    summary: summary.join(", "),
+  };
+}
+
+/**
+ * The wake the agent reads and the timeline notification the user sees. One pass sends a thread
+ * one wake for all the pull requests it watches, so news on several of them is one turn.
+ */
+export function pullRequestWatchMessage(news: ReadonlyArray<PullRequestWatchNews>): {
+  readonly text: string;
+  readonly notification: OrchestrationV2Notification;
+} {
+  const ordered = news.toSorted((left, right) => left.number - right.number);
+  // Two repositories can use the same number, and only then does the timeline need the name.
+  const label = (item: PullRequestWatchNews) =>
+    ordered.some((other) => other.number === item.number && other.repository !== item.repository)
+      ? `${item.repository}#${item.number}`
+      : `#${item.number}`;
+  // Pull requests with the same news share one entry: "#7, #9: new comments".
+  const labels = new Map<string, Array<string>>();
+  for (const item of ordered) {
+    labels.set(item.summary, [...(labels.get(item.summary) ?? []), label(item)]);
+  }
+  const text = [
+    ...(ordered.length > 1
+      ? [`T3 Code has news on ${ordered.length} pull requests it is watching for you.`]
+      : []),
+    ...ordered.map((item) => item.text),
+    ...(ordered.some((item) => item.watching)
+      ? [
+          "Look into each item and act on it as your task requires. T3 Code keeps watching and wakes you on the next change, so end your turn when you are done. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.",
+        ]
+      : []),
+  ].join("\n\n");
+  return {
     text,
     notification: {
       source: { kind: "monitor" },
-      outcome: failed
+      outcome: ordered.some((item) => item.outcome === "failed")
         ? "failed"
-        : changes.every((change) => change.kind === "checks-passed")
+        : ordered.every((item) => item.outcome === "completed")
           ? "completed"
           : "updated",
-      summary: `#${input.number}: ${summary.join(", ")}`,
+      summary: [...labels].map(([summary, group]) => `${group.join(", ")}: ${summary}`).join("; "),
     },
   };
 }

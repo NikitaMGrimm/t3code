@@ -9,6 +9,7 @@ import {
   PULL_REQUEST_WATCH_WAKE_LIMIT,
   evaluatePullRequestWatch,
   pullRequestWatchMessage,
+  pullRequestWatchNews,
 } from "./pullRequestWatch.ts";
 
 const STARTED = "2026-10-02T12:00:00.000Z";
@@ -272,13 +273,15 @@ describe("pullRequestWatchMessage", () => {
       detail({ checks: [check("lint", "failure")] }),
       [remark("reviewer", "2026-10-02T12:10:00Z", "<!-- bot -->Needs a test.")],
     );
-    const message = pullRequestWatchMessage({
+    const news = pullRequestWatchNews({
+      repository: "o/r",
       number: 12,
       url: "https://github.com/o/r/pull/12",
       baseBranch: "main",
       headSha: report.next.headSha,
       report,
     });
+    const message = pullRequestWatchMessage([news]);
     assert.include(message.text, "- Checks failed on aaaaaaa:\n  - lint https://ci.example/lint");
     assert.include(message.text, '  - reviewer on src/index.ts: "Needs a test."');
     assert.include(message.text, "unwatch_pull_request");
@@ -287,5 +290,55 @@ describe("pullRequestWatchMessage", () => {
       outcome: "failed",
       summary: "#12: checks failed, new comments",
     });
+  });
+
+  it("puts one pass's news on several pull requests in one wake", () => {
+    const commented = evaluatePullRequestWatch(watch(), detail(), [
+      remark("reviewer", "2026-10-02T12:10:00Z"),
+    ]);
+    const news = (number: number, report = commented, repository = "o/r") =>
+      pullRequestWatchNews({
+        repository,
+        number,
+        url: `https://github.com/o/r/pull/${number}`,
+        baseBranch: "main",
+        headSha: report.next.headSha,
+        report,
+      });
+    const exhausted = evaluatePullRequestWatch(
+      watch({ wakes: PULL_REQUEST_WATCH_WAKE_LIMIT - 1, headSha: "aaaaaaaaaa" }),
+      detail(),
+      [remark("reviewer", "2026-10-02T12:10:00Z")],
+    );
+    const closed = {
+      repository: "o/r",
+      number: 8,
+      text: "Pull request #8 was closed.",
+      watching: false,
+      outcome: "updated" as const,
+      summary: "closed, stopped watching",
+    };
+
+    const message = pullRequestWatchMessage([news(14), closed, news(9, exhausted), news(7)]);
+    assert.deepEqual(message.notification, {
+      source: { kind: "monitor" },
+      outcome: "updated",
+      summary:
+        "#7, #14: new comments; #8: closed, stopped watching; #9: new comments, stopped watching",
+    });
+    const parts = message.text.split("\n\n");
+    assert.equal(parts[0], "T3 Code has news on 4 pull requests it is watching for you.");
+    assert.deepEqual(
+      [7, 8, 9, 14].map((number) => message.text.indexOf(`#${number}`)),
+      [7, 8, 9, 14].map((number) => message.text.indexOf(`#${number}`)).toSorted((a, b) => a - b),
+    );
+    // The closing instruction is said once, and only while a watch is still on.
+    assert.equal(message.text.split("unwatch_pull_request").length, 2);
+    assert.notInclude(pullRequestWatchMessage([closed, news(9, exhausted)]).text, "unwatch");
+    // The same number in two repositories is told apart on the timeline.
+    assert.equal(
+      pullRequestWatchMessage([news(7), news(7, commented, "o/web"), news(9)]).notification.summary,
+      "o/r#7, o/web#7, #9: new comments",
+    );
   });
 });

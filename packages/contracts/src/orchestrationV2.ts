@@ -3161,18 +3161,23 @@ export type OrchestrationV2Command = typeof OrchestrationV2Command.Type;
  */
 const OrchestrationV2InternalCommand = Schema.Union([
   /**
-   * Records what a pull request watch saw, and wakes the agent in the same transaction when
-   * `wake` is set. Rejected once the watch started at `startedAt` has ended, and a wake is
-   * rejected on a settled or archived thread, so a read that raced either changes nothing.
+   * Records what one pass saw of the pull requests a thread watches, and wakes the agent once in
+   * the same transaction when `wake` is set. Rejected once any of the watches, started at its
+   * `startedAt`, has ended, and a wake is rejected on a settled or archived thread, so a read
+   * that raced either changes nothing.
    */
   Schema.Struct({
     type: Schema.Literal("thread.pull-request-watch.sync"),
     commandId: CommandId,
     threadId: ThreadId,
-    ...ThreadPullRequestKey.fields,
-    startedAt: IsoDateTime,
-    /** The watch to record, or null to end it. */
-    watch: Schema.NullOr(ThreadPullRequestWatch),
+    watches: Schema.Array(
+      Schema.Struct({
+        ...ThreadPullRequestKey.fields,
+        startedAt: IsoDateTime,
+        /** The watch to record, or null to end it. */
+        watch: Schema.NullOr(ThreadPullRequestWatch),
+      }),
+    ),
     wake: Schema.optional(
       Schema.Struct({
         messageId: MessageId,

@@ -20,6 +20,7 @@ import {
   type OrchestrationV2Run,
   ProjectId,
   type PullRequestDetail,
+  type PullRequestCheck,
   type PullRequestComment,
   PullRequestOperationError,
   ProviderDriverKind,
@@ -2269,9 +2270,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         type: "thread.pull-request-watch.sync",
         commandId: CommandId.make("pr-watch-record"),
         threadId,
-        ...key,
-        startedAt: started.startedAt,
-        watch: recorded,
+        watches: [{ ...key, startedAt: started.startedAt, watch: recorded }],
       });
       assert.deepEqual(yield* watchOf, recorded);
       assert.isTrue((yield* maintenance.rebuild).valid);
@@ -2290,9 +2289,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           type: "thread.pull-request-watch.sync",
           commandId: CommandId.make("pr-watch-late-record"),
           threadId,
-          ...key,
-          startedAt: started.startedAt,
-          watch: { ...recorded, wakes: 2 },
+          watches: [{ ...key, startedAt: started.startedAt, watch: { ...recorded, wakes: 2 } }],
           wake: {
             messageId: MessageId.make("pr-watch-late-wake"),
             text: "Update",
@@ -2371,10 +2368,14 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
             type: "thread.pull-request-watch.sync",
             commandId: CommandId.make(`pr-watch-settle-late-${mode}-${wake !== undefined}`),
             threadId,
-            ...key,
-            number: 7,
-            startedAt: started.startedAt,
-            watch: { ...started, headSha: "late", wakes: 1 },
+            watches: [
+              {
+                ...key,
+                number: 7,
+                startedAt: started.startedAt,
+                watch: { ...started, headSha: "late", wakes: 1 },
+              },
+            ],
             ...(wake === undefined ? {} : { wake }),
           })
           .pipe(Effect.flip);
@@ -2522,6 +2523,212 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         messages.flatMap((message) => message.notification?.summary ?? []),
         ["#8: stopped watching, could not read it"],
       );
+    }),
+  );
+
+  it.effect("wakes a thread once a pass for all the pull requests it watches", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const projectId = ProjectId.make("pr-watch-combined-project");
+      yield* seedProject({
+        projectId,
+        title: "Watch combined",
+        workspaceRoot: "/workspace/watch-combined",
+        defaultModelSelection: null,
+        createdAt: "2026-10-01T00:00:00.000Z",
+      });
+      const key = { host: "github.com", repository: "pingdotgg/t3code" };
+      const watchFrom = (threadId: ThreadId, numbers: ReadonlyArray<number>) =>
+        Effect.gen(function* () {
+          yield* orchestrator.dispatch({
+            type: "thread.create",
+            createdBy: "user",
+            creationSource: "web",
+            commandId: CommandId.make(`create:${threadId}`),
+            threadId,
+            projectId,
+            title: "Watch combined",
+            modelSelection,
+            runtimeMode: "full-access",
+            interactionMode: "default",
+            branch: null,
+            worktreePath: null,
+          });
+          for (const number of numbers) {
+            yield* orchestrator.dispatch({
+              type: "thread.pull-request.watch",
+              commandId: CommandId.make(`watch:${threadId}:${number}`),
+              threadId,
+              ...key,
+              number,
+              watching: true,
+              link: { url: `https://github.com/pingdotgg/t3code/pull/${number}`, source: "agent" },
+            });
+          }
+        });
+      const many = ThreadId.make("runtime-pull-request-watch-combined-many");
+      const one = ThreadId.make("runtime-pull-request-watch-combined-one");
+      yield* watchFrom(many, [21, 22, 23]);
+      yield* watchFrom(one, [22]);
+
+      const check = (name: string, status: PullRequestCheck["status"]): PullRequestCheck => ({
+        name,
+        status,
+        description: null,
+        url: null,
+      });
+      const host = new Map<number, Pick<PullRequestDetail, "state" | "checks">>([
+        [21, { state: "open", checks: [check("lint", "failure")] }],
+        [22, { state: "open", checks: [check("lint", "success")] }],
+        [23, { state: "open", checks: [check("lint", "pending")] }],
+      ]);
+      // Runs while a pass reads the host, the way a stop that races the read does.
+      let duringRead: Effect.Effect<unknown> = Effect.void;
+      // Holds the read of pull request 24 open.
+      let held: Effect.Effect<unknown> = Effect.void;
+      const reactor = yield* PullRequestWatchReactor.make.pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            NodeServices.layer,
+            Layer.mock(PullRequestService.PullRequestService)({
+              detail: ({ number }) =>
+                Effect.suspend(() => (number === 24 ? held : duringRead)).pipe(
+                  Effect.as({
+                    ...watchedPullRequestDetail({
+                      projectId,
+                      number,
+                      at: "2026-10-02T12:00:00.000Z",
+                    }),
+                    ...host.get(number)!,
+                  }),
+                ),
+              activity: () =>
+                Effect.succeed({
+                  comments: [],
+                  commentCount: 0,
+                  commentsTruncated: false,
+                  reviewThreads: [],
+                  commits: [],
+                }),
+            }),
+          ),
+        ),
+      );
+      const wakes = (threadId: ThreadId) =>
+        Effect.map(orchestrator.getThreadRecords(threadId, ["messages"]), ({ messages }) =>
+          messages.flatMap((message) => message.notification ?? []),
+        );
+      const watched = (threadId: ThreadId) =>
+        Effect.map(orchestrator.getThreadShell(threadId), (thread) =>
+          (thread?.pullRequests ?? []).flatMap((link) =>
+            link.watch === undefined ? [] : [link.number],
+          ),
+        );
+
+      // News on two of the three pull requests is one wake, and a thread watching one of them
+      // hears only about that one.
+      yield* reactor.sweep;
+      const failed = { source: { kind: "monitor" as const }, outcome: "failed" as const };
+      assert.deepEqual(yield* wakes(many), [
+        { ...failed, summary: "#21: checks failed; #22: checks passed" },
+      ]);
+      assert.deepEqual(yield* wakes(one), [
+        { source: { kind: "monitor" }, outcome: "completed", summary: "#22: checks passed" },
+      ]);
+      const { messages } = yield* orchestrator.getThreadRecords(many, ["messages"]);
+      assert.include(messages[0]?.text ?? "", "news on 2 pull requests");
+      assert.include(messages[0]?.text ?? "", "pull/21");
+      assert.include(messages[0]?.text ?? "", "pull/22");
+      // The quiet pull request's progress is recorded with the same command.
+      const quiet = (yield* orchestrator.getThreadShell(many))?.pullRequests?.find(
+        (link) => link.number === 23,
+      );
+      assert.equal(quiet?.watch?.headSha, "abc1234def");
+
+      // A watch that ends is told in the same wake as the others' news.
+      host.set(22, { state: "closed", checks: [check("lint", "success")] });
+      host.set(23, { state: "open", checks: [check("lint", "failure")] });
+      yield* TestClock.adjust("10 minutes");
+      yield* reactor.sweep;
+      assert.deepEqual((yield* wakes(many)).slice(1), [
+        { ...failed, summary: "#22: closed, stopped watching; #23: checks failed" },
+      ]);
+      assert.deepEqual(yield* watched(many), [21, 23]);
+      assert.deepEqual((yield* wakes(one)).slice(1), [
+        {
+          source: { kind: "monitor" },
+          outcome: "updated",
+          summary: "#22: closed, stopped watching",
+        },
+      ]);
+
+      // A watch stopped while the pass read the host does not hold back the others' news.
+      host.set(21, { state: "open", checks: [check("lint", "failure"), check("test", "failure")] });
+      host.set(23, { state: "open", checks: [check("lint", "failure"), check("test", "failure")] });
+      let stopped = false;
+      duringRead = Effect.suspend(() => {
+        if (stopped) return Effect.void;
+        stopped = true;
+        return orchestrator
+          .dispatch({
+            type: "thread.pull-request.watch",
+            commandId: CommandId.make("pr-watch-combined-stop"),
+            threadId: many,
+            ...key,
+            number: 21,
+            watching: false,
+          })
+          .pipe(Effect.orDie);
+      });
+      yield* TestClock.adjust("10 minutes");
+      yield* reactor.sweep;
+      assert.deepEqual((yield* wakes(many)).slice(2), [
+        { ...failed, summary: "#23: checks failed" },
+      ]);
+      assert.deepEqual(yield* watched(many), [23]);
+
+      // A slow read on a pull request another thread watches does not hold a wake back.
+      const slow = ThreadId.make("runtime-pull-request-watch-combined-slow");
+      yield* watchFrom(slow, [24]);
+      host.set(23, { state: "open", checks: [check("lint", "failure"), check("e2e", "failure")] });
+      host.set(24, { state: "open", checks: [check("lint", "failure")] });
+      const release = yield* Deferred.make<void>();
+      held = Deferred.await(release);
+      const told = yield* orchestrator
+        .streamStoredEventsFrom({
+          threadId: many,
+          afterSequence: yield* orchestrator.getThreadEventSequence(many),
+          eventType: "thread.pull-request-synced",
+        })
+        .pipe(Stream.runHead, Effect.forkChild);
+      yield* TestClock.adjust("10 minutes");
+      const pass = yield* Effect.forkChild(reactor.sweep);
+      yield* Fiber.join(told);
+      assert.deepEqual((yield* wakes(many)).slice(3), [
+        { ...failed, summary: "#23: checks failed" },
+      ]);
+      assert.deepEqual(yield* wakes(slow), []);
+      yield* Deferred.succeed(release, undefined);
+      yield* Fiber.join(pass);
+      assert.deepEqual(yield* wakes(slow), [{ ...failed, summary: "#24: checks failed" }]);
+      yield* orchestrator.dispatch({
+        type: "thread.pull-request.watch",
+        commandId: CommandId.make("pr-watch-combined-slow-done"),
+        threadId: slow,
+        ...key,
+        number: 24,
+        watching: false,
+      });
+
+      // The tests in this file share one store, so leave no watch for their passes to read.
+      yield* orchestrator.dispatch({
+        type: "thread.pull-request.watch",
+        commandId: CommandId.make("pr-watch-combined-done"),
+        threadId: many,
+        ...key,
+        number: 23,
+        watching: false,
+      });
     }),
   );
 
