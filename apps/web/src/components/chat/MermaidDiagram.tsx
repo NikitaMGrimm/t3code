@@ -277,7 +277,7 @@ export function MermaidDiagram({
 
   return (
     <div
-      className="overflow-x-auto"
+      className="chat-markdown-mermaid overflow-x-auto"
       data-markdown-mermaid=""
       data-markdown-copy={serializeCodeBlockToMarkdown(source, "mermaid")}
     >
