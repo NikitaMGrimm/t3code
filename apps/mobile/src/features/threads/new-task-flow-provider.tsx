@@ -24,6 +24,7 @@ import {
   ThreadId,
 } from "@t3tools/contracts";
 import { sanitizeNewRefName } from "@t3tools/shared/git";
+import { threadContextsOutsideEnvironment } from "@t3tools/shared/composerContextReferences";
 import { resolveNewThreadEnvMode, resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import { parseT3ProjectFile } from "@t3tools/shared/t3ProjectFile";
 import * as Arr from "effect/Array";
@@ -1129,6 +1130,16 @@ export function NewTaskFlowProvider(props: React.PropsWithChildren) {
         ) ?? selectedModel;
       // A shared image or file is a task on its own; text is optional.
       if ((text.length === 0 && draft.attachments.length === 0) || !draftModelSelection) {
+        return null;
+      }
+      // A thread attached on another machine is unreadable here; the submit path explains why.
+      if (
+        threadContextsOutsideEnvironment({
+          text: draft.text,
+          records: draft.context?.records ?? [],
+          environmentId: selectedProject.environmentId,
+        }).length > 0
+      ) {
         return null;
       }
       // A saved choice from before the project went no-project must not
