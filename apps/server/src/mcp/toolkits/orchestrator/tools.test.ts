@@ -18,8 +18,14 @@ describe("orchestrator MCP tool guidance", () => {
     assert.include(DelegateTaskTool.description ?? "", "waitTimedOut");
     assert.include(DelegateTaskTool.description ?? "", "does not cancel the child");
     assert.include(DelegateTaskTool.description ?? "", "keep that taskId");
-    assert.include(DelegateTaskTool.description ?? "", "call delegate_task again");
-    assert.include(DelegateTaskTool.description ?? "", "childThreadId is backing storage");
+    assert.include(
+      DelegateTaskTool.description ?? "",
+      "t3_thread_send for follow-up review messages in the same conversation",
+    );
+    assert.include(
+      DelegateTaskTool.description ?? "",
+      "Create a fresh reviewer only after the main agent is satisfied",
+    );
     assert.include(
       OrchestratorToolkit.tools.t3_thread_send.description ?? "",
       "a requested follow-up creates a fresh task",
