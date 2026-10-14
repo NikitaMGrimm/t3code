@@ -219,7 +219,9 @@ def candidate_is_current(repo, status, config):
     # PR changes during a build belong to the next snapshot. Direct pushes to the
     # integration branch still block publication so they cannot be overwritten.
     branch = git("ls-remote", "origin", f"refs/heads/{config['branch']}", cwd=repo).stdout.split()
-    return bool(branch) and branch[0] in {status["baseCommit"], status.get("candidateCommit")}
+    if not branch:
+        raise RuntimeError("The personal nightly integration branch is missing")
+    return branch[0] in {status["baseCommit"], status.get("candidateCommit")}
 
 
 def fetch_pull_requests(repo, config, pulls):
@@ -498,7 +500,7 @@ def main():
     parser.add_argument("command", choices=["prepare", "status", "notes", "verify"])
     parser.add_argument("--tag")
     parser.add_argument("--run-number", default=os.environ.get("GITHUB_RUN_ID"))
-    parser.add_argument("--phase", choices=["ready", "failed", "conflict"])
+    parser.add_argument("--phase", choices=["ready", "failed", "conflict", "superseded"])
     parser.add_argument("--release-index", type=Path)
     parser.add_argument("--upstream-release-index", type=Path)
     parser.add_argument("--notes-file", type=Path)
@@ -512,8 +514,12 @@ def main():
     if args.command == "verify":
         status = json.loads(status_path.read_text())
         config = json.loads((repo / "personal-nightly.json").read_text())
-        if not candidate_is_current(repo, status, config):
-            raise RuntimeError("Personal changes advanced during this build; the next check will rebuild")
+        phase = "current" if candidate_is_current(repo, status, config) else "superseded"
+        if output := os.environ.get("GITHUB_OUTPUT"):
+            with open(output, "a") as stream:
+                stream.write(f"phase={phase}\n")
+        if phase == "superseded":
+            print("Personal changes advanced during this build; skipping publication until the next eligible check")
         return
     if args.command == "notes":
         if not all([args.release_index, args.upstream_release_index, args.notes_file, args.version]):
@@ -586,11 +592,17 @@ def main():
             config = json.loads((repo / "personal-nightly.json").read_text())
             status = {"schema": 1, "upstreamTag": config["upstreamTag"], "conflicts": [], "releasedVersion": None, "sequence": int(os.environ["PERSONAL_NIGHTLY_SEQUENCE"]), "runUrl": f"https://github.com/{config['repository']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"}
         phase = args.phase
-        if args.published_release:
+        if phase == "superseded":
+            # A discarded candidate does not change the last available release.
+            status["releasedVersion"] = read_state(repo, "status.json").get("releasedVersion")
+            phase = "ready" if status["releasedVersion"] else "building"
+            status.pop("candidateCommit", None)
+            status.pop("candidateVersion", None)
+        elif args.published_release:
             release = json.loads(args.published_release.read_text())
             phase = "ready" if published_release_ready(repo, release, args.ref, args.version or "") else "failed"
         status["phase"] = phase
-        if phase == "ready":
+        if phase == "ready" and args.phase != "superseded":
             if "candidateVersion" not in status:
                 if nightly_version_key(args.version or "") is None:
                     parser.error("ready status without an artifact requires --version")

@@ -177,6 +177,8 @@ jobs:
   publish:
     needs: [prepare, bundle, desktop]
     runs-on: ubuntu-24.04
+    outputs:
+      phase: ${{ steps.verify.outputs.phase }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -205,17 +207,23 @@ jobs:
         run: |
           node scripts/merge-update-manifests.ts --platform win release-assets/nightly-win-x64.yml release-assets/nightly-win-arm64.yml release-assets/nightly.yml
           rm release-assets/nightly-win-x64.yml release-assets/nightly-win-arm64.yml
+      - name: Verify the candidate before publishing
+        id: verify
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          test -f release-assets/nightly.yml
+          test -f "release-assets/t3-$VERSION-linux-arm64.tar.gz"
+          test -f "release-assets/t3-$VERSION-linux-x64.tar.gz"
+          python3 scripts/personal-nightly.py verify
       - name: Publish only the complete release
+        if: steps.verify.outputs.phase == 'current'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.prepare.outputs.version }}
           REF: ${{ needs.prepare.outputs.ref }}
         run: |
           set -euo pipefail
-          test -f release-assets/nightly.yml
-          test -f "release-assets/t3-$VERSION-linux-arm64.tar.gz"
-          test -f "release-assets/t3-$VERSION-linux-x64.tar.gz"
-          python3 scripts/personal-nightly.py verify
           (cd release-assets && sha256sum t3-* > SHA256SUMS)
           cp "$RUNNER_TEMP/personal-nightly-status.json" release-assets/provenance.json
           if gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION" > "$RUNNER_TEMP/existing-release.json"; then
@@ -251,9 +259,10 @@ jobs:
           PERSONAL_NIGHTLY_SEQUENCE: ${{ needs.prepare.outputs.sequence }}
           VERSION: ${{ needs.prepare.outputs.version }}
           REF: ${{ needs.prepare.outputs.ref }}
+          PHASE: ${{ needs.publish.result == 'success' && needs.publish.outputs.phase == 'superseded' && 'superseded' || 'failed' }}
         run: |
           release_args=()
-          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION" > "$RUNNER_TEMP/release-result.json" && git fetch origin personal-nightly; then
+          if test "$PHASE" != superseded && gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION" > "$RUNNER_TEMP/release-result.json" && git fetch origin personal-nightly; then
             release_args=(--published-release "$RUNNER_TEMP/release-result.json")
           fi
-          python3 scripts/personal-nightly.py status --phase failed --version "$VERSION" --ref "$REF" "${release_args[@]}"
+          python3 scripts/personal-nightly.py status --phase "$PHASE" --version "$VERSION" --ref "$REF" "${release_args[@]}"

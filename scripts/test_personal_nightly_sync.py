@@ -351,6 +351,100 @@ class PrSynchronizationTests(unittest.TestCase):
         nightly.git("push", "origin", "HEAD:refs/heads/personal-nightly", cwd=self.repo)
         self.assertFalse(nightly.candidate_is_current(self.repo, status, self.config))
 
+    def test_verify_reports_current_and_superseded_candidates_without_failing(self):
+        self.remote()
+        status = self.prepare([])
+        status_path = Path(self.temp.name) / "personal-nightly-status.json"
+        status_path.write_text(json.dumps(status))
+        output = Path(self.temp.name) / "verify-output"
+        args = ["personal-nightly", "verify"]
+        env = {"RUNNER_TEMP": self.temp.name, "GITHUB_OUTPUT": str(output)}
+        with patch.object(Path, "cwd", return_value=self.repo), patch.object(sys, "argv", args), \
+                patch.dict(os.environ, env):
+            nightly.main()
+        self.assertEqual(output.read_text(), "phase=current\n")
+        output.unlink()
+        (self.repo / "personal.txt").write_text("a newer direct fix\n")
+        latest = self.commit("new direct fix")
+        nightly.git("push", "origin", "HEAD:refs/heads/personal-nightly", cwd=self.repo)
+        with patch.object(Path, "cwd", return_value=self.repo), patch.object(sys, "argv", args), \
+                patch.dict(os.environ, env):
+            nightly.main()
+        self.assertEqual(output.read_text(), "phase=superseded\n")
+        self.assertEqual(json.loads(status_path.read_text()), status)
+        self.assertIn(latest, nightly.git("ls-remote", "origin", "refs/heads/personal-nightly", cwd=self.repo).stdout)
+
+    def test_verify_keeps_remote_errors_as_failures(self):
+        self.remote()
+        status_path = Path(self.temp.name) / "personal-nightly-status.json"
+        status_path.write_text(json.dumps(self.prepare([])))
+        output = Path(self.temp.name) / "verify-output"
+        nightly.git("remote", "set-url", "origin", str(Path(self.temp.name) / "missing.git"), cwd=self.repo)
+        with patch.object(Path, "cwd", return_value=self.repo), \
+                patch.object(sys, "argv", ["personal-nightly", "verify"]), \
+                patch.dict(os.environ, {"RUNNER_TEMP": self.temp.name, "GITHUB_OUTPUT": str(output)}):
+            with self.assertRaises(subprocess.CalledProcessError):
+                nightly.main()
+        self.assertFalse(output.exists())
+
+    def test_verify_keeps_a_missing_integration_branch_as_a_failure(self):
+        self.remote()
+        status_path = Path(self.temp.name) / "personal-nightly-status.json"
+        status_path.write_text(json.dumps(self.prepare([])))
+        output = Path(self.temp.name) / "verify-output"
+        nightly.git("push", "origin", ":refs/heads/personal-nightly", cwd=self.repo)
+        with patch.object(Path, "cwd", return_value=self.repo), \
+                patch.object(sys, "argv", ["personal-nightly", "verify"]), \
+                patch.dict(os.environ, {"RUNNER_TEMP": self.temp.name, "GITHUB_OUTPUT": str(output)}):
+            with self.assertRaisesRegex(RuntimeError, "integration branch is missing"):
+                nightly.main()
+        self.assertFalse(output.exists())
+
+    def test_superseded_status_keeps_the_published_release_and_retries_new_changes(self):
+        self.remote()
+        version = self.tag.removeprefix("v")
+        nightly.write_status(self.repo, {"phase": "ready", "releasedVersion": version, "sequence": 1})
+        status = self.prepare([])
+        nightly.write_status(self.repo, status)
+        status_path = Path(self.temp.name) / "personal-nightly-status.json"
+        status_path.write_text(json.dumps(status))
+        (self.repo / "personal.txt").write_text("a newer direct fix\n")
+        self.commit("new direct fix")
+        nightly.git("push", "origin", "HEAD:refs/heads/personal-nightly", cwd=self.repo)
+        args = ["personal-nightly", "status", "--phase", "superseded", "--ref", status["candidateCommit"]]
+        with patch.object(Path, "cwd", return_value=self.repo), patch.object(sys, "argv", args), \
+                patch.dict(os.environ, {"RUNNER_TEMP": self.temp.name}), \
+                patch.object(nightly.time, "time", return_value=300):
+            nightly.main()
+        saved = nightly.read_state(self.repo, "status.json")
+        self.assertEqual(saved["phase"], "ready")
+        self.assertEqual(saved["releasedVersion"], version)
+        self.assertNotIn("candidateVersion", saved)
+        self.assertNotIn("candidateCommit", saved)
+        timing = nightly.read_state(self.repo, "build-timing.json")
+        self.assertEqual(timing, {"completedAt": 300, "sequence": status["sequence"]})
+        waiting, fetch = self.run_prepare([], 400)
+        self.assertEqual(waiting["phase"], "debouncing")
+        fetch.assert_not_called()
+        retry, fetch = self.run_prepare([], 2100)
+        self.assertEqual(retry["phase"], "building")
+        fetch.assert_called_once()
+        self.assertEqual((self.repo / "personal.txt").read_text(), "a newer direct fix\n")
+
+    def test_superseded_first_build_does_not_advertise_an_unpublished_release(self):
+        self.remote()
+        status = self.prepare([])
+        nightly.write_status(self.repo, status)
+        (Path(self.temp.name) / "personal-nightly-status.json").write_text(json.dumps(status))
+        args = ["personal-nightly", "status", "--phase", "superseded", "--ref", status["candidateCommit"]]
+        with patch.object(Path, "cwd", return_value=self.repo), patch.object(sys, "argv", args), \
+                patch.dict(os.environ, {"RUNNER_TEMP": self.temp.name}):
+            nightly.main()
+        saved = nightly.read_state(self.repo, "status.json")
+        self.assertEqual(saved["phase"], "building")
+        self.assertIsNone(saved["releasedVersion"])
+        self.assertNotIn("candidateVersion", saved)
+
     def test_git_reuses_a_recorded_resolution_but_stops_on_a_different_conflict(self):
         first = self.pull(1, {"shared.txt": "one\n"})
         second = self.pull(2, {"shared.txt": "two\n"})

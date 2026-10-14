@@ -68,6 +68,10 @@ Direct commits are included automatically and stay separate from the refreshed
 PR imports; you do not need to add them to `personal-nightly.json`. Use clear commit titles: they become the personal entries
 in the release notes.
 
+When a build detects newer direct fixes before publishing, it skips publication
+without a failure alert. The last published release stays available, and the next
+eligible check rebuilds with your fix.
+
 Run **Actions → Personal nightly → Run workflow** on `personal-nightly` and select
 **force** to bypass the debounce and cooldown when an immediate build is needed.
 Otherwise, wait for the next eligible scheduled check. The existing update controls
