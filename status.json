@@ -1,15 +1,16 @@
 {
   "schema": 1,
-  "phase": "ready",
-  "skipBuild": true,
-  "upstreamTag": "v0.0.46-nightly.20261013.3080",
+  "phase": "building",
+  "upstreamTag": "v0.0.46-nightly.20261014.3093",
   "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38513484973",
   "releasedVersion": "0.0.46-nightly.20261013.1791937437196",
-  "sequence": 1791952836052,
-  "candidateCommit": "a7aeb0510d28e0c0546ba5ae5249be9ce5e61ceb",
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38512606800",
+  "baseCommit": "a7aeb0510d28e0c0546ba5ae5249be9ce5e61ceb",
+  "sequence": 1791953440797,
+  "candidateCommit": "a3fbd9e2475d7118eaa0cfa4dbfd388c1cb51227",
+  "candidateVersion": "0.0.46-nightly.20261014.1791953440797",
   "inputs": {
-    "upstreamTag": "v0.0.46-nightly.20261013.3080",
+    "upstreamTag": "v0.0.46-nightly.20261014.3093",
     "pullRequests": [
       {
         "number": 14574,
