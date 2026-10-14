@@ -415,12 +415,12 @@ export const OpenCodeDriver: ProviderDriver<
           },
           { concurrency: "unbounded" },
         ).pipe(
-          // A failed command lookup leaves the commands pending, so the
-          // registry keeps the last known ones and rescans.
+          // Only a finished lookup is reported as complete. A failed one leaves
+          // the flag unset, so the registry decides from the provider's health.
           Effect.map(({ skills, commands }) => ({
             skills,
             commands: Option.getOrElse(commands, () => []),
-            slashCommandsPending: Option.isNone(commands),
+            slashCommandsPending: Option.isSome(commands) ? false : undefined,
           })),
         );
       const loadWorkspaceForCwd = (cwd: string) =>
@@ -526,8 +526,8 @@ export const OpenCodeDriver: ProviderDriver<
                     skills: openCode2SkillsToServerProviderSkills(skills),
                     slashCommands: openCode2CommandsToServerProviderSlashCommands(commands),
                     // A finished scan lists at least the built-ins. None means it
-                    // timed out, so the registry keeps the last ones and rescans.
-                    slashCommandsPending: commands.length === 0,
+                    // timed out, so the registry decides from the provider's health.
+                    slashCommandsPending: commands.length > 0 ? false : undefined,
                   })),
                 ),
                 v1: Effect.all([
