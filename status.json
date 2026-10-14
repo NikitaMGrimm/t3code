@@ -1,15 +1,20 @@
 {
   "schema": 1,
-  "phase": "ready",
-  "skipBuild": true,
-  "upstreamTag": "v0.0.46-nightly.20261014.3093",
-  "conflicts": [],
+  "phase": "conflict",
+  "upstreamTag": "v0.0.46-nightly.20261014.3105",
+  "conflicts": [
+    "apps/server/src/orchestration-v2/PullRequestWatchReactor.ts",
+    "apps/web/src/components/sidebar/SidebarUpdatePill.tsx",
+    "apps/web/src/components/sidebar/updateEverything.logic.test.ts",
+    "apps/web/src/components/sidebar/updateEverything.logic.ts",
+    "apps/web/src/components/sidebar/useUpdateEverything.ts"
+  ],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38549167356",
   "releasedVersion": "0.0.46-nightly.20261014.1791953440797",
-  "sequence": 1791972777641,
-  "candidateCommit": "a3fbd9e2475d7118eaa0cfa4dbfd388c1cb51227",
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38547979106",
+  "baseCommit": "a3fbd9e2475d7118eaa0cfa4dbfd388c1cb51227",
+  "sequence": 1791973382527,
   "inputs": {
-    "upstreamTag": "v0.0.46-nightly.20261014.3093",
+    "upstreamTag": "v0.0.46-nightly.20261014.3105",
     "pullRequests": [
       {
         "number": 14574,
