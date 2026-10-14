@@ -338,6 +338,41 @@ describe("detectComposerTrigger", () => {
     });
   });
 
+  it.each([
+    "Use /review afterwards",
+    "/review afterwards",
+    "  /review\tnext",
+    "$first /review\nnext",
+  ])("replaces the whole slash token with the caret inside %j", (text) => {
+    const rangeStart = text.indexOf("/");
+    const trigger = detectComposerTrigger(text, rangeStart + "/rev".length);
+
+    expect(trigger).toEqual({
+      kind: "slash-command",
+      query: "rev",
+      rangeStart,
+      rangeEnd: rangeStart + "/review".length,
+    });
+  });
+
+  it("opens the slash menu after a skill chip on the same line", () => {
+    expect(composerStateAtPromptEnd("$first /rev")).toEqual({
+      cursor: 6,
+      trigger: { kind: "slash-command", query: "rev", rangeStart: 7, rangeEnd: 11 },
+    });
+  });
+
+  it.each([
+    ["Use /tmp/build.sh", "Use /tmp/build.sh".length],
+    ["Use /etc/hosts", "Use /etc/hosts".length],
+    ["/etc/hosts", "/etc/hosts".length],
+    ["Use /etc/hosts now", "Use /et".length],
+    ["see https://example.com/a", "see https://example.com/a".length],
+    ["and/or", "and/".length],
+  ])("keeps paths and URLs literal in %j", (text, cursor) => {
+    expect(detectComposerTrigger(text, cursor)).toBeNull();
+  });
+
   it.each(["$", "€", "£", "¥", "₹", "₩", "₿", "𑿝"])(
     "detects %sskill trigger at cursor",
     (prefix) => {
