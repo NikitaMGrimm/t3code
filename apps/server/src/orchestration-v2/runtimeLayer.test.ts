@@ -2698,7 +2698,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         .streamStoredEventsFrom({
           threadId: many,
           afterSequence: yield* orchestrator.getThreadEventSequence(many),
-          eventType: "thread.pull-request-synced",
+          eventType: "thread.pull-request-link-updated",
         })
         .pipe(Stream.runHead, Effect.forkChild);
       yield* TestClock.adjust("10 minutes");

@@ -76,7 +76,9 @@ export function useUpdateEverything(localUpdateVersion: string | null) {
   const skipped: ReadonlyArray<SkippedMachine> = [
     ...unreachable,
     ...behindServers
-      .filter((server) => !servers.some((published) => published.environmentId === server.environmentId))
+      .filter(
+        (server) => !servers.some((published) => published.environmentId === server.environmentId),
+      )
       .map((server) => ({
         environmentId: server.environmentId,
         label: server.serverLabel,

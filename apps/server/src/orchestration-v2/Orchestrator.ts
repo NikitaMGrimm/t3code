@@ -3276,20 +3276,20 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       command.type === "thread.pull-request-watch.sync"
     ) {
       if (updatedThread === thread) return;
-      const link = threadPullRequestsOf(updatedThread).find((candidate) =>
-        threadPullRequestKeysEqual(candidate, normalizeThreadPullRequestKey(command)),
-      );
-      if (link === undefined) return;
-      yield* emit(
-        events,
-        command,
-      )({
-        type: "thread.pull-request-link-updated",
-        threadId: command.threadId,
-        providerInstanceId: updatedThread.providerInstanceId,
-        occurredAt: now,
-        payload: link,
-      });
+      const keys = command.type === "thread.pull-request-watch.sync" ? command.watches : [command];
+      for (const link of threadPullRequestsOf(updatedThread)) {
+        if (!keys.some((key) => threadPullRequestKeysEqual(link, key))) continue;
+        yield* emit(
+          events,
+          command,
+        )({
+          type: "thread.pull-request-link-updated",
+          threadId: command.threadId,
+          providerInstanceId: updatedThread.providerInstanceId,
+          occurredAt: now,
+          payload: link,
+        });
+      }
       return;
     }
     const eventType = (() => {
