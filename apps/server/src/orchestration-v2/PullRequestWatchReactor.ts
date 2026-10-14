@@ -323,7 +323,7 @@ export const make = Effect.gen(function* () {
    */
   const send = (updates: ReadonlyArray<Pick<WatchUpdate, "target" | "next" | "news">>) =>
     Effect.gen(function* () {
-      const uuid = yield* crypto.randomUUIDv4;
+      const uuid = yield* crypto.randomUUIDv4();
       const threadId = updates[0]!.target.thread.id;
       const news = updates.flatMap((update) => update.news ?? []);
       yield* engine.dispatch({
