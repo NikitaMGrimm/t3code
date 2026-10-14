@@ -410,10 +410,18 @@ export const OpenCodeDriver: ProviderDriver<
             skills: openCodeRuntime.loadOpenCodeSkills(client),
             commands: OpenCodeRuntime.loadOpenCodeCommands(client).pipe(
               Effect.timeout("10 seconds"),
-              Effect.orElseSucceed(() => []),
+              Effect.option,
             ),
           },
           { concurrency: "unbounded" },
+        ).pipe(
+          // A failed command lookup leaves the commands pending, so the
+          // registry keeps the last known ones and rescans.
+          Effect.map(({ skills, commands }) => ({
+            skills,
+            commands: Option.getOrElse(commands, () => []),
+            slashCommandsPending: Option.isNone(commands) ? true : undefined,
+          })),
         );
       const loadWorkspaceForCwd = (cwd: string) =>
         effectiveConfig.serverUrl.trim().length > 0
@@ -517,16 +525,20 @@ export const OpenCodeDriver: ProviderDriver<
                     ...machineSnapshot,
                     skills: openCode2SkillsToServerProviderSkills(skills),
                     slashCommands: openCode2CommandsToServerProviderSlashCommands(commands),
+                    // A finished scan lists at least the built-ins. None means it
+                    // timed out, so the registry keeps the last ones and rescans.
+                    ...(commands.length === 0 ? { slashCommandsPending: true } : {}),
                   })),
                 ),
                 v1: Effect.all([
                   snapshot.getSnapshot,
                   loadWorkspaceForCwd(cwd).pipe(Effect.timeout("20 seconds")),
                 ]).pipe(
-                  Effect.map(([machineSnapshot, { skills, commands }]) => ({
+                  Effect.map(([machineSnapshot, { skills, commands, slashCommandsPending }]) => ({
                     ...machineSnapshot,
                     skills: openCodeSkillsToServerProviderSkills(skills),
                     slashCommands: openCodeCommandsToServerProviderSlashCommands(commands),
+                    ...(slashCommandsPending ? { slashCommandsPending } : {}),
                   })),
                   Effect.mapError(
                     (cause) =>
