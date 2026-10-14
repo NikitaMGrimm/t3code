@@ -1,19 +1,14 @@
 {
   "schema": 1,
-  "phase": "conflict",
+  "phase": "building",
   "upstreamTag": "v0.0.46-nightly.20261014.3105",
-  "conflicts": [
-    "apps/server/src/mcp/toolkits/orchestrator/tools.ts",
-    "apps/server/src/orchestration-v2/PullRequestWatchReactor.ts",
-    "apps/web/src/components/sidebar/SidebarUpdatePill.tsx",
-    "apps/web/src/components/sidebar/updateEverything.logic.test.ts",
-    "apps/web/src/components/sidebar/updateEverything.logic.ts",
-    "apps/web/src/components/sidebar/useUpdateEverything.ts"
-  ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38592494476",
+  "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38594782691",
   "releasedVersion": "0.0.46-nightly.20261014.1791953440797",
-  "baseCommit": "63adccdae69c338ca99675f9dbe1a490c22626d7",
-  "sequence": 1791992884191,
+  "baseCommit": "70c12de88363f37e4e2b7f6c020a06f6dcf38ac2",
+  "sequence": 1791993815553,
+  "candidateCommit": "40503a6a6babed3ef36c1a1b97d2dae79481a3d4",
+  "candidateVersion": "0.0.46-nightly.20261014.1791993815553",
   "inputs": {
     "upstreamTag": "v0.0.46-nightly.20261014.3105",
     "pullRequests": [
