@@ -20,8 +20,9 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Stream from "effect/Stream";
-import { FetchHttpClient } from "effect/http";
-import { ChildProcess, ChildProcessSpawner } from "effect/process";
+import * as FetchHttpClient from "effect/http/FetchHttpClient";
+import * as ChildProcess from "effect/process/ChildProcess";
+import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import { describe } from "vite-plus/test";
 
 import * as OpenCode2Client from "./OpenCode2Client.ts";
@@ -90,7 +91,7 @@ describe.runIf(binaryPath !== undefined)("OpenCode2Client live", () => {
         });
 
         const info = yield* client.server.info();
-        assert.strictEqual(info.version, "2.0.23");
+        assert.strictEqual(info.version, "2.0.28");
         assert.strictEqual(info.pid, server.pid);
 
         const session = yield* client.session.create({
