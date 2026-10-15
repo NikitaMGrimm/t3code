@@ -34,6 +34,8 @@ import {
   type RefObject,
 } from "react";
 import { Alert, Keyboard, Platform, Pressable, View, type ViewStyle } from "react-native";
+import { composerImageGallery } from "../../lib/composerImageGallery";
+import { filePreviewGallery } from "../../lib/filePreviewGallery";
 import { FilePreviewModal, type FilePreviewSource } from "../../components/FilePreviewModal";
 import {
   composerAttachmentUploadBlockReason,
@@ -500,6 +502,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
       ? (project?.id ?? null)
       : null,
     pullRequestRepository: project?.repositoryIdentity?.displayName ?? null,
+    threadPullRequests: props.selectedThread.pullRequests,
     selectedProviderStatus,
     hasThread: true,
     hasCompactableConversation: props.hasCompactableConversation,
@@ -561,9 +564,15 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     (source: FilePreviewSource) => {
       wasExpandedBeforePreviewRef.current = isFocused;
       setPreviewVideo(null);
-      setPreviewFile((current) => current ?? source);
+      setPreviewFile(
+        (current) =>
+          current ?? {
+            ...source,
+            gallery: filePreviewGallery(source, composerImageGallery(props.draftAttachments)),
+          },
+      );
     },
-    [isFocused],
+    [isFocused, props.draftAttachments],
   );
 
   const closePreview = useCallback(() => {
