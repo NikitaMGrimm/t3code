@@ -44,6 +44,10 @@ const DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code";
 const DEVICE_AUTHORIZATION_DEFAULT_INTERVAL = Duration.seconds(5);
 // RFC 8628 §3.5: a slow_down response means "add 5 seconds to the interval".
 const DEVICE_AUTHORIZATION_SLOW_DOWN_INCREMENT = Duration.seconds(5);
+// Bounds one token or device-authorization request, including reading the
+// body. A stalled refresh holds the manager's semaphore and blocks every
+// other credential call.
+const OAUTH_REQUEST_TIMEOUT = Duration.seconds(10);
 const boldTerminalText = (value: string): string => `\u001b[1m${value}\u001b[22m`;
 
 function formatLoopbackAuthorizationPrompt(authorizationUrl: string): string {
@@ -290,11 +294,12 @@ const exchangeToken = Effect.fn("cloud.cli_token.exchange")(function* (
   params: Record<string, string>,
 ) {
   const httpClient = (yield* HttpClient.HttpClient).pipe(HttpClient.filterStatusOk);
-  const response = yield* HttpClientRequest.post(metadata.tokenEndpoint).pipe(
+  return yield* HttpClientRequest.post(metadata.tokenEndpoint).pipe(
     HttpClientRequest.bodyUrlParams(params),
     httpClient.execute,
+    Effect.flatMap((response) => readTokenResponse(response, params)),
+    Effect.timeout(OAUTH_REQUEST_TIMEOUT),
   );
-  return yield* readTokenResponse(response, params);
 });
 
 const makePkceRequest = Effect.gen(function* () {
@@ -393,6 +398,7 @@ export const deviceAuthorizationLogin = Effect.fn("cloud.cli_token.device_author
       }),
       httpClient.execute,
       Effect.flatMap(HttpClientResponse.schemaBodyJson(DeviceAuthorizationResponse)),
+      Effect.timeout(OAUTH_REQUEST_TIMEOUT),
     );
     // Clerk's advertised lifetime and interval are authoritative.
     const expiresIn = Duration.seconds(authorization.expires_in);
@@ -408,9 +414,9 @@ export const deviceAuthorizationLogin = Effect.fn("cloud.cli_token.device_author
     });
     return yield* pollDeviceToken(metadata, authorization.device_code, interval).pipe(
       Effect.timeout(expiresIn),
-      Effect.catchTag("TimeoutError", (cause) =>
-        Effect.fail(new CloudCliAuthorizationTimeoutError({ cause })),
-      ),
+      Effect.catchTags({
+        TimeoutError: (cause) => Effect.fail(new CloudCliAuthorizationTimeoutError({ cause })),
+      }),
     );
   },
 );
@@ -461,7 +467,7 @@ export const make = Effect.gen(function* () {
     const hostedAppUrl = yield* hostedAppUrlConfig;
     const { verifier, challenge, state } = yield* makePkceRequest;
     const callback = yield* Deferred.make<string>();
-    const callbackRoute = HttpRouter.add(
+    const layerCallbackRoute = HttpRouter.add(
       "GET",
       "/callback",
       Effect.gen(function* () {
@@ -477,7 +483,7 @@ export const make = Effect.gen(function* () {
         return HttpServerResponse.html(renderLoopbackAuthorizationCompleteHtml());
       }),
     );
-    yield* HttpRouter.serve(callbackRoute, {
+    yield* HttpRouter.serve(layerCallbackRoute, {
       disableListenLog: true,
       disableLogger: true,
     }).pipe(
@@ -505,9 +511,9 @@ export const make = Effect.gen(function* () {
       authorizationUrl,
       callback: Deferred.await(callback).pipe(
         Effect.timeout(CLOUD_CLI_OAUTH_CALLBACK_TIMEOUT),
-        Effect.catchTag("TimeoutError", (cause) =>
-          Effect.fail(new CloudCliAuthorizationTimeoutError({ cause })),
-        ),
+        Effect.catchTags({
+          TimeoutError: (cause) => Effect.fail(new CloudCliAuthorizationTimeoutError({ cause })),
+        }),
       ),
       terminal,
       launchBrowser: externalLauncher.launchBrowser,

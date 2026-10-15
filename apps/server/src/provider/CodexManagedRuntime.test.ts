@@ -17,7 +17,7 @@ import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as CodexInstallation from "./CodexInstallation.ts";
 import { makeCodexManagedRuntime } from "./CodexManagedRuntime.ts";
 import * as ProviderCredentialStore from "./ProviderCredentialStore.ts";
-import { codexAppServerArgs } from "./Layers/codexLaunchArgs.ts";
+import { codexAppServerArgs } from "./codexLaunchArgs.ts";
 import { resolveManagedCodexHomeLayout } from "./CodexManagedHome.ts";
 
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
@@ -86,7 +86,7 @@ it.effect.each(
         source,
         version: "0.156.1",
       };
-      const installerLayer = Layer.mock(CodexInstallation.CodexInstallation)({
+      const layerInstaller = Layer.mock(CodexInstallation.CodexInstallation)({
         managedDirectory: "/isolated/tools/codex",
         resolve: () => Effect.succeed(executable),
         acquire: () =>
@@ -163,6 +163,8 @@ it.effect.each(
             'model_providers.openai_token_sharing.model_catalog_url="https://api.openai.com/v1/models"',
           );
           assert.include(args, "features.api_key_model_discovery=true");
+          assert.include(args, "features.multi_agent=false");
+          assert.include(args, "features.multi_agent_v2=false");
           assert.notInclude(effective.config.launchArgs, "model_catalog_json");
           assert.notInclude(effective.config.launchArgs, "x-openai-chatpass-test");
           assert.include(args, "model_providers.openai_token_sharing.supports_websockets=false");
@@ -183,7 +185,7 @@ it.effect.each(
             EnvironmentId.make("00000000-0000-4000-8000-000000000001"),
           ),
         }),
-        Effect.provide(installerLayer),
+        Effect.provide(layerInstaller),
         Effect.provideService(
           HttpClient.HttpClient,
           HttpClient.make((request) =>

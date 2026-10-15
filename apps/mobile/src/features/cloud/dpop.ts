@@ -65,7 +65,7 @@ function toExpoDigestAlgorithm(
   }
 }
 
-export const cryptoLayer = Layer.succeed(
+export const layer = Layer.succeed(
   Crypto.Crypto,
   Crypto.make({
     randomBytes: ExpoCrypto.getRandomBytes,
@@ -261,7 +261,7 @@ export function createDpopProof(input: {
     });
     const nowMs = yield* Clock.currentTimeMillis;
     const jti = yield* Crypto.Crypto.pipe(
-      Effect.flatMap((crypto) => crypto.randomUUIDv4),
+      Effect.flatMap((crypto) => crypto.randomUUIDv4()),
       Effect.mapError(cloudDpopError("Could not generate DPoP proof identifier.")),
     );
     const htu = yield* normalizeHtu(input.url);

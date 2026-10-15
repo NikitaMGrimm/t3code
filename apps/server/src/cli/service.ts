@@ -1,4 +1,4 @@
-import { HostProcessPlatform } from "@t3tools/shared/hostProcess";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -13,7 +13,7 @@ import type * as ServerConfig from "../config.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import { projectLocationFlags, resolveCliAuthConfig } from "./config.ts";
 
-export const bootServiceLayer = (config: ServerConfig.ServerConfig["Service"]) =>
+export const layer = (config: ServerConfig.ServerConfig["Service"]) =>
   BootService.layer({
     baseDir: config.baseDir,
     logsDir: config.logsDir,
@@ -107,7 +107,7 @@ const runServiceCommand = Effect.fn("cli.service.run")(function* <A, E>(
 ) {
   const logLevel = yield* GlobalFlag.LogLevel;
   const config = yield* resolveCliAuthConfig(flags, logLevel);
-  return yield* run.pipe(Effect.provide(bootServiceLayer(config)));
+  return yield* run.pipe(Effect.provide(layer(config)));
 });
 
 const serviceReconcileFlags = {
@@ -241,7 +241,7 @@ export const offerServiceDuringOnboarding = Effect.gen(function* () {
   }
   // A LaunchAgent starts at login and dies at logout; there is no
   // enable-linger equivalent on macOS. Do not promise more than that.
-  const platform = yield* HostProcessPlatform;
+  const platform = yield* HostProcess.Platform;
   const wanted = yield* Prompt.run(
     Prompt.Confirm({
       message: installed

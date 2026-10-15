@@ -215,12 +215,12 @@ const makeFactory = Effect.fn("TestRpcSessionFactory.make")(function* (
   options: RpcSession.RpcSessionOptions = {},
 ) {
   const sockets: TestWebSocket[] = [];
-  const constructorLayer = Layer.succeed(Socket.WebSocketConstructor, (url) => {
+  const layerConstructor = Layer.succeed(Socket.WebSocketConstructor, (url) => {
     const socket = new TestWebSocket(url);
     sockets.push(socket);
     return socket as unknown as globalThis.WebSocket;
   });
-  const layer = RpcSession.layer(options).pipe(Layer.provide(constructorLayer));
+  const layer = RpcSession.layer(options).pipe(Layer.provide(layerConstructor));
   const factory = yield* RpcSession.RpcSessionFactory.pipe(Effect.provide(layer));
   return { factory, sockets };
 });
@@ -1085,7 +1085,7 @@ describe("RpcSessionFactory", () => {
     }),
   );
 
-  it.effect("tolerates two missed pong windows before closing the session", () =>
+  it.effect("closes the session after 15 seconds without a frame from the server", () =>
     Effect.gen(function* () {
       const { factory, sockets } = yield* makeFactory();
       const session = yield* factory.connect(PREPARED);
