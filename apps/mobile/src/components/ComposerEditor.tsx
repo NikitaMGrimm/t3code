@@ -1,9 +1,9 @@
+import * as Dialog from "./ui/Dialog";
 import { ComposerContextId } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
 import { useNavigation } from "@react-navigation/native";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert } from "react-native";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { encodeComposerContextFragment } from "@t3tools/shared/composerContextClipboard";
 import { collectComposerContextReferences } from "@t3tools/shared/composerContextReferences";
@@ -24,7 +24,7 @@ import {
 import { importComposerContextClipboard } from "../lib/composerContextClipboard";
 import { mobilePreferencesAtom } from "../state/preferences";
 import { ComposerContextSheet } from "./ComposerContextSheet";
-import { AppText as Text } from "./AppText";
+import { AppText as Text } from "./ui/AppText";
 import {
   composerDocumentAttachment,
   composerMentionPath,
@@ -108,7 +108,7 @@ export function ComposerEditor({
         return;
       }
       if (!insertComposerDraftContext(draftKey, result, insertion)) {
-        Alert.alert(
+        Dialog.alert(
           "Could not paste context",
           "Remove some attachments or context items from the draft, then paste again.",
         );
@@ -127,13 +127,13 @@ export function ComposerEditor({
           : []),
       ];
       if (warnings.length > 0)
-        Alert.alert(
+        Dialog.alert(
           "Some context is unavailable",
           [...warnings, "Those references are marked unavailable."].join("\n\n"),
         );
     } catch (error) {
       if (!controller.signal.aborted)
-        Alert.alert(
+        Dialog.alert(
           "Could not paste context",
           error instanceof Error ? error.message : "Try copying again.",
         );
