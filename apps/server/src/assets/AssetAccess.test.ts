@@ -2,7 +2,6 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NodeHttpPlatform from "@effect/platform-node/NodeHttpPlatform";
 import * as NodeFSP from "node:fs/promises";
-import * as NodeOS from "node:os";
 import {
   AssetAccessError,
   AssetPreviewTypeValidationError,
@@ -10,18 +9,19 @@ import {
   TurnItemId,
 } from "@t3tools/contracts";
 import { PROJECT_FAVICON_FALLBACK_MARKER } from "@t3tools/shared/projectFavicon";
+import { MCP_APP_MAX_HTML_BYTES } from "@t3tools/shared/mcpApp";
 import { describe, expect, it } from "@effect/vitest";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Redacted from "effect/Redacted";
 import * as Path from "effect/Path";
 import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 import * as TestClock from "effect/testing/TestClock";
 import { HttpClient, HttpClientResponse, HttpServerResponse } from "effect/http";
-import { ChildProcessSpawner } from "effect/process";
 import { vi } from "vite-plus/test";
 
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
@@ -31,21 +31,17 @@ import * as ProjectFaviconResolver from "../project/ProjectFaviconResolver.ts";
 import * as T3ProjectFileLoader from "../project/T3ProjectFileLoader.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 import { assetFileResponse } from "../http.ts";
-import { ASSET_ROUTE_PREFIX, issueAssetUrl, resolveAsset } from "./AssetAccess.ts";
+import { ASSET_ROUTE_PREFIX, issueAssetUrl, readMcpAppHtml, resolveAsset } from "./AssetAccess.ts";
 import * as NativeAppIconResolver from "./NativeAppIconResolver.ts";
 import { openMediaFile } from "./MediaFile.ts";
 import { symlinksSupported } from "@t3tools/shared/testing/symlinks";
-import * as GitHubCli from "../sourceControl/GitHubCli.ts";
+import * as GitHubCredentials from "@t3tools/source-control-github/server/GitHubCredentials";
 import { githubMediaResponse } from "./GitHubMediaFetch.ts";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFSP>();
   return { ...actual, open: vi.fn(actual.open), realpath: vi.fn(actual.realpath) };
-});
-
-vi.mock("node:os", async (importOriginal) => {
-  const actual = await importOriginal<typeof NodeOS>();
-  return { ...actual, homedir: vi.fn(actual.homedir) };
 });
 
 const layerConfig = ServerConfig.ServerConfig.layerTest(process.cwd(), {
@@ -126,7 +122,65 @@ const layerTest = Layer.mergeAll(
 ).pipe(Layer.provideMerge(NodeServices.layer));
 
 describe("AssetAccess", () => {
-  it.effect("loads private media immediately after login and reuses the found credential", () => {
+  describe("readMcpAppHtml", () => {
+    it.effect("accepts snapshots at the stored HTML byte limit", () =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const directory = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-mcp-html-" });
+        const file = path.join(directory, "app.html");
+        const limit = MCP_APP_MAX_HTML_BYTES + 128 * 1024;
+        yield* fileSystem.writeFile(file, new Uint8Array(limit).fill(120));
+
+        const bytes = yield* readMcpAppHtml(file);
+        expect(bytes?.byteLength).toBe(limit);
+        expect(bytes?.every((byte) => byte === 120)).toBe(true);
+      }).pipe(Effect.provide(NodeServices.layer)),
+    );
+
+    it.effect("rejects snapshots one byte past the limit and much larger files", () =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const directory = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-mcp-html-" });
+        const file = path.join(directory, "app.html");
+        const limit = MCP_APP_MAX_HTML_BYTES + 128 * 1024;
+        for (const size of [limit + 1, limit * 2]) {
+          yield* fileSystem.writeFile(file, new Uint8Array(size).fill(120));
+          expect(yield* readMcpAppHtml(file)).toBeNull();
+        }
+      }).pipe(Effect.provide(NodeServices.layer)),
+    );
+
+    it.effect("preserves UTF-8 bytes across stream chunks and accepts empty snapshots", () =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const directory = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-mcp-html-" });
+        const file = path.join(directory, "app.html");
+        for (const html of ["", "<body>" + "☃".repeat(100_000) + "</body>"]) {
+          const expected = new TextEncoder().encode(html);
+          yield* fileSystem.writeFile(file, expected);
+          const bytes = yield* readMcpAppHtml(file);
+          expect(bytes?.byteLength).toBe(expected.byteLength);
+          expect(bytes && new TextDecoder().decode(bytes)).toBe(html);
+        }
+      }).pipe(Effect.provide(NodeServices.layer)),
+    );
+
+    it.effect("preserves filesystem failures instead of reporting oversized HTML", () =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const directory = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-mcp-html-" });
+        const error = yield* readMcpAppHtml(path.join(directory, "missing.html")).pipe(Effect.flip);
+        expect(error._tag).toBe("PlatformError");
+        expect(error.reason._tag).toBe("NotFound");
+      }).pipe(Effect.provide(NodeServices.layer)),
+    );
+  });
+
+  it.effect("loads private media immediately after login with the GitHub credential", () => {
     let lookups = 0;
     const authorizations: Array<string | undefined> = [];
     return Effect.gen(function* () {
@@ -138,19 +192,21 @@ describe("AssetAccess", () => {
       expect((yield* githubMediaResponse(asset, {})).status).toBe(404);
       expect((yield* githubMediaResponse(asset, {})).status).toBe(200);
       expect((yield* githubMediaResponse(asset, {})).status).toBe(200);
-      expect(lookups).toBe(2);
+      // Caching the token is GitHubCredentials' job; this asks it every time.
+      expect(lookups).toBe(3);
       expect(authorizations).toEqual([undefined, "Bearer signed-in", "Bearer signed-in"]);
     }).pipe(
       Effect.provide(
-        Layer.mock(GitHubCli.GitHubCli)({
-          execute: () =>
-            Effect.sync(() => ({
-              exitCode: ChildProcessSpawner.ExitCode(0),
-              stdout: ++lookups === 1 ? "" : "signed-in",
-              stderr: "",
-              stdoutTruncated: false,
-              stderrTruncated: false,
-            })),
+        Layer.mock(GitHubCredentials.GitHubCredentials)({
+          get: (host) =>
+            ++lookups === 1
+              ? Effect.fail(new GitHubCredentials.GitHubNotSignedInError({ host }))
+              : Effect.succeed({
+                  host,
+                  token: Redacted.make("signed-in"),
+                  source: "gh" as const,
+                  fingerprint: "fingerprint",
+                }),
         }),
       ),
       Effect.provideService(
@@ -297,8 +353,7 @@ describe("AssetAccess", () => {
       yield* fs.makeDirectory(path.dirname(filePath), { recursive: true });
       yield* fs.writeFileString(filePath, "recording bytes");
       const canonicalFile = yield* fs.realPath(filePath);
-      const homeSpy = vi.mocked(NodeOS.homedir).mockReturnValue(home);
-      try {
+      yield* Effect.gen(function* () {
         for (const workspaceRoot of [
           path.join(home, "project"),
           path.join(directory, "srv", "project"),
@@ -330,9 +385,7 @@ describe("AssetAccess", () => {
             expect(yield* Effect.promise(() => response.text())).toBe("recording bytes");
           }
         }
-      } finally {
-        homeSpy.mockRestore();
-      }
+      }).pipe(Effect.provideService(HostProcess.HomeDirectory, home));
     }).pipe(Effect.provide(layerTest)),
   );
 
@@ -909,6 +962,49 @@ describe("AssetAccess", () => {
     }).pipe(Effect.provide(layerTest)),
   );
 
+  it.effect("signs MCP render intent only for inline HTML attachments", () =>
+    Effect.gen(function* () {
+      const config = yield* ServerConfig.ServerConfig;
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      yield* fs.makeDirectory(config.attachmentsDir, { recursive: true });
+      for (const extension of ["html", "pdf"]) {
+        const attachmentId = `thread-1-00000000-0000-4000-8000-000000000031-${extension}`;
+        yield* fs.writeFileString(
+          path.join(config.attachmentsDir, `${attachmentId}.${extension}`),
+          "capture",
+        );
+        for (const disposition of ["inline", "attachment"] as const) {
+          const result = yield* issueAssetUrl({
+            resource: {
+              _tag: "attachment",
+              attachmentId,
+              disposition,
+              renderIntent: "mcp-app",
+            },
+          });
+          const suffix = result.relativeUrl.slice(`${ASSET_ROUTE_PREFIX}/`.length);
+          const separator = suffix.indexOf("/");
+          const asset = yield* resolveAsset(
+            suffix.slice(0, separator),
+            suffix.slice(separator + 1),
+          );
+          if (asset?.kind !== "file") throw new Error("Expected attachment file");
+          expect("renderIntent" in asset ? asset.renderIntent : undefined).toBe(
+            extension === "html" && disposition === "inline" ? "mcp-app" : undefined,
+          );
+          // Changing signed claims cannot opt an ordinary download into rendering.
+          const token = suffix.slice(0, separator);
+          const [payload, signature] = token.split(".");
+          const claims = JSON.parse(Buffer.from(payload!, "base64url").toString("utf8"));
+          claims.renderIntent = claims.renderIntent ? undefined : "mcp-app";
+          const tampered = `${Buffer.from(JSON.stringify(claims)).toString("base64url")}.${signature}`;
+          expect(yield* resolveAsset(tampered, suffix.slice(separator + 1))).toBeNull();
+        }
+      }
+    }).pipe(Effect.provide(layerTest)),
+  );
+
   it.effect("issues exact attachment capabilities by attachment id", () =>
     Effect.gen(function* () {
       const config = yield* ServerConfig.ServerConfig;
@@ -1229,6 +1325,38 @@ describe("AssetAccess", () => {
 
       expect(result.sourcePath).toBe("favicon.svg");
       expect(result.relativeUrl).toMatch(/\/v[0-9a-f]{64}-favicon\.svg$/);
+    }).pipe(Effect.provide(layerTest)),
+  );
+
+  it.effect("serves a native macOS app icon as its embedded PNG", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "t3-asset-favicon-icns-",
+      });
+      const icns = new Uint8Array(8 + 8 + screenshotPng.length);
+      icns.set(new TextEncoder().encode("icns"));
+      new DataView(icns.buffer).setUint32(4, icns.length);
+      icns.set(new TextEncoder().encode("ic07"), 8);
+      new DataView(icns.buffer).setUint32(12, 8 + screenshotPng.length);
+      icns.set(screenshotPng, 16);
+      yield* fileSystem.makeDirectory(path.join(root, "Resources"));
+      yield* fileSystem.writeFile(path.join(root, "Resources", "AppIcon.icns"), icns);
+
+      const result = yield* issueAssetUrl({
+        resource: { _tag: "project-favicon", cwd: root },
+      });
+      const suffix = result.relativeUrl.slice(`${ASSET_ROUTE_PREFIX}/`.length);
+      const separatorIndex = suffix.indexOf("/");
+
+      expect(result.sourcePath).toBe(path.join("Resources", "AppIcon.icns"));
+      const asset = yield* resolveAsset(
+        suffix.slice(0, separatorIndex),
+        suffix.slice(separatorIndex + 1),
+      );
+      expect(asset?.kind === "bytes" ? asset.mimeType : null).toBe("image/png");
+      expect(asset?.kind === "bytes" ? Uint8Array.from(asset.bytes) : null).toEqual(screenshotPng);
     }).pipe(Effect.provide(layerTest)),
   );
 

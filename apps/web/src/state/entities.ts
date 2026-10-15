@@ -117,6 +117,12 @@ export function useThreadShell(ref: ScopedThreadRef | null): EnvironmentThreadSh
   );
 }
 
+export function useChildThreadInputs(ref: ScopedThreadRef | null) {
+  return useAtomValue(
+    ref === null ? EMPTY_THREAD_SHELLS_ATOM : environmentThreadShells.childThreadInputsAtom(ref),
+  );
+}
+
 export function useThreadProjection(ref: ScopedThreadRef | null): EnvironmentThread | null {
   return useAtomValue(
     ref === null ? EMPTY_THREAD_PROJECTION_ATOM : environmentThreadDetails.threadAtom(ref),
@@ -188,6 +194,20 @@ export function waitForProject(
   });
 }
 
+/**
+ * Resolves once a deleted project leaves the live client store. The delete
+ * command returns before the shell stream does, so anything that picks a
+ * project in between (the index route's draft landing) still sees it.
+ */
+export function waitForProjectRemoval(ref: ScopedProjectRef, timeoutMs = 5_000): Promise<boolean> {
+  return waitForAtomValue({
+    registry: appAtomRegistry,
+    atom: environmentProjects.projectAtom(ref),
+    predicate: (project) => project === null,
+    timeoutMs,
+  });
+}
+
 export function readThreadShell(ref: ScopedThreadRef): EnvironmentThreadShell | null {
   return appAtomRegistry.get(environmentThreadShells.threadShellAtom(ref));
 }
@@ -199,6 +219,23 @@ export function waitForThreadShell(ref: ScopedThreadRef, timeoutMs = 5_000): Pro
     predicate: (thread) => thread !== null,
     timeoutMs,
   });
+}
+
+/** Whether the environment hosts preview tabs in its own browser (`runtime: "server"`),
+    so clients without Electron can still use the Browser panel. */
+export function useEnvironmentSupportsServerBrowser(environmentId: EnvironmentId | null): boolean {
+  const configs = useServerConfigs();
+  return (
+    environmentId !== null &&
+    configs.get(environmentId)?.environment.capabilities.serverBrowser === true
+  );
+}
+
+export function readEnvironmentSupportsServerBrowser(environmentId: EnvironmentId): boolean {
+  return (
+    appAtomRegistry.get(environmentServerConfigsAtom).get(environmentId)?.environment.capabilities
+      .serverBrowser === true
+  );
 }
 
 export function readEnvironmentSupportsTitleRegeneration(environmentId: EnvironmentId): boolean {
