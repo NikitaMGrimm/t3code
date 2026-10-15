@@ -124,7 +124,7 @@ download() {
 }
 
 case "$(uname -s)" in
-  Darwin) platform="darwin" ;;
+  Darwin) fail "this personal fork publishes no macOS builds; use the official installer" ;;
   Linux) platform="linux" ;;
   *) fail "unsupported operating system $(uname -s); use the desktop app or npm" ;;
 esac
