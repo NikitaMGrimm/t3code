@@ -39,6 +39,8 @@ import * as PullRequestProviderRegistry from "./pullRequest/PullRequestProviderR
 import * as PullRequestService from "./pullRequest/PullRequestService.ts";
 import * as SqlitePersistence from "./persistence/Sqlite.ts";
 import * as PullRequestFilesViewed from "./persistence/PullRequestFilesViewed.ts";
+import * as PullRequestReviewGuides from "./persistence/PullRequestReviewGuides.ts";
+import * as PullRequestReviewGuideService from "./pullRequest/PullRequestReviewGuideService.ts";
 import * as ServerLifecycleEvents from "./serverLifecycleEvents.ts";
 import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
 import * as ProviderEventIngestor from "./orchestration-v2/ProviderEventIngestor.ts";
@@ -56,6 +58,7 @@ import * as CheckpointStore from "./checkpointing/CheckpointStore.ts";
 import * as SourceControlBuiltInDrivers from "./sourceControl/builtInDrivers.ts";
 import * as TextGeneration from "./textGeneration/TextGeneration.ts";
 import * as ProviderInstanceRegistryHydration from "./provider/ProviderInstanceRegistryHydration.ts";
+import * as ProjectSettingsOverrideSweep from "./provider/ProjectSettingsOverrideSweep.ts";
 import * as TerminalManager from "./terminal/Manager.ts";
 import * as McpHttpServer from "./mcp/McpHttpServer.ts";
 import * as McpSessionRegistry from "./mcp/McpSessionRegistry.ts";
@@ -73,6 +76,7 @@ import * as GitManager from "./git/GitManager.ts";
 import * as EnvironmentTheme from "./environmentTheme.ts";
 import * as Keybindings from "./keybindings.ts";
 import * as ServerRuntimeStartup from "./serverRuntimeStartup.ts";
+import * as ServerOwnership from "./serverOwnership.ts";
 import * as AgentAwarenessRelay from "./relay/AgentAwarenessRelay.ts";
 import { hasCloudPublicConfig } from "./cloud/publicConfig.ts";
 import * as ServerSettings from "./serverSettings.ts";
@@ -167,11 +171,7 @@ import * as ThreadSettlementService from "./orchestration-v2/ThreadSettlementSer
 import * as ThreadPullRequestService from "./orchestration-v2/ThreadPullRequestService.ts";
 import * as RunFinalizationService from "./orchestration-v2/RunFinalizationService.ts";
 import * as ProjectionStoreV2 from "./orchestration-v2/ProjectionStore.ts";
-import {
-  clearPersistedServerRuntimeState,
-  makePersistedServerRuntimeState,
-  persistServerRuntimeState,
-} from "./serverRuntimeState.ts";
+import { makePersistedServerRuntimeState } from "./serverRuntimeState.ts";
 import * as OrchestrationHttp from "./orchestration-v2/http.ts";
 import * as ProjectHttp from "./project/http.ts";
 import * as NetService from "@t3tools/shared/Net";
@@ -576,6 +576,10 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   ProviderUsageLimitsIngestion.layer,
   layerProviderInstallationRefresh,
   ReplayMarkers.layer,
+  // Catches overrides left behind by a project deleted before this cleanup
+  // existed, or by a cleanup write that failed. See ProjectService.delete
+  // for the normal (on-delete) path.
+  Layer.effectDiscard(ProjectSettingsOverrideSweep.sweep),
 ).pipe(
   // Core Services
   Layer.provideMerge(layerOrchestrationApplication),
@@ -717,8 +721,13 @@ const layerMakeRoutes = Layer.mergeAll(
     Layer.provide(McpOAuth.layerMcpClientAuthenticator),
   ),
 ).pipe(
+  // Guides read through the same pull request service as every other surface.
+  Layer.provide(
+    PullRequestReviewGuideService.layer.pipe(Layer.provide(PullRequestReviewGuides.layer)),
+  ),
   // Both transports consume the same service instance, so caches single-flight across clients
-  // and mutations observed on WebSocket invalidate patches subsequently read over HTTP.
+  // and mutations observed on WebSocket invalidate patches subsequently read over HTTP. Provided
+  // after the guide service so it reaches that too.
   Layer.provide(layerPullRequestService),
   // The stream route and the WebSocket RPCs share one browser.
   Layer.provide(ServerBrowser.layer.pipe(Layer.provide(DesktopBrowserChannel.layer))),
@@ -734,6 +743,8 @@ const layerMakeRoutes = Layer.mergeAll(
 const layerMakeServer = Layer.unwrap(
   Effect.gen(function* () {
     const config = yield* ServerConfig.ServerConfig;
+    // Before anything opens the database: one server per T3 home.
+    const ownership = yield* ServerOwnership.acquireServerOwnership(config.serverRuntimeStatePath);
     const activation = yield* Deferred.make<void>();
     const awaitActivation = Deferred.await(activation);
     const layerActivation = Layer.succeed(ServerActivation.ServerActivation, awaitActivation);
@@ -753,38 +764,30 @@ const layerMakeServer = Layer.unwrap(
       }),
     );
     const layerRuntimeState = Layer.effectDiscard(
-      Effect.acquireRelease(
-        Effect.gen(function* () {
-          yield* Deferred.succeed(runtimeStateParked, undefined).pipe(Effect.orDie);
-          yield* awaitActivation;
-          const server = yield* HttpServer.HttpServer;
-          const address = server.address;
-          if (typeof address === "string" || !("port" in address)) {
-            return;
-          }
+      Effect.gen(function* () {
+        yield* Deferred.succeed(runtimeStateParked, undefined).pipe(Effect.orDie);
+        yield* awaitActivation;
+        const server = yield* HttpServer.HttpServer;
+        const address = server.address;
+        if (typeof address === "string" || !("port" in address)) {
+          return;
+        }
 
-          const launcher = yield* ServiceLauncherClient.ServiceLauncherClient;
-          const state = yield* makePersistedServerRuntimeState({
-            config,
-            port: address.port,
-            serviceManaged: launcher.managed,
-          });
-          yield* persistServerRuntimeState({
-            path: config.serverRuntimeStatePath,
-            state,
-          }).pipe(
+        const launcher = yield* ServiceLauncherClient.ServiceLauncherClient;
+        const state = yield* makePersistedServerRuntimeState({
+          config,
+          port: address.port,
+          serviceManaged: launcher.managed,
+        });
+        // Ownership release removes this record.
+        yield* ownership
+          .publish(state)
+          .pipe(
             Effect.catchCause((cause) =>
               Effect.logWarning("Failed to persist server runtime state", { cause }),
             ),
           );
-        }),
-        () =>
-          clearPersistedServerRuntimeState(config.serverRuntimeStatePath).pipe(
-            Effect.catchCause((cause) =>
-              Effect.logWarning("Failed to clear server runtime state", { cause }),
-            ),
-          ),
-      ),
+      }),
     );
     const layerTailscaleServe = config.tailscaleServeEnabled
       ? Layer.effectDiscard(
@@ -1107,7 +1110,7 @@ const layerMakeServer = Layer.unwrap(
       Layer.provideMerge(layerPlatformServices),
     );
   }),
-);
+).pipe(Layer.provide(ProcessRunner.layer));
 
 // The CLI supplies configuration.
 export const runServer = Layer.launch(layerMakeServer);

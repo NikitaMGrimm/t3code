@@ -36,6 +36,7 @@ import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter"
 import { makeProviderFailureTurnItem } from "@t3tools/provider-core/server/failure";
 import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
 import { stripUnservedToolOutputImageBytes } from "./toolOutputImageBytes.ts";
+import { boundFileChangeForStorage } from "./WireProjection.ts";
 
 export class ProviderEventNormalizeError extends Schema.TaggedError<ProviderEventNormalizeError>()(
   "ProviderEventNormalizeError",
@@ -535,14 +536,37 @@ export const layer: Layer.Layer<
     const normalize: ProviderEventIngestorV2Shape["normalize"] = (input) =>
       Effect.gen(function* () {
         switch (input.event.type) {
-          case "app_thread.created":
+          case "app_thread.created": {
+            const offered = input.event.appThread;
+            const existing = yield* projections.getThread(offered.id).pipe(
+              Effect.catchTags({
+                ProjectionStoreThreadNotFoundError: () => Effect.succeed(null),
+              }),
+            );
+            if (
+              existing !== null &&
+              existing.title === offered.title &&
+              modelSelectionsEqual(existing.modelSelection, offered.modelSelection)
+            )
+              return [];
+            const now = yield* DateTime.now;
             return [
               yield* makeDomainEvent(input, {
-                type: "thread.created",
-                threadId: input.event.appThread.id,
-                payload: input.event.appThread,
+                type: existing === null ? "thread.created" : "thread.metadata-updated",
+                threadId: offered.id,
+                payload:
+                  existing === null
+                    ? offered
+                    : {
+                        ...existing,
+                        title: offered.title,
+                        modelSelection: offered.modelSelection,
+                        updatedAt: now,
+                      },
+                occurredAt: now,
               }),
             ];
+          }
           case "provider_session.updated":
             return [
               yield* makeDomainEvent(input, {
@@ -587,6 +611,9 @@ export const layer: Layer.Layer<
               }),
             ];
           case "node.updated":
+            // Adapters send an unchanged node again with each text delta. Compare with the
+            // stored node, not the last one sent, because the server also writes nodes.
+            if (yield* projections.isNodeStored(input.event.node)) return [];
             return [
               yield* makeDomainEvent(input, {
                 type: "node.updated",
@@ -621,7 +648,9 @@ export const layer: Layer.Layer<
               yield* makeDomainEvent(input, {
                 type: "turn-item.updated",
                 threadId: input.event.turnItem.threadId,
-                payload: stripUnservedToolOutputImageBytes(input.event.turnItem),
+                payload: boundFileChangeForStorage(
+                  stripUnservedToolOutputImageBytes(input.event.turnItem),
+                ),
                 runId: input.event.turnItem.runId,
                 nodeId: input.event.turnItem.nodeId,
               }),
@@ -795,6 +824,10 @@ export const layer: Layer.Layer<
               );
             }),
           ),
+          (effect) =>
+            input.event.type === "app_thread.created"
+              ? threadCommands.withLock(input.event.appThread.id, effect)
+              : effect,
         ),
     });
   }),

@@ -127,9 +127,9 @@ export class ServerUpdateTerminalError extends Schema.TaggedError<ServerUpdateTe
   }
 }
 
-// Covers the 120-second trial deadline and a final restart of the previous
-// version when the trial rolls back.
-const SERVER_UPDATE_RESUME_TIMEOUT = Duration.minutes(4);
+// Covers the service launcher's 30-minute trial deadline (PREPARED_TIMEOUT_MS)
+// and a final restart of the previous version when the trial rolls back.
+const SERVER_UPDATE_RESUME_TIMEOUT = Duration.minutes(32);
 
 export function matchesServerUpdateReadyEvent(
   result: ServerSelfUpdateResult,
@@ -1349,6 +1349,10 @@ export function createServerEnvironmentAtoms<R, E>(
         mode: "singleFlight",
         key: ({ environmentId }) => environmentId,
       },
+    }),
+    checkOtlpEndpoint: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:check-otlp-endpoint",
+      tag: WS_METHODS.serverCheckOtlpEndpoint,
     }),
     retryResourceTelemetry: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:retry-resource-telemetry",

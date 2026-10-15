@@ -27,6 +27,7 @@ import * as Equal from "effect/Equal";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
+import * as Ref from "effect/Ref";
 import type { PlatformError } from "effect/PlatformError";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
@@ -45,6 +46,7 @@ import { isFilesystemRoot, managedWorktreesDirectories } from "./worktreesDirect
 import * as GitVcsDriver from "./vcs/GitVcsDriver.ts";
 import { withWorkspaceLease } from "./workspace/workspaceLease.ts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
+import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
 
 const decodeCleanupThread = Schema.decodeUnknownEffect(
   Schema.fromJsonString(OrchestrationV2AppThreadJson),
@@ -248,11 +250,16 @@ const make = Effect.gen(function* () {
       Effect.orElseSucceed(() => null),
     );
 
+  // Active threads only: archived threads are not candidates and do not count
+  // as sharing a worktree. The recheck's getThreadWorktreePaths reads the same set.
+  // The snapshot takes seconds on large databases, so it runs on the reader
+  // worker instead of the event loop.
   const readThreads = Effect.fn("StorageCleanup.readThreads")(function* () {
-    const active = yield* projections.getShellSnapshot();
-    const archived = yield* projections.getShellSnapshot({ location: "archive" });
+    const { threads } = yield* projections
+      .getShellSnapshot({ location: "active" })
+      .pipe(NodeSqliteClient.readOnly);
     const projects = yield* projectStore.listShells();
-    return { projects, threads: [...active.threads, ...archived.threads] };
+    return { projects, threads };
   });
 
   // Local threads under another project need not have a worktreePath of their own.
@@ -269,6 +276,63 @@ const make = Effect.gen(function* () {
       if (realPath === worktreePath || inside(worktreePath, realPath)) return true;
     }
     return false;
+  });
+
+  // Whether cwd stopped being a checkout of this branch. Two small Git reads,
+  // since every worktree in a sweep is asked; statusDetailsLocal also diffs and
+  // counts.
+  const branchChanged = Effect.fn("StorageCleanup.branchChanged")(function* (
+    cwd: string,
+    branch: string | null,
+  ) {
+    const failure = (detail: string) =>
+      new GitCommandError({
+        operation: "StorageCleanup.branchChanged",
+        command: "git",
+        cwd,
+        detail,
+      });
+    // Null when cwd is not a repository, or is gone. Git's own messages are
+    // matched, so they must not be translated.
+    const read = Effect.fnUntraced(function* (args: string[], allowedExitCode?: number) {
+      const result = yield* git
+        .execute({
+          operation: "StorageCleanup.branchChanged",
+          cwd,
+          args,
+          env: { LC_ALL: "C" },
+          allowNonZeroExit: true,
+        })
+        .pipe(
+          Effect.catch((error) =>
+            Effect.flatMap(fs.exists(cwd), (exists) =>
+              exists ? Effect.fail(error) : Effect.succeed(null),
+            ),
+          ),
+        );
+      if (result === null) return null;
+      if (result.exitCode === 0 || result.exitCode === allowedExitCode) return result;
+      if (result.stderr.toLowerCase().includes("not a git repository")) return null;
+      return yield* failure(
+        result.stderr.trim().split(/\r?\n/)[0]?.slice(0, 1000) || "command failed",
+      );
+    });
+    const index = yield* read(["rev-parse", "--git-path", "index"]);
+    if (index === null) return true;
+    // Another Git process is writing to this checkout.
+    if (yield* fs.exists(`${path.resolve(cwd, index.stdout.trim())}.lock`))
+      return yield* failure(
+        "Git index is locked. Status will resume when the index lock is removed.",
+      );
+    // Exits 1 for a detached HEAD. Reads the full ref name, which is never
+    // shortened to "heads/<branch>" when a tag shares the branch name.
+    const head = yield* read(["symbolic-ref", "--quiet", "HEAD"], 1);
+    if (head === null) return true;
+    const ref = head.exitCode === 0 ? head.stdout.trim() : "";
+    const name = ref.startsWith("refs/heads/") ? ref.slice("refs/heads/".length).trim() : null;
+    // Status output writes a detached HEAD as "(detached)", so a branch named
+    // with a leading "(" has always been read as one.
+    return (name?.startsWith("(") ? null : name) !== branch;
   });
 
   const localChangesReason = Effect.fn("StorageCleanup.localChangesReason")(function* (
@@ -415,8 +479,7 @@ const make = Effect.gen(function* () {
         // A linked worktree has a .git file. Never remove a main checkout.
         if ((yield* fs.stat(path.join(worktreePath, ".git"))).type !== "File")
           return keep("not a linked worktree");
-        const status = yield* git.statusDetailsLocal(worktreePath);
-        if (!status.isRepo || status.branch !== thread.branch)
+        if (yield* branchChanged(worktreePath, thread.branch))
           return keep("repository or branch changed");
         const changes = yield* localChangesReason(worktreePath, settings);
         if (changes !== null) return keep(changes);
@@ -480,55 +543,69 @@ const make = Effect.gen(function* () {
                 ? "not merged"
                 : "has commits beyond the default branch",
           );
-        const bytes = yield* measureWorktree(worktreePath);
-        // Re-read after Git/host calls and size measurement so a queued turn,
-        // resumed session or new thread sharing this path cancels the removal.
-        const latestSnapshot = yield* readThreads();
-        if (yield* containsProjectRoot(worktreePath, [project, ...latestSnapshot.projects]))
-          return keep("contains a project checkout");
-        const latest = latestSnapshot.threads.filter(
-          (entry) =>
-            entry.worktreePath !== null && path.resolve(entry.worktreePath) === worktreePath,
-        );
-        if (hasTerminal(worktreePath)) return keep("open terminal");
-        if (deleted) {
-          if (
-            latest.length > 0 ||
-            !resolveWorktreeCleanup(yield* settingsService.getSettings, thread.projectId)
-              .worktreeOnDelete
-          )
-            return keep("thread or cleanup settings changed since check");
-          // V2 deletion queues durable cleanup. Do not remove its checkout until
-          // every effect has finished successfully or was explicitly cancelled.
-          const pendingCleanup = yield* sql`
-            SELECT 1 FROM orchestration_v2_effect_outbox
-            WHERE thread_id = ${thread.id} AND status NOT IN ('succeeded', 'cancelled') LIMIT 1
+        // Threads, queued deletion work and provider sessions as they are now, so a
+        // queued turn, resumed session or new thread sharing this path cancels
+        // the removal. Read only this path and this thread: a full snapshot per
+        // worktree takes seconds on large databases.
+        const blockedSinceCheck = Effect.fnUntraced(function* () {
+          const latestProjects = yield* projectStore.listShells();
+          if (yield* containsProjectRoot(worktreePath, [project, ...latestProjects]))
+            return "contains a project checkout";
+          const latest = (yield* projections.getThreadWorktreePaths()).filter(
+            (entry) => path.resolve(entry.worktreePath) === worktreePath,
+          );
+          if (hasTerminal(worktreePath)) return "open terminal";
+          if (deleted) {
+            if (
+              latest.length > 0 ||
+              !resolveWorktreeCleanup(yield* settingsService.getSettings, thread.projectId)
+                .worktreeOnDelete
+            )
+              return "thread or cleanup settings changed since check";
+            // V2 deletion queues durable cleanup. Do not remove its checkout until
+            // every effect has finished successfully or was explicitly cancelled.
+            const pendingCleanup = yield* sql`
+              SELECT 1 FROM orchestration_v2_effect_outbox
+              WHERE thread_id = ${thread.id} AND status NOT IN ('succeeded', 'cancelled') LIMIT 1
+            `;
+            if (pendingCleanup.length > 0) return "thread deletion is still pending";
+          } else {
+            const latestShell =
+              latest.length === 1 && latest[0]!.threadId === thread.id
+                ? yield* projections.getThreadShell(thread.id)
+                : null;
+            if (
+              latestShell === null ||
+              !storageCleanupThreadIdle(latestShell, now) ||
+              storageCleanupActivityAt(latestShell) !== storageCleanupActivityAt(thread)
+            )
+              return "thread activity or shared worktree changed since check";
+          }
+          // Sessions can outlive their run and can be shared across app threads.
+          const sessionRows = yield* sql<{ payload_json: string }>`
+            SELECT payload_json FROM orchestration_v2_projection_provider_sessions
+            WHERE status != 'stopped'
           `;
-          if (pendingCleanup.length > 0) return keep("thread deletion is still pending");
-        } else if (
-          latest.length !== 1 ||
-          latest[0]!.id !== thread.id ||
-          !storageCleanupThreadIdle(latest[0]!, now) ||
-          storageCleanupActivityAt(latest[0]!) !== storageCleanupActivityAt(thread)
-        )
-          return keep("thread activity or shared worktree changed since check");
-        // Sessions can outlive their run and can be shared across app threads.
-        const sessionRows = yield* sql<{ payload_json: string }>`
-          SELECT payload_json FROM orchestration_v2_projection_provider_sessions
-          WHERE status != 'stopped'
-        `;
-        const sessions = yield* Effect.forEach(sessionRows, (row) =>
-          decodeCleanupSession(row.payload_json),
-        );
-        if (
-          sessions.some((session) => {
-            const cwd = path.resolve(session.cwd);
-            return cwd === worktreePath || inside(worktreePath, cwd);
-          })
-        )
-          return keep("provider session is still open");
-        const finalStatus = yield* git.statusDetailsLocal(worktreePath);
-        if (!finalStatus.isRepo || finalStatus.branch !== thread.branch)
+          const sessions = yield* Effect.forEach(sessionRows, (row) =>
+            decodeCleanupSession(row.payload_json),
+          );
+          if (
+            sessions.some((session) => {
+              const cwd = path.resolve(session.cwd);
+              return cwd === worktreePath || inside(worktreePath, cwd);
+            })
+          )
+            return "provider session is still open";
+          return null;
+        });
+        // Most cancelled removals are caught here, before the worktree is walked.
+        const blocked = yield* blockedSinceCheck();
+        if (blocked !== null) return keep(blocked);
+        const bytes = yield* measureWorktree(worktreePath);
+        // The walk can take a while; ask again for anything that started during it.
+        const blockedWhileMeasuring = yield* blockedSinceCheck();
+        if (blockedWhileMeasuring !== null) return keep(blockedWhileMeasuring);
+        if (yield* branchChanged(worktreePath, thread.branch))
           return keep("repository or branch changed since check");
         if (
           (yield* git.resolveCommit({ cwd: worktreePath, revision: "HEAD" })).commitSha !==
@@ -710,9 +787,14 @@ const make = Effect.gen(function* () {
     yield* SubscriptionRef.set(reportRef, latestReport);
     return latestReport;
   });
+  // At most one automatic sweep waits at a time. An automatic request made
+  // while one is waiting joins it, since that sweep has not read any state yet.
+  // Each manual run still gets its own sweep and report.
+  const automaticSweepQueued = yield* Ref.make(false);
   const worker = yield* makeDrainableWorker(
     (completion: Deferred.Deferred<StorageCleanupReport, ServerSettingsError> | undefined) =>
-      sweep(completion === undefined ? "automatic" : "manual").pipe(
+      (completion === undefined ? Ref.set(automaticSweepQueued, false) : Effect.void).pipe(
+        Effect.andThen(sweep(completion === undefined ? "automatic" : "manual")),
         Effect.exit,
         Effect.flatMap((exit) =>
           completion === undefined
@@ -725,6 +807,9 @@ const make = Effect.gen(function* () {
             : Deferred.done(completion, exit).pipe(Effect.asVoid),
         ),
       ),
+  );
+  const requestSweep = Ref.getAndSet(automaticSweepQueued, true).pipe(
+    Effect.flatMap((queued) => (queued ? Effect.void : worker.enqueue(undefined))),
   );
   const runNow = Effect.gen(function* () {
     const completion = yield* Deferred.make<StorageCleanupReport, ServerSettingsError>();
@@ -752,13 +837,11 @@ const make = Effect.gen(function* () {
     const events = engine.streamDomainEvents;
     let lastSettings = yield* settingsService.getSettings.pipe(Effect.orDie);
     yield* forkParked(
-      worker
-        .enqueue(undefined)
-        .pipe(
-          Effect.andThen(worker.drain),
-          Effect.repeat(Schedule.spaced("1 hour")),
-          Effect.asVoid,
-        ),
+      requestSweep.pipe(
+        Effect.andThen(worker.drain),
+        Effect.repeat(Schedule.spaced("1 hour")),
+        Effect.asVoid,
+      ),
     );
     yield* forkParked(
       Stream.runForEach(changes, (settings) => {
@@ -769,14 +852,18 @@ const make = Effect.gen(function* () {
         )
           return Effect.void;
         lastSettings = settings;
-        return worker.enqueue(undefined);
+        return requestSweep;
       }),
     );
     yield* forkParked(
+      // A deleted thread's worktree waits for its sessions to end. Moving
+      // between live statuses, such as running to ready, cannot free one.
       Stream.runForEach(events, (event) =>
-        (event.type === "thread.deleted" || event.type === "provider-session.updated") &&
+        (event.type === "thread.deleted" ||
+          (event.type === "provider-session.updated" &&
+            (event.payload.status === "stopped" || event.payload.status === "error"))) &&
         anyWorktreePolicy(lastSettings, (rules) => rules.worktreeOnDelete)
-          ? worker.enqueue(undefined)
+          ? requestSweep
           : Effect.void,
       ).pipe(
         Effect.catchCause((cause) =>
