@@ -464,6 +464,21 @@ class PrSynchronizationTests(unittest.TestCase):
         changed = self.pull(2, {"shared.txt": "different change\n"})
         self.assertEqual(self.prepare([first, changed], resolutions=resolutions)["phase"], "conflict")
 
+    def test_recording_a_resolution_retries_a_conflict_without_other_changes(self):
+        self.remote()
+        first = self.pull(1, {"shared.txt": "one\n"})
+        second = self.pull(2, {"shared.txt": "two\n"})
+        status, _ = self.run_prepare([first, second], 100, forced=True)
+        self.assertEqual(status["phase"], "conflict")
+        suppressed, fetch = self.run_prepare([first, second], 200)
+        self.assertEqual(suppressed["phase"], "debouncing")
+        fetch.assert_not_called()
+        nightly.write_state(self.repo, "resolutions.json", {"0" * 40: {"preimage": "a", "postimage": "b"}})
+        waiting, _ = self.run_prepare([first, second], 300)
+        self.assertEqual(waiting["phase"], "debouncing")
+        _, fetch = self.run_prepare([first, second], 420)
+        fetch.assert_called_once()
+
 
 class InputDiscoveryTests(unittest.TestCase):
     config = {"repository": "NikitaMGrimm/t3code", "upstreamRepository": "pingdotgg/t3code"}

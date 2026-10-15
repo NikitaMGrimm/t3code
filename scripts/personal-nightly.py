@@ -2,6 +2,7 @@
 """Prepare a nightly merge without advancing the last working personal branch."""
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -543,7 +544,10 @@ def main():
             else:
                 selected = set(read_state(repo, "included-prs.json").get("numbers", []))
             pulls = discover_included_pull_requests(repo, config, args.tag, selected)
-            inputs = {"upstreamTag": args.tag, "pullRequests": pull_request_inputs(pulls)}
+            resolutions = read_state(repo, "resolutions.json")
+            # A newly recorded resolution can settle a conflict without any PR or branch change.
+            inputs = {"upstreamTag": args.tag, "pullRequests": pull_request_inputs(pulls),
+                      "resolutions": hashlib.sha256(json.dumps(resolutions, sort_keys=True).encode()).hexdigest()}
             forced = (os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
                       and os.environ.get("PERSONAL_NIGHTLY_FORCE") == "true")
             previous = read_state(repo, "status.json")
@@ -564,7 +568,6 @@ def main():
                         stream.write("phase=debouncing\n")
                 return
             fetch_pull_requests(repo, config, pulls)
-            resolutions = read_state(repo, "resolutions.json")
         status = prepare(repo, args.tag, args.run_number, releases, pulls, resolutions)
         if inputs is not None:
             status["inputs"] = inputs
