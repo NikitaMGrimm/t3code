@@ -464,6 +464,24 @@ class PrSynchronizationTests(unittest.TestCase):
         changed = self.pull(2, {"shared.txt": "different change\n"})
         self.assertEqual(self.prepare([first, changed], resolutions=resolutions)["phase"], "conflict")
 
+    def test_only_the_owner_can_change_release_tooling_through_a_pr(self):
+        def tooling_pull(files):
+            for directory in (".github/workflows", "scripts"):
+                (self.repo / directory).mkdir(parents=True, exist_ok=True)
+            return self.pull(1, {**files, "app.txt": "feature\n"})
+
+        tooling = {".github/workflows/ü.yml": "on: push\n", "scripts/personal-nightly.py": "pass\n"}
+        other = dict(tooling_pull({**tooling, "personal-nightly.json": "{}\n"}), author="someone-else")
+        before = self.head()
+        status = self.prepare([other])
+        self.assertEqual(status["phase"], "conflict")
+        self.assertEqual(sorted(status["conflicts"]), sorted([*tooling, "personal-nightly.json"]))
+        self.assertEqual(status["conflictPullRequest"], 1)
+        self.assertEqual(self.head(), before)
+        owned = dict(tooling_pull(tooling), author="nikitamgrimm")
+        self.assertEqual(self.prepare([owned])["phase"], "building")
+        self.assertEqual((self.repo / "scripts" / "personal-nightly.py").read_text(), "pass\n")
+
     def test_recording_a_resolution_retries_a_conflict_without_other_changes(self):
         self.remote()
         first = self.pull(1, {"shared.txt": "one\n"})

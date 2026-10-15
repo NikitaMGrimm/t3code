@@ -256,6 +256,20 @@ def ordered_pull_requests(pulls):
     return ordered
 
 
+# The workflow runs these from the integration branch with the fork's write credentials,
+# and assembly writes the manifest in place, so a symlinked one would redirect that write.
+RELEASE_TOOLING = re.compile(r"\.github/|scripts/personal-nightly\.py$|personal-nightly\.json$")
+
+
+def release_tooling_changes(repo, config, pull):
+    """Release tooling another author's PR changes. The owner's own PRs may change it."""
+    if pull.get("author", "").casefold() == config["repository"].split("/")[0].casefold():
+        return []
+    # -z keeps unusual names unquoted so the prefix match cannot be bypassed.
+    changed = git("diff", "--name-only", "--no-renames", "-z", pull["baseSha"], pull["headSha"], cwd=repo).stdout
+    return [path for path in changed.split("\0") if RELEASE_TOOLING.match(path)]
+
+
 def merge_delta(repo, base, head):
     """Give ort an explicit merge base without importing a PR's upstream history."""
     current_tree = git("rev-parse", "HEAD^{tree}", cwd=repo).stdout.strip()
@@ -293,7 +307,8 @@ def assemble(repo, tag, config, pulls, resolutions):
                 (cache / name).write_text(content)
         for pull in ordered_pull_requests(pulls):
             previous = git("rev-parse", "HEAD", cwd=checkout).stdout.strip()
-            conflicts = merge_delta(checkout, pull["baseSha"], pull["headSha"])
+            conflicts = (release_tooling_changes(checkout, config, pull)
+                         or merge_delta(checkout, pull["baseSha"], pull["headSha"]))
             if conflicts:
                 return {"conflicts": conflicts, "conflictPullRequest": pull["number"]}
             tree = git("write-tree", cwd=checkout).stdout.strip()

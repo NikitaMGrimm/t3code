@@ -57,6 +57,12 @@ upstream decides, including one of your own. A closed PR no longer receives its
 owner's fixes: when it starts conflicting with a newer nightly, remove it or
 commit the reconciled change directly as a personal fix.
 
+A selected PR from another author cannot change `.github/`,
+`scripts/personal-nightly.py`, or `personal-nightly.json`. The build uses those
+files with the fork's write token, so
+such a PR stops the build like a conflict until its author drops those changes
+or you remove it.
+
 When an owner pushes a conflict fix, the next eligible check retries their new
 head with the normal debounce and cooldown. Conflicts with another included PR,
 your personal fixes, or changes not yet present in the official nightly still
