@@ -214,6 +214,20 @@ export function NewTaskDraftScreen(props: {
   const controlsBottomPadding = Math.max(insets.bottom, 10);
   const keyboardOpenedOffset = Math.max(0, controlsBottomPadding - 8);
   const { projectScopes, selectedProject, selectedProjectKey, setProject } = flow;
+  // The picker and sidebar name a project by its repository scope; a workspace
+  // inside it (e.g. apps/server) is titled by its folder, which reads as
+  // ambiguous on its own.
+  const selectedProjectLabel = useMemo(() => {
+    if (!selectedProject) return null;
+    const scope = projectScopes.find((candidate) =>
+      candidate.projectRefs.some(
+        (ref) =>
+          ref.environmentId === selectedProject.environmentId &&
+          ref.projectId === selectedProject.id,
+      ),
+    );
+    return scope?.title ?? selectedProject.title;
+  }, [projectScopes, selectedProject]);
   const { connectedEnvironments } = useRemoteConnectionStatus();
   const selectedEnvironmentServerConfig = useEnvironmentServerConfig(
     selectedProject?.environmentId ?? null,
@@ -508,7 +522,7 @@ export function NewTaskDraftScreen(props: {
   });
   const voiceInput = useVoiceInputController({
     ownerKey: flow.draftKey,
-    label: selectedProject ? `New task in ${selectedProject.title}` : "New task",
+    label: selectedProjectLabel ? `New task in ${selectedProjectLabel}` : "New task",
     readDraftMessage: () => (flow.draftKey ? getComposerDraftSnapshot(flow.draftKey).text : null),
     subscribeToDraftChanges: (onChange) => appAtomRegistry.subscribe(composerDraftsAtom, onChange),
     selection: composerMenu.selection,
@@ -1029,6 +1043,7 @@ export function NewTaskDraftScreen(props: {
     branchName: selectedBranchName,
     startFromOrigin: flow.startFromOrigin,
     workspaceMode: flow.workspaceMode,
+    pullRequestReference: flow.pullRequestReference,
   });
   const workspaceLabel = resolveNewTaskWorkspaceLabel({
     workspaceMode: flow.workspaceMode,
@@ -1578,7 +1593,7 @@ export function NewTaskDraftScreen(props: {
           <Text className="text-2xl font-t3-medium tracking-tight text-foreground">in </Text>
           <Pressable
             accessibilityHint="Opens the project picker"
-            accessibilityLabel={selectedProject.title}
+            accessibilityLabel={selectedProjectLabel ?? selectedProject.title}
             accessibilityRole="button"
             disabled={isComposerInteractionLocked}
             onPress={chooseProject}
@@ -1588,7 +1603,7 @@ export function NewTaskDraftScreen(props: {
               className="text-2xl font-t3-medium tracking-tight text-foreground"
               numberOfLines={1}
             >
-              {selectedProject.title}
+              {selectedProjectLabel ?? selectedProject.title}
             </Text>
           </Pressable>
           <Text className="text-2xl font-t3-medium tracking-tight text-foreground">?</Text>
@@ -1894,7 +1909,7 @@ export function NewTaskDraftScreen(props: {
         options={{
           headerBackVisible: false,
           headerShadowVisible: false,
-          title: "",
+          title: "New thread",
         }}
       />
       <NativeHeaderToolbar placement="left">
