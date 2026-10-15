@@ -4,6 +4,7 @@ import {
   serializeAssistantCitation,
   withAssistantCitationComment,
 } from "@t3tools/shared/assistantCitations";
+import { isPathWord } from "@t3tools/shared/composerTrigger";
 import {
   splitPromptIntoComposerSegments,
   type ComposerPromptSegment,
@@ -261,18 +262,12 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
   const tokenStart = tokenStartForCursor(text, cursor);
   const token = text.slice(tokenStart, cursor);
   if (token.startsWith("/")) {
-    let tokenEnd = cursor;
-    while (tokenEnd < text.length && !isWhitespace(text[tokenEnd] ?? "")) {
-      tokenEnd += 1;
-    }
-    // A second slash anywhere in the word makes it a path such as /tmp/build.sh,
-    // even while the caret is still before that slash.
-    if (text.slice(tokenStart + 1, tokenEnd).includes("/")) return null;
+    if (isPathWord(text, tokenStart, cursor, isWhitespace)) return null;
     return {
       kind: "slash-command",
       query: token.slice(1),
       rangeStart: tokenStart,
-      rangeEnd: tokenEnd,
+      rangeEnd: cursor,
     };
   }
   const pullRequestMatch = /^#([\p{L}\p{N}][\p{L}\p{N}_-]*)?$/u.exec(token);

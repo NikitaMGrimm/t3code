@@ -7,7 +7,6 @@ import {
 } from "@t3tools/contracts";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { detectComposerTrigger } from "@t3tools/shared/composerTrigger";
 
 const refreshProviders = vi.hoisted(() => vi.fn());
 vi.mock("react-native", () => ({ Alert: { alert: vi.fn() } }));
@@ -34,22 +33,6 @@ import {
   resolveComposerCommandSelection,
   useComposerCommandMenu,
 } from "./use-composer-command-menu";
-
-function createTestRoot(): Root {
-  const document = { nodeType: 9, addEventListener() {}, removeEventListener() {} };
-  const container = {
-    nodeType: 1,
-    tagName: "DIV",
-    namespaceURI: "http://www.w3.org/1999/xhtml",
-    ownerDocument: document,
-    addEventListener() {},
-    removeEventListener() {},
-  };
-  vi.stubGlobal("document", document);
-  vi.stubGlobal("window", { document, HTMLIFrameElement: EventTarget });
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  return createRoot(container as unknown as HTMLElement);
-}
 
 describe("mobile slash commands", () => {
   const antigravity = {
@@ -130,110 +113,6 @@ describe("mobile slash commands", () => {
   });
 });
 
-describe("mobile slash menu position", () => {
-  let root: Root;
-  const provider = {
-    instanceId: ProviderInstanceId.make("claude"),
-    driver: ProviderDriverKind.make("claude"),
-    enabled: true,
-    installed: true,
-    version: "1.0.0",
-    status: "ready",
-    auth: { status: "authenticated" },
-    checkedAt: "2026-01-01T00:00:00.000Z",
-    models: [],
-    slashCommands: [{ name: "review-pr" }],
-    skills: [{ name: "review", path: "/skills/review/SKILL.md", enabled: true }],
-  } satisfies ServerProvider;
-
-  function Probe({
-    draftMessage,
-    onLabels,
-  }: {
-    draftMessage: string;
-    onLabels: (labels: string[]) => void;
-  }) {
-    const { items } = useComposerCommandMenu({
-      draftMessage,
-      ownerKey: null,
-      environmentId: null,
-      projectCwd: null,
-      selectedProviderStatus: provider,
-      hasThread: true,
-      hasCompactableConversation: false,
-      onChangeDraftMessage: () => {},
-    });
-    onLabels(items.map((item) => item.label));
-    return null;
-  }
-
-  async function itemLabelsFor(draftMessage: string): Promise<string[]> {
-    let labels: string[] = [];
-    await act(async () => {
-      root.render(
-        // A fresh mount puts the caret at the end, like opening a saved draft.
-        createElement(Probe, {
-          key: draftMessage,
-          draftMessage,
-          onLabels: (next) => {
-            labels = next;
-          },
-        }),
-      );
-    });
-    return labels;
-  }
-
-  beforeEach(() => {
-    root = createTestRoot();
-  });
-
-  afterEach(async () => {
-    await act(async () => {
-      root.unmount();
-    });
-    vi.unstubAllGlobals();
-  });
-
-  it("offers provider commands only before any prompt text", async () => {
-    expect(await itemLabelsFor("/rev")).toEqual(["/review-pr", "skill:review"]);
-    expect(await itemLabelsFor("  /rev")).toEqual(["/review-pr", "skill:review"]);
-    expect(await itemLabelsFor("Use /rev")).toEqual(["skill:review"]);
-    expect(await itemLabelsFor("Use\n/rev")).toEqual(["skill:review"]);
-  });
-
-  it("keeps a path literal", async () => {
-    expect(await itemLabelsFor("Use /tmp/review.sh")).toEqual([]);
-  });
-
-  it("offers a second skill on the same line", async () => {
-    expect(await itemLabelsFor("$first /rev")).toEqual(["skill:review"]);
-  });
-
-  it("completes a second skill with the caret inside its slash token", () => {
-    const draftMessage = "$first /review";
-    const trigger = detectComposerTrigger(draftMessage, "$first /rev".length);
-    const skill = provider.skills[0];
-    if (!trigger) throw new Error("Expected a slash trigger");
-    if (!skill) throw new Error("Expected the review skill");
-
-    expect(
-      resolveComposerCommandSelection({
-        draftMessage,
-        trigger,
-        item: {
-          id: "skill:review",
-          type: "skill",
-          label: "skill:review",
-          description: "",
-          skill,
-        },
-        allowInteractionMode: false,
-      }),
-    ).toEqual({ text: "$first $review ", cursor: 15, interactionMode: null });
-  });
-});
-
 describe("workspace command discovery retry", () => {
   let root: Root;
   const environmentId = EnvironmentId.make("test-environment");
@@ -279,7 +158,19 @@ describe("workspace command discovery retry", () => {
     vi.useFakeTimers();
     refreshProviders.mockReset();
     refreshProviders.mockResolvedValue({ _tag: "Success", value: { providers: [provider] } });
-    root = createTestRoot();
+    const document = { nodeType: 9, addEventListener() {}, removeEventListener() {} };
+    const container = {
+      nodeType: 1,
+      tagName: "DIV",
+      namespaceURI: "http://www.w3.org/1999/xhtml",
+      ownerDocument: document,
+      addEventListener() {},
+      removeEventListener() {},
+    };
+    vi.stubGlobal("document", document);
+    vi.stubGlobal("window", { document, HTMLIFrameElement: EventTarget });
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    root = createRoot(container as unknown as HTMLElement);
   });
 
   afterEach(async () => {

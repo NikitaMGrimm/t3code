@@ -46,6 +46,23 @@ function isWhitespace(char: string): boolean {
 }
 
 /**
+ * A slash word with a second slash, such as `/tmp/build.sh`, is a path, not a
+ * command. The whole word counts, so a caret before the second slash still sees it.
+ */
+export function isPathWord(
+  text: string,
+  wordStart: number,
+  cursor: number,
+  isWhitespaceChar: (char: string) => boolean,
+): boolean {
+  let wordEnd = cursor;
+  while (wordEnd < text.length && !isWhitespaceChar(text[wordEnd] ?? "")) {
+    wordEnd += 1;
+  }
+  return text.slice(wordStart + 1, wordEnd).includes("/");
+}
+
+/**
  * Detect an active trigger (@path, $skill, /command) at the cursor position.
  *
  * Accepts an optional `isWhitespaceChar` override so callers with inline
@@ -61,22 +78,38 @@ export function detectComposerTrigger(
   const lineStart = text.lastIndexOf("\n", Math.max(0, cursor - 1)) + 1;
   const linePrefix = text.slice(lineStart, cursor);
 
-  if (linePrefix.toLowerCase() === "/model") {
-    return {
-      kind: "slash-model",
-      query: "",
-      rangeStart: lineStart,
-      rangeEnd: cursor,
-    };
-  }
-  const modelMatch = /^\/model\s+(.*)$/.exec(linePrefix);
-  if (modelMatch) {
-    return {
-      kind: "slash-model",
-      query: (modelMatch[1] ?? "").trim(),
-      rangeStart: lineStart,
-      rangeEnd: cursor,
-    };
+  if (linePrefix.startsWith("/")) {
+    const commandMatch = /^\/(\S*)$/.exec(linePrefix);
+    if (commandMatch && isPathWord(text, lineStart, cursor, isWhitespaceChar ?? isWhitespace)) {
+      return null;
+    }
+    if (commandMatch) {
+      const commandQuery = commandMatch[1] ?? "";
+      if (commandQuery.toLowerCase() === "model") {
+        return {
+          kind: "slash-model",
+          query: "",
+          rangeStart: lineStart,
+          rangeEnd: cursor,
+        };
+      }
+      return {
+        kind: "slash-command",
+        query: commandQuery,
+        rangeStart: lineStart,
+        rangeEnd: cursor,
+      };
+    }
+
+    const modelMatch = /^\/model(?:\s+(.*))?$/.exec(linePrefix);
+    if (modelMatch) {
+      return {
+        kind: "slash-model",
+        query: (modelMatch[1] ?? "").trim(),
+        rangeStart: lineStart,
+        rangeEnd: cursor,
+      };
+    }
   }
 
   const wsCheck = isWhitespaceChar ?? isWhitespace;
@@ -88,18 +121,12 @@ export function detectComposerTrigger(
 
   const token = text.slice(tokenStart, cursor);
   if (token.startsWith("/")) {
-    let tokenEnd = cursor;
-    while (tokenEnd < text.length && !wsCheck(text[tokenEnd] ?? "")) {
-      tokenEnd += 1;
-    }
-    // A second slash anywhere in the word makes it a path such as /tmp/build.sh,
-    // even while the caret is still before that slash.
-    if (text.slice(tokenStart + 1, tokenEnd).includes("/")) return null;
+    if (isPathWord(text, tokenStart, cursor, wsCheck)) return null;
     return {
       kind: "slash-command",
       query: token.slice(1),
       rangeStart: tokenStart,
-      rangeEnd: tokenEnd,
+      rangeEnd: cursor,
     };
   }
   const pullRequestMatch = /^#([\p{L}\p{N}][\p{L}\p{N}_-]*)?$/u.exec(token);

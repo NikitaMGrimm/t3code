@@ -352,9 +352,6 @@ export function useComposerCommandMenu({
     }
     return detectComposerTrigger(draftMessage, selection.end);
   }, [draftMessage, enabled, selection]);
-  // Sends are trimmed, so leading whitespace does not stop a provider command.
-  const triggerAtMessageStart =
-    trigger !== null && draftMessage.slice(0, trigger.rangeStart).trim() === "";
   const pathSearch = useComposerPathSearch({
     environmentId,
     cwd: trigger?.kind === "path" ? projectCwd : null,
@@ -398,7 +395,7 @@ export function useComposerCommandMenu({
       const visibleSkills = getProviderSkillsForSlashMenu(skills, true);
       const commandItems = buildComposerSlashCommandItems({
         query: q,
-        atMessageStart: triggerAtMessageStart,
+        atMessageStart: trigger.rangeStart === 0,
         hasThread,
         hasCompactableConversation,
         offersUsageLimits,
@@ -549,7 +546,6 @@ export function useComposerCommandMenu({
     selectedProviderStatus,
     skills,
     trigger,
-    triggerAtMessageStart,
     offersUsageLimits,
   ]);
 

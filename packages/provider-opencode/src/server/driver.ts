@@ -415,8 +415,8 @@ export const OpenCodeDriver: ProviderDriver<
           },
           { concurrency: "unbounded" },
         ).pipe(
-          // A failed command lookup leaves the commands pending, so the
-          // registry keeps the last known ones and rescans.
+          // A finished lookup is complete. A failed one leaves the commands
+          // pending, so the registry keeps the last known ones and rescans.
           Effect.map(({ skills, commands }) => ({
             skills,
             commands: Option.getOrElse(commands, () => []),

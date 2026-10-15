@@ -2,7 +2,7 @@
   "repository": "NikitaMGrimm/t3code",
   "branch": "personal-nightly",
   "upstreamRepository": "pingdotgg/t3code",
-  "upstreamTag": "v0.0.46-nightly.20261014.3118",
+  "upstreamTag": "v0.0.46-nightly.20261015.3176",
   "pullRequests": [
     {
       "number": 14574,
@@ -19,8 +19,8 @@
     {
       "number": 15269,
       "title": "fix(web): allow Working threads to be dragged into chat as references",
-      "headSha": "c621b507974efacda8836060ae80a3b7ac525b6e",
-      "baseSha": "9bd1d8009a6b7c50f9dd9458e2bf27d481ff3b43",
+      "headSha": "52edf3f78271a2121d407067d0078d7eb0441d84",
+      "baseSha": "ab3a3cd162d90fd9f01ac62efdb9d4ad55c33639",
       "headRef": "fix/working-thread-references",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -31,8 +31,8 @@
     {
       "number": 16198,
       "title": "fix(web): show math labels in Mermaid diagrams",
-      "headSha": "f1cc8f7d3d06701d2ebeba9285becd33371451ba",
-      "baseSha": "ec80933ac8cd02fec5c97b342462ccc9567cdb1e",
+      "headSha": "22146b0958f6cc9735d64c96a173cdbaff3fd286",
+      "baseSha": "ec1313c8f8333292506f05a355bb72d308a455d8",
       "headRef": "fix/mermaid-math",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -43,8 +43,8 @@
     {
       "number": 16249,
       "title": "fix(web): preserve Mermaid source when copying selected text",
-      "headSha": "7c7a2d138bf87803592437b11d80bcef1ac573cd",
-      "baseSha": "677d1527c3d96b90b2294d9a0aed7d8c8874b29b",
+      "headSha": "85382ed96075b4f858637960d789634b13572bf6",
+      "baseSha": "ec1313c8f8333292506f05a355bb72d308a455d8",
       "headRef": "feat/mermaid-selection-copy",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -55,8 +55,8 @@
     {
       "number": 16453,
       "title": "fix(server): honor configured remote diff bases",
-      "headSha": "c8418b15ff5fde993c5c0b408f121b4b13c306db",
-      "baseSha": "9bd1d8009a6b7c50f9dd9458e2bf27d481ff3b43",
+      "headSha": "2f4f6a60b7c6b8bfb135edbf5bd66a21060a060b",
+      "baseSha": "ec1313c8f8333292506f05a355bb72d308a455d8",
       "headRef": "fix/remote-diff-base",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -65,10 +65,34 @@
       "baseRepository": "pingdotgg/t3code"
     },
     {
+      "number": 16941,
+      "title": "fix(server): queued preview actions no longer start after their deadline, except recording stop",
+      "headSha": "2c73a63111c548855b916b6e9f3f88a96d6900c5",
+      "baseSha": "8d7523248964ec7b37cc08f91e15122def171821",
+      "headRef": "fix/preview-timeout-isolation-16921",
+      "baseRef": "main",
+      "author": "hogeheer499-commits",
+      "url": "https://github.com/pingdotgg/t3code/pull/16941",
+      "headRepository": "hogeheer499-commits/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 17871,
+      "title": "fix(preview): keep browser sessions available after action timeouts",
+      "headSha": "695f58d4d10efb47d780bf8a678d16da8cdee1d0",
+      "baseSha": "50647de0143e68fde051eb1a0ccf4fe63f9947b2",
+      "headRef": "fix/preview-browser-timeout-eviction",
+      "baseRef": "main",
+      "author": "TDanks2000",
+      "url": "https://github.com/pingdotgg/t3code/pull/17871",
+      "headRepository": "TDanks2000/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
       "number": 17892,
       "title": "fix(web): attach button no longer shifts when the Compact chip toggles",
-      "headSha": "f32b07cd48392d3b027cdfa3561f09c8ce6ad535",
-      "baseSha": "dacd2cb649eea06a00244bd181eb400735e923d5",
+      "headSha": "ac5376b0c7b3494ed93d27894460bfe7a2b2ac80",
+      "baseSha": "ec1313c8f8333292506f05a355bb72d308a455d8",
       "headRef": "fix/composer-compact-chip-order",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -91,7 +115,7 @@
     {
       "number": 18309,
       "title": "fix(server): keep workspace skills when provider health fails",
-      "headSha": "7f4d0ef8112f8d791094652d4b6f850e94a46b25",
+      "headSha": "fb900da24b7f72fa602bbc62d0a44bdc4ae6d7a5",
       "baseSha": "ac2cc78d4a4aa9508acb65ad5e9dab319dd1962a",
       "headRef": "resubmit/codex-skill-health",
       "baseRef": "main",
@@ -103,8 +127,8 @@
     {
       "number": 18310,
       "title": "fix(composer): don't send attached threads to a machine that can't read them",
-      "headSha": "685b805192af24517a14b95d3a3ad53efbce1288",
-      "baseSha": "ac2cc78d4a4aa9508acb65ad5e9dab319dd1962a",
+      "headSha": "dcdc52ec43bef41bc4a01f09c9c6c48f7bd52bfc",
+      "baseSha": "3ff452bd65adf758e68b886d1e3778ae1ec7d970",
       "headRef": "resubmit/reference-machine-selection",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -115,8 +139,8 @@
     {
       "number": 18322,
       "title": "fix(mobile): don't send or paste attached threads a machine can't read",
-      "headSha": "beda35de70953589b5d943dd4ad6078b938c8d6d",
-      "baseSha": "ac2cc78d4a4aa9508acb65ad5e9dab319dd1962a",
+      "headSha": "b241e2ae6406c3a27b1cae0aea7067e46d790d76",
+      "baseSha": "3ff452bd65adf758e68b886d1e3778ae1ec7d970",
       "headRef": "resubmit/reference-machine-selection-mobile",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -137,17 +161,29 @@
       "baseRepository": "pingdotgg/t3code"
     },
     {
-      "number": 19168,
-      "title": "fix(composer): slash menu leaves paths alone and replaces the whole word",
-      "headSha": "6adac409123d95890179935b20781d8d27ca0aa4",
-      "baseSha": "a01c48f86245f2a779f9af84042f3b09fbdeb91f",
-      "headRef": "fix/slash-menu-word-edges",
+      "number": 19671,
+      "title": "fix(composer): paths such as /tmp/build.sh no longer open the slash menu",
+      "headSha": "b99dd76ada68bfb796715f1776772eee44802ccb",
+      "baseSha": "40a7908df54d5069c93835032c9e955b56b55f1d",
+      "headRef": "fix/slash-menu-paths-literal",
       "baseRef": "main",
       "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/19168",
+      "url": "https://github.com/pingdotgg/t3code/pull/19671",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 19674,
+      "title": "fix(opencode): a failed command lookup no longer wipes a workspace's commands",
+      "headSha": "960bc73d7a54e3a1b7fd63068e06e5749d1360a2",
+      "baseSha": "742c229957b69a0cc5a1379dff6c66b595854057",
+      "headRef": "fix/opencode-commands-pending-on-failed-lookup",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/19674",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "d706d7e315336c6e58dd31151e888df58f2e2ead"
+  "prBaseline": "9eca2294a558b6602de7a8ece37d8a5b1d19db7b"
 }
