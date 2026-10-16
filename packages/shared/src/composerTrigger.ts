@@ -62,13 +62,6 @@ export function isPathWord(
   return text.slice(wordStart + 1, wordEnd).includes("/");
 }
 
-/**
- * Detect an active trigger (@path, $skill, /command) at the cursor position.
- *
- * Accepts an optional `isWhitespaceChar` override so callers with inline
- * placeholder characters (e.g. terminal context chips on web) can treat
- * those as token boundaries.
- */
 export function detectComposerTrigger(
   text: string,
   cursorInput: number,
