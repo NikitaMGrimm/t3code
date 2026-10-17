@@ -58,10 +58,10 @@ vi.mock("./ServerBrowserContexts.ts", () => ({
       const context = makeContext();
       if (desktopSetupGate) {
         const newCDPSession = context.newCDPSession;
-        context.newCDPSession = async () => {
+        context.newCDPSession = async (target: unknown) => {
           desktopSetupStarted?.resolve();
           await desktopSetupGate?.promise;
-          return newCDPSession();
+          return newCDPSession(target);
         };
       }
       if (desktopSetupFailure === "cdp")
@@ -2276,7 +2276,8 @@ it.live.each([
         defaultProfileId: "profile-work",
       });
       // Recovery must keep even an old unwatched fallback available.
-      const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 31 * 60 * 1000);
+      const later = (yield* Clock.currentTimeMillis) + 31 * 60 * 1000;
+      const clock = vi.spyOn(Date, "now").mockReturnValue(later);
       yield* Effect.addFinalizer(() => Effect.sync(() => clock.mockRestore()));
       desktopRendersNext = true;
       const opened = yield* broker.invoke<PreviewAutomationStatus>({
@@ -2319,7 +2320,7 @@ it.live.each([
       ).toBe("evaluated");
       expect(
         yield* broker
-          .invoke({
+          .invoke<string>({
             scope: asSession("another-agent"),
             tabId: PreviewTabId.make(opened.tabId!),
             operation: "evaluate",
@@ -2345,7 +2346,7 @@ it.live("a failed native profile connection removes only its newly created blank
       desktopConnectionFailure = new Error("CDP connection failed");
       expect(
         yield* broker
-          .invoke({
+          .invoke<PreviewAutomationStatus>({
             scope,
             operation: "open",
             input: {
@@ -2397,7 +2398,7 @@ it.live.each(["cdp", "rendering"] as const)(
         desktopAttachGate = attached;
         yield* Effect.addFinalizer(() => Effect.sync(() => attached.resolve(false)));
         const opening = yield* broker
-          .invoke({
+          .invoke<PreviewAutomationStatus>({
             scope,
             operation: "open",
             input: {
@@ -2455,7 +2456,7 @@ it.live("closing a native profile session during setup releases its connection o
       desktopSetupGate = setup;
       yield* Effect.addFinalizer(() => Effect.sync(() => setup.resolve()));
       const opening = yield* broker
-        .invoke({
+        .invoke<PreviewAutomationStatus>({
           scope,
           operation: "open",
           input: { profileId: "default", open: true, reuseExistingTab: false },
@@ -2535,7 +2536,7 @@ it.live("native profile recovery respects the existing agent tab capacity", () =
       desktopRendersNext = true;
       expect(
         yield* broker
-          .invoke({
+          .invoke<PreviewAutomationStatus>({
             scope,
             operation: "open",
             input: { profileId: "Work", open: true, reuseExistingTab: false },
