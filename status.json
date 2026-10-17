@@ -3,11 +3,11 @@
   "phase": "ready",
   "upstreamTag": "v0.0.46-nightly.20261015.3176",
   "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/38646114921",
-  "releasedVersion": "0.0.46-nightly.20261015.1792105600367",
-  "sequence": 1792107124016,
-  "candidateCommit": "6d80ec659ad307d98ba3f8892f22d76516deb3cd",
-  "candidateVersion": "0.0.46-nightly.20261015.1792105600367",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.0.46-nightly.20261017.1792261191643",
+  "releasedVersion": "0.0.46-nightly.20261017.1792261191643",
+  "sequence": 1792261191643,
+  "candidateCommit": "2682dbcfa4c751c4f93ce6371dcd715831e3625b",
+  "candidateVersion": "0.0.46-nightly.20261017.1792261191643",
   "inputs": {
     "upstreamTag": "v0.0.46-nightly.20261015.3176",
     "pullRequests": [
@@ -38,7 +38,7 @@
       },
       {
         "number": 16941,
-        "headSha": "2c73a63111c548855b916b6e9f3f88a96d6900c5",
+        "headSha": "102deab30a01e955345c4f8f9bcdb2e97d2d5d31",
         "baseRef": "main"
       },
       {
@@ -72,6 +72,11 @@
         "baseRef": "main"
       },
       {
+        "number": 18873,
+        "headSha": "b9fa58f765e44c374c2bfbffaa07f9d0f240b102",
+        "baseRef": "main"
+      },
+      {
         "number": 19044,
         "headSha": "6584d98cba8fc1b89b4aae0ae1b44a30c7535dba",
         "baseRef": "main"
@@ -84,6 +89,16 @@
       {
         "number": 19674,
         "headSha": "960bc73d7a54e3a1b7fd63068e06e5749d1360a2",
+        "baseRef": "main"
+      },
+      {
+        "number": 19737,
+        "headSha": "ff921228b5a63dd05a28d59fc992fbb8efb59309",
+        "baseRef": "main"
+      },
+      {
+        "number": 19919,
+        "headSha": "a357bf832b381aad01b245ab3b9ade0444cdda45",
         "baseRef": "main"
       }
     ]
@@ -152,8 +167,8 @@
     {
       "number": 16941,
       "title": "fix(server): queued preview actions no longer start after their deadline, except recording stop",
-      "headSha": "2c73a63111c548855b916b6e9f3f88a96d6900c5",
-      "baseSha": "8d7523248964ec7b37cc08f91e15122def171821",
+      "headSha": "102deab30a01e955345c4f8f9bcdb2e97d2d5d31",
+      "baseSha": "86534db4d3525a070589a234d660a3e0373a42ea",
       "headRef": "fix/preview-timeout-isolation-16921",
       "baseRef": "main",
       "author": "hogeheer499-commits",
@@ -234,6 +249,18 @@
       "baseRepository": "pingdotgg/t3code"
     },
     {
+      "number": 18873,
+      "title": "fix(preview): keep one browser page across thread switches",
+      "headSha": "b9fa58f765e44c374c2bfbffaa07f9d0f240b102",
+      "baseSha": "5d6e4192bfcf9eca09741605e12c72b5970025e4",
+      "headRef": "t3/takeover-pr-18584-fixes",
+      "baseRef": "main",
+      "author": "t3dotgg",
+      "url": "https://github.com/pingdotgg/t3code/pull/18873",
+      "headRepository": "pingdotgg/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
       "number": 19044,
       "title": "fix(web): stacked composer notices keep their right border",
       "headSha": "6584d98cba8fc1b89b4aae0ae1b44a30c7535dba",
@@ -267,6 +294,30 @@
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/19674",
       "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 19737,
+      "title": "fix(server): reject unresolved explicit preview tabs",
+      "headSha": "ff921228b5a63dd05a28d59fc992fbb8efb59309",
+      "baseSha": "cfafb4bb54d244e4612f5681aad3832ea64cb0fb",
+      "headRef": "fix/preview-explicit-tab-target",
+      "baseRef": "main",
+      "author": "aravhawk",
+      "url": "https://github.com/pingdotgg/t3code/pull/19737",
+      "headRepository": "aravhawk/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 19919,
+      "title": "fix(web): agent tabs in background threads open in the desktop browser",
+      "headSha": "a357bf832b381aad01b245ab3b9ade0444cdda45",
+      "baseSha": "42da166d131017335a1158d0b379dd68b8985796",
+      "headRef": "fix/bg-thread-preview-webview",
+      "baseRef": "main",
+      "author": "MahirAbbas",
+      "url": "https://github.com/pingdotgg/t3code/pull/19919",
+      "headRepository": "MahirAbbas/t3code",
       "baseRepository": "pingdotgg/t3code"
     }
   ]
