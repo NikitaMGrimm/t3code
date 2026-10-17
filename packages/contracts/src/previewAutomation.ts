@@ -92,7 +92,7 @@ export const PreviewAutomationStatus = Schema.Struct({
   url: Schema.NullOr(Schema.String),
   title: Schema.NullOr(Schema.String),
   loading: Schema.Boolean,
-  /** Actual server page backing. Older hosts may omit it. */
+  /** Actual server page backing. Older hosts may omit it; absence does not imply native. */
   serverPageMode: Schema.optional(Schema.Literals(["native", "headless"])),
   control: Schema.optional(
     Schema.Struct({

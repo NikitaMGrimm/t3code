@@ -736,12 +736,14 @@ const make = Effect.gen(function* () {
           .pipe(Scope.provide(scope)),
       );
       const connected = await contexts.connectDesktopPage(endpoint);
+      let closing: Promise<void> | undefined;
       return {
         page: connected.page,
-        close: async () => {
-          await connected.browser.close().catch(constVoid);
-          await Effect.runPromise(Scope.close(scope, Exit.void));
-        },
+        close: () =>
+          (closing ??= (async () => {
+            await connected.browser.close().catch(constVoid);
+            await Effect.runPromise(Scope.close(scope, Exit.void));
+          })()),
       };
     } catch (cause) {
       await Effect.runPromise(Scope.close(scope, Exit.void));
@@ -760,7 +762,10 @@ const make = Effect.gen(function* () {
     return snapshot;
   };
 
-  const createTab = async (requestedSnapshot: PreviewSessionSnapshot): Promise<ServerTab> => {
+  const createTab = async (
+    requestedSnapshot: PreviewSessionSnapshot,
+    onDesktopAcquired: (close: () => Promise<void>) => void,
+  ): Promise<ServerTab> => {
     const key = tabKey(requestedSnapshot.threadId, requestedSnapshot.tabId);
     const adopted = adoptedPages.get(key);
     adoptedPages.delete(key);
@@ -784,6 +789,7 @@ const make = Effect.gen(function* () {
       );
     }
     const desktop = native ? await connectDesktop(snapshot) : null;
+    if (desktop) onDesktopAcquired(desktop.close);
     // An agent tab without a profile (no client reported one) keeps throwaway storage.
     const isolatedContext =
       adopted === undefined &&
@@ -1293,8 +1299,13 @@ const make = Effect.gen(function* () {
     if (pending) return pending;
     const existing = tabs.get(key);
     if (existing) return Promise.resolve(existing);
-    const opening = createTab(snapshot)
-      .catch((cause: unknown) => {
+    let releaseDesktop: (() => Promise<void>) | undefined;
+    const opening = createTab(snapshot, (close) => {
+      releaseDesktop = close;
+    })
+      .catch(async (cause: unknown) => {
+        // The tab has not been published, so dropTab cannot release its connection.
+        await releaseDesktop?.().catch(constVoid);
         runFork(
           Effect.logWarning(
             isHostSetupError(cause) ? cause.message : "server preview tab failed to start",
@@ -1858,24 +1869,48 @@ const make = Effect.gen(function* () {
             : undefined;
         const navigationTimeout = Math.min(request.timeoutMs, NAVIGATION_TIMEOUT_MS);
         const profileId = existing ? undefined : resolveOpenProfile(open.profileId);
+        const reveal = open.open ?? open.show;
+        // An explicit new, visible profile tab must use that profile's desktop
+        // session. Open it blank so a fallback cannot visit the authenticated site.
+        const nativeProfileOpen =
+          !existing &&
+          open.profileId !== undefined &&
+          profileId !== INCOGNITO_BROWSER_PROFILE_ID &&
+          reveal === true &&
+          open.reuseExistingTab === false &&
+          desktopChannel.available;
         if (!existing) {
-          closeIdleAgentTabs();
+          if (!nativeProfileOpen) closeIdleAgentTabs();
           assertTabCapacity(request.agentSessionId);
         }
-        const tab =
-          existing ??
-          (await ensureTab(
-            await Effect.runPromise(
+        const created = existing
+          ? undefined
+          : await Effect.runPromise(
               manager.open({
                 threadId: request.threadId,
-                ...(url ? { url } : {}),
+                ...(url && !nativeProfileOpen ? { url } : {}),
                 ...(profileId === undefined ? {} : { profileId }),
                 runtime: "server",
                 reveal: false,
                 automationOwner: request.agentSessionId,
               }),
-            ),
-          ));
+            );
+        let tab: ServerTab;
+        try {
+          tab = existing ?? (await ensureTab(created!));
+          if (nativeProfileOpen && !tab.desktop) throw new Error("Native profile did not attach.");
+        } catch (cause) {
+          if (!nativeProfileOpen || !created) throw cause;
+          await Effect.runPromise(
+            manager.close({ threadId: request.threadId, tabId: created.tabId }),
+          );
+          const failed = tabs.get(tabKey(request.threadId, created.tabId));
+          if (failed) dropTab(failed, false);
+          throw new ServerBrowserPage.ServerBrowserOperationError(
+            "PreviewAutomationNativeProfileUnavailableError",
+            "The desktop's native browser did not attach. Open the Browser panel and retry preview_open with the same profileId, open=true and reuseExistingTab=false. The URL was not visited; existing tabs were kept.",
+          );
+        }
         if (existing?.dialog)
           throw new BrowserControlInterrupted(
             "A browser dialog is pending. Read preview_status and use preview_dialog first.",
@@ -1889,13 +1924,12 @@ const make = Effect.gen(function* () {
                 "A browser dialog is pending. Read preview_status and use preview_dialog first.",
                 "dialogPending",
               );
-            if (existing) {
+            if (existing || nativeProfileOpen) {
               if (url) await navigate(tab, url, "load", navigationTimeout);
             } else {
               // Await the original navigation failure even though background creation keeps the tab.
               await tab.initialNavigation;
             }
-            const reveal = open.open ?? open.show;
             if (reveal !== false) {
               await Effect.runPromise(
                 manager.requestReveal({

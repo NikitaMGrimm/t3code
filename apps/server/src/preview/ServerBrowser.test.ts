@@ -54,9 +54,27 @@ vi.mock("./ServerBrowserContexts.ts", () => ({
       return page as unknown as Page;
     }
     async connectDesktopPage(endpoint: string) {
+      if (desktopConnectionFailure) throw desktopConnectionFailure;
       const context = makeContext();
-      desktopConnections.push({ endpoint, context });
-      return { browser: { close: async () => {} }, page: context.page as unknown as Page };
+      if (desktopSetupGate) {
+        const newCDPSession = context.newCDPSession;
+        context.newCDPSession = async () => {
+          desktopSetupStarted?.resolve();
+          await desktopSetupGate?.promise;
+          return newCDPSession();
+        };
+      }
+      if (desktopSetupFailure === "cdp")
+        context.newCDPSession = async () => {
+          throw new Error("Desktop CDP session setup failed");
+        };
+      if (desktopSetupFailure === "rendering")
+        context.page.emulateMedia.mockRejectedValueOnce(
+          new Error("Desktop rendering setup failed"),
+        );
+      const close = vi.fn(async () => {});
+      desktopConnections.push({ endpoint, context, close });
+      return { browser: { close }, page: context.page as unknown as Page };
     }
     async close() {
       for (const context of contexts) await context.close();
@@ -197,6 +215,10 @@ let contextFailure: Error | null = null;
 /** Server tabs the fake desktop renders, and the endpoints the server connected to. */
 let desktopRendersNext = false;
 let desktopAvailable = false;
+let desktopConnectionFailure: Error | null = null;
+let desktopSetupFailure: "cdp" | "rendering" | null = null;
+let desktopSetupGate: PromiseWithResolvers<void> | null = null;
+let desktopSetupStarted: PromiseWithResolvers<void> | null = null;
 let desktopAttachGate: PromiseWithResolvers<boolean> | null = null;
 let desktopAttachStarted: PromiseWithResolvers<void> | null = null;
 let desktopDetachConsumed: PromiseWithResolvers<void> | null = null;
@@ -215,6 +237,7 @@ const releasedDesktopTabs: Array<string> = [];
 const desktopConnections: Array<{
   endpoint: string;
   context: ReturnType<typeof makeContext>;
+  close: ReturnType<typeof vi.fn<() => Promise<void>>>;
 }> = [];
 const testThread = {
   threadId: ThreadId.make("browser-test-thread"),
@@ -333,6 +356,10 @@ beforeEach(() => {
   desktopTabs.clear();
   desktopRendersNext = false;
   desktopAvailable = false;
+  desktopConnectionFailure = null;
+  desktopSetupFailure = null;
+  desktopSetupGate = null;
+  desktopSetupStarted = null;
   desktopAttachGate = null;
   desktopAttachStarted = null;
   desktopDetachConsumed = null;
@@ -2171,6 +2198,352 @@ it.live("a standalone server still opens a headless page when no desktop channel
       expect(
         yield* broker.invoke({ scope, tabId, operation: "evaluate", input: { expression: "42" } }),
       ).toBe("evaluated");
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live("an explicit visible profile open refuses to visit the URL through headless fallback", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { browser, broker, tabId } = yield* ready;
+      const manager = yield* Manager.PreviewManager;
+      yield* browser.reportProfiles({
+        profiles: [{ id: "profile-work", name: "Work", kind: "persistent" }],
+        defaultProfileId: "profile-work",
+      });
+      desktopAvailable = true;
+      const outcome = yield* broker
+        .invoke<PreviewAutomationStatus>({
+          scope,
+          operation: "open",
+          input: {
+            url: "http://localhost:5173/authenticated",
+            profileId: "Work",
+            open: true,
+            reuseExistingTab: false,
+          },
+        })
+        .pipe(
+          Effect.match({
+            onSuccess: (status) => ({ ok: true as const, status }),
+            onFailure: (error) => ({ ok: false as const, error }),
+          }),
+        );
+      expect(outcome).toMatchObject({
+        ok: false,
+        error: {
+          _tag: "PreviewAutomationExecutionError",
+          reason: expect.stringContaining("native"),
+        },
+      });
+      expect((yield* manager.list({ threadId: scope.thread.threadId })).sessions).toMatchObject([
+        { tabId },
+      ]);
+      expect(contexts).toHaveLength(2);
+      expect(contexts[1]!.page.goto).not.toHaveBeenCalled();
+      expect(contexts[1]!.page.close).toHaveBeenCalledOnce();
+      expect(contexts[1]!.close).not.toHaveBeenCalled();
+      expect(contexts[0]!.page.close).not.toHaveBeenCalled();
+      expect(
+        yield* broker.invoke({ scope, tabId, operation: "evaluate", input: { expression: "42" } }),
+      ).toBe("evaluated");
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live.each([
+  { name: "open", profileId: "Work", resolvedProfileId: "profile-work", reveal: { open: true } },
+  {
+    name: "show alias",
+    profileId: "profile-work",
+    resolvedProfileId: "profile-work",
+    reveal: { show: true },
+  },
+  {
+    name: "built-in Default",
+    profileId: "default",
+    resolvedProfileId: "default",
+    reveal: { open: true },
+  },
+])("an explicit visible profile open uses the native page with $name", (input) =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { browser, broker, tabId } = yield* ready;
+      const manager = yield* Manager.PreviewManager;
+      const events = yield* manager.subscribeEvents;
+      yield* browser.reportProfiles({
+        profiles: [{ id: "profile-work", name: "Work", kind: "persistent" }],
+        defaultProfileId: "profile-work",
+      });
+      // Recovery must keep even an old unwatched fallback available.
+      const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 31 * 60 * 1000);
+      yield* Effect.addFinalizer(() => Effect.sync(() => clock.mockRestore()));
+      desktopRendersNext = true;
+      const opened = yield* broker.invoke<PreviewAutomationStatus>({
+        scope,
+        operation: "open",
+        input: {
+          url: "http://localhost:5173/authenticated",
+          profileId: input.profileId,
+          ...input.reveal,
+          reuseExistingTab: false,
+        },
+      });
+      const published = yield* PubSub.takeUpTo(events, 10);
+      expect(published.find((event) => event.type === "opened")).toMatchObject({
+        snapshot: {
+          tabId: opened.tabId,
+          profileId: input.resolvedProfileId,
+          navStatus: { _tag: "Idle" },
+        },
+      });
+      expect(desktopAttachRequests).toEqual([opened.tabId]);
+      expect(desktopConnections).toHaveLength(1);
+      expect(contexts).toHaveLength(1);
+      expect(desktopConnections[0]!.context.page.goto).toHaveBeenCalledExactlyOnceWith(
+        "http://localhost:5173/authenticated",
+        expect.objectContaining({ waitUntil: "load" }),
+      );
+      expect(opened).toMatchObject({
+        serverPageMode: "native",
+        url: "http://localhost:5173/authenticated",
+        control: { owner: "agent", ownedByCaller: true },
+        tabs: expect.arrayContaining([
+          expect.objectContaining({ tabId, serverPageMode: "headless" }),
+          expect.objectContaining({ tabId: opened.tabId, serverPageMode: "native" }),
+        ]),
+      });
+      expect(contexts[0]!.page.close).not.toHaveBeenCalled();
+      expect(
+        yield* broker.invoke({ scope, tabId, operation: "evaluate", input: { expression: "42" } }),
+      ).toBe("evaluated");
+      expect(
+        yield* broker
+          .invoke({
+            scope: asSession("another-agent"),
+            tabId: PreviewTabId.make(opened.tabId!),
+            operation: "evaluate",
+            input: { expression: "42" },
+          })
+          .pipe(Effect.flip),
+      ).toMatchObject({ reason: "agentMismatch" });
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live("a failed native profile connection removes only its newly created blank session", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { browser, broker, tabId } = yield* ready;
+      const manager = yield* Manager.PreviewManager;
+      const events = yield* manager.subscribeEvents;
+      yield* browser.reportProfiles({
+        profiles: [{ id: "profile-work", name: "Work", kind: "persistent" }],
+        defaultProfileId: "profile-work",
+      });
+      desktopRendersNext = true;
+      desktopConnectionFailure = new Error("CDP connection failed");
+      expect(
+        yield* broker
+          .invoke({
+            scope,
+            operation: "open",
+            input: {
+              url: "http://localhost:5173/authenticated",
+              profileId: "profile-work",
+              open: true,
+              reuseExistingTab: false,
+            },
+          })
+          .pipe(Effect.flip),
+      ).toMatchObject({ reason: expect.stringContaining("native") });
+      const published = yield* PubSub.takeUpTo(events, 10);
+      expect(published.find((event) => event.type === "opened")).toMatchObject({
+        snapshot: { navStatus: { _tag: "Idle" } },
+      });
+      expect(published.find((event) => event.type === "closed")).toMatchObject({
+        tabId: desktopAttachRequests[0],
+      });
+      expect(releasedDesktopTabs).toEqual(desktopAttachRequests);
+      expect((yield* manager.list({ threadId: scope.thread.threadId })).sessions).toMatchObject([
+        { tabId },
+      ]);
+      expect(contexts).toHaveLength(1);
+      expect(contexts[0]!.page.goto).not.toHaveBeenCalled();
+      expect(contexts[0]!.page.close).not.toHaveBeenCalled();
+      expect(
+        yield* broker.invoke({ scope, tabId, operation: "evaluate", input: { expression: "42" } }),
+      ).toBe("evaluated");
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live.each(["cdp", "rendering"] as const)(
+  "a failed native profile $0 setup releases its acquired connection before responding",
+  (failure) =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const { browser, broker, tabId } = yield* ready;
+        const manager = yield* Manager.PreviewManager;
+        yield* browser.reportProfiles({
+          profiles: [{ id: "profile-work", name: "Work", kind: "persistent" }],
+          defaultProfileId: "profile-work",
+        });
+        desktopAvailable = true;
+        desktopSetupFailure = failure;
+        const waiting = Promise.withResolvers<void>();
+        const attached = Promise.withResolvers<boolean>();
+        desktopAttachStarted = waiting;
+        desktopAttachGate = attached;
+        yield* Effect.addFinalizer(() => Effect.sync(() => attached.resolve(false)));
+        const opening = yield* broker
+          .invoke({
+            scope,
+            operation: "open",
+            input: {
+              url: "http://localhost:5173/authenticated",
+              profileId: "profile-work",
+              open: true,
+              reuseExistingTab: false,
+            },
+          })
+          .pipe(Effect.flip, Effect.forkScoped);
+        yield* Effect.promise(() => waiting.promise);
+        const pending = (yield* manager.list({ threadId: scope.thread.threadId })).sessions.find(
+          (session) => session.tabId !== tabId,
+        )!;
+        yield* manager.adjust({
+          threadId: scope.thread.threadId,
+          tabId: pending.tabId,
+          colorScheme: "dark",
+        });
+        attached.resolve(true);
+        expect(yield* Fiber.join(opening)).toMatchObject({
+          reason: expect.stringContaining("native"),
+        });
+        expect(desktopConnections).toHaveLength(1);
+        expect(desktopConnections[0]!.close).toHaveBeenCalledOnce();
+        expect(releasedDesktopTabs).toEqual(desktopAttachRequests);
+        expect(desktopConnections[0]!.context.page.goto).not.toHaveBeenCalled();
+        expect(desktopConnections[0]!.context.page.close).not.toHaveBeenCalled();
+        expect(desktopConnections[0]!.context.close).not.toHaveBeenCalled();
+        expect((yield* manager.list({ threadId: scope.thread.threadId })).sessions).toMatchObject([
+          { tabId },
+        ]);
+        expect(contexts[0]!.page.close).not.toHaveBeenCalled();
+        expect(
+          yield* broker.invoke({
+            scope,
+            tabId,
+            operation: "evaluate",
+            input: { expression: "42" },
+          }),
+        ).toBe("evaluated");
+      }),
+    ).pipe(Effect.provide(layer)),
+);
+
+it.live("closing a native profile session during setup releases its connection once", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { broker, tabId } = yield* ready;
+      const manager = yield* Manager.PreviewManager;
+      desktopRendersNext = true;
+      const settingUp = Promise.withResolvers<void>();
+      const setup = Promise.withResolvers<void>();
+      desktopSetupStarted = settingUp;
+      desktopSetupGate = setup;
+      yield* Effect.addFinalizer(() => Effect.sync(() => setup.resolve()));
+      const opening = yield* broker
+        .invoke({
+          scope,
+          operation: "open",
+          input: { profileId: "default", open: true, reuseExistingTab: false },
+        })
+        .pipe(Effect.flip, Effect.forkScoped);
+      yield* Effect.promise(() => settingUp.promise);
+      const pending = (yield* manager.list({ threadId: scope.thread.threadId })).sessions.find(
+        (session) => session.tabId !== tabId,
+      )!;
+      yield* manager.close({ threadId: scope.thread.threadId, tabId: pending.tabId });
+      setup.resolve();
+      yield* Fiber.join(opening);
+      expect(desktopConnections[0]!.close).toHaveBeenCalledOnce();
+      expect(releasedDesktopTabs).toEqual(desktopAttachRequests);
+      expect(desktopConnections[0]!.context.page.close).not.toHaveBeenCalled();
+      expect(contexts[0]!.page.close).not.toHaveBeenCalled();
+      expect((yield* manager.list({ threadId: scope.thread.threadId })).sessions).toMatchObject([
+        { tabId },
+      ]);
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live.each([
+  { name: "omitted profile", input: { open: true, reuseExistingTab: false } },
+  { name: "omitted reveal", input: { profileId: "Work", reuseExistingTab: false } },
+  { name: "background", input: { profileId: "Work", open: false, reuseExistingTab: false } },
+  {
+    name: "open overrides show",
+    input: { profileId: "Work", open: false, show: true, reuseExistingTab: false },
+  },
+  { name: "incognito", input: { profileId: "incognito", open: true, reuseExistingTab: false } },
+  { name: "standalone", input: { profileId: "Work", open: true, reuseExistingTab: false } },
+  { name: "reuse", input: { profileId: "Work", open: true, reuseExistingTab: true } },
+  { name: "default reuse", input: { profileId: "Work", open: true } },
+])("ordinary profile opening still allows headless for $name", ({ name, input }) =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { browser, broker, tabId } = yield* ready;
+      yield* browser.reportProfiles({
+        profiles: [{ id: "profile-work", name: "Work", kind: "persistent" }],
+        defaultProfileId: "profile-work",
+      });
+      desktopAvailable = name !== "standalone";
+      const reuses = name === "reuse" || name === "default reuse";
+      const opened = yield* broker.invoke<PreviewAutomationStatus>({
+        scope,
+        ...(reuses ? { tabId } : {}),
+        operation: "open",
+        input: { url: "http://localhost:5173/headless", ...input },
+      });
+      expect(opened).toMatchObject({ available: true, serverPageMode: "headless" });
+      expect(contexts.at(-1)!.page.goto).toHaveBeenCalledExactlyOnceWith(
+        "http://localhost:5173/headless",
+        expect.objectContaining({ waitUntil: reuses ? "load" : "commit" }),
+      );
+      expect(desktopConnections).toEqual([]);
+      expect(contexts).toHaveLength(reuses ? 1 : 2);
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live("native profile recovery respects the existing agent tab capacity", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { browser, broker } = yield* ready;
+      for (let count = 1; count < 8; count++)
+        yield* broker.invoke({
+          scope,
+          operation: "open",
+          input: { reuseExistingTab: false, show: false },
+        });
+      yield* browser.reportProfiles({
+        profiles: [{ id: "profile-work", name: "Work", kind: "persistent" }],
+        defaultProfileId: "profile-work",
+      });
+      desktopRendersNext = true;
+      expect(
+        yield* broker
+          .invoke({
+            scope,
+            operation: "open",
+            input: { profileId: "Work", open: true, reuseExistingTab: false },
+          })
+          .pipe(Effect.flip),
+      ).toMatchObject({ reason: "tabLimit" });
+      expect(desktopAttachRequests).toEqual([]);
+      expect(contexts).toHaveLength(8);
     }),
   ).pipe(Effect.provide(layer)),
 );
