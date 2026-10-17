@@ -74,6 +74,10 @@ vi.mock("~/browser/browserPointerStore", () => ({ useBrowserPointerStore: {} }))
 vi.mock("~/state/session", () => ({ useEnvironmentScope: () => true }));
 vi.mock("~/state/preview", () => ({ previewEnvironment: { open: {} } }));
 vi.mock("~/state/use-atom-command", () => ({ useAtomCommand: () => vi.fn() }));
+vi.mock("~/components/preview/usePreviewSession", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/components/preview/usePreviewSession")>()),
+  useDesktopHostedPreviewSessions: () => undefined,
+}));
 vi.mock("~/browser/openFileInPreview", () => ({ openUrlInPreview: vi.fn() }));
 vi.mock("~/browser/HostedBrowserWebview", () => ({
   HostedBrowserWebview: (props: ComponentProps<typeof HostedBrowserWebview>) => {
