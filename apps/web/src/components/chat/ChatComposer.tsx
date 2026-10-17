@@ -1354,6 +1354,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
   isRunning: boolean;
   canInterrupt: boolean;
   followUpBehavior: "queue" | "steer";
+  canSteer: boolean;
   alternateShortcutLabel: string | null;
   showPlanFollowUpPrompt: boolean;
   promptHasText: boolean;
@@ -1397,6 +1398,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
         isRunning={props.isRunning}
         canInterrupt={props.canInterrupt}
         followUpBehavior={props.followUpBehavior}
+        canSteer={props.canSteer}
         alternateShortcutLabel={props.alternateShortcutLabel}
         showPlanFollowUpPrompt={props.showPlanFollowUpPrompt}
         promptHasText={props.promptHasText}
@@ -1516,6 +1518,7 @@ export interface ChatComposerProps {
   isRevertingCheckpoint?: boolean;
   sendDisabledReason: string | null;
   isPreparingWorktree: boolean;
+  isCompacting: boolean;
   bannerItems: readonly ComposerBannerStackItem[];
   resumeCompactionTokens: number | null;
   keepFullHistory: boolean;
@@ -1676,6 +1679,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     isRevertingCheckpoint = false,
     sendDisabledReason: externalSendDisabledReason,
     isPreparingWorktree,
+    isCompacting,
     environmentUnavailable,
     activePendingApproval: incomingPendingApproval,
     pendingApprovals,
@@ -4023,6 +4027,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               running: phase === "running",
               alternateModifier: false,
               activeTurnDefault: settings.followUpBehavior,
+              canSteer: !isCompacting,
             }),
           submissionIntent,
         );
@@ -4045,6 +4050,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         running: phase === "running",
         alternateModifier: event.metaKey || event.ctrlKey,
         activeTurnDefault: settings.followUpBehavior,
+        canSteer: !isCompacting,
       }),
     );
   };
@@ -4056,6 +4062,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         running: phase === "running",
         alternateModifier: false,
         activeTurnDefault: settings.followUpBehavior,
+        canSteer: !isCompacting,
       }),
     );
   };
@@ -4216,6 +4223,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           running: phase === "running",
           alternateModifier: submissionIntent === "alternate",
           activeTurnDefault: settings.followUpBehavior,
+          canSteer: !isCompacting,
         }),
         submissionIntent,
       );
@@ -5703,6 +5711,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     event.preventDefault();
     event.stopPropagation();
   };
+  // The editor is memoized; fresh closures here re-render it on every parent
+  // render, which during a stream is every delta.
+  const onComposerPasteStable = useStableCallback(onComposerPaste);
+  const onComposerCommandKeyStable = useStableCallback(onComposerCommandKey);
+  const isPathQueryActiveStable = useStableCallback(
+    () => resolveActiveComposerTrigger().trigger?.kind === "path",
+  );
 
   const insertComposerText = (
     text: string,
@@ -7098,9 +7113,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     editorRef={composerEditorRef}
                     richTextEnabled={settings.composerRichTextEnabled}
                     literalText={isLiteralPendingAnswer}
-                    isPathQueryActive={() =>
-                      resolveActiveComposerTrigger().trigger?.kind === "path"
-                    }
+                    isPathQueryActive={isPathQueryActiveStable}
                     value={
                       isComposerApprovalState
                         ? ""
@@ -7126,13 +7139,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     )}
                     onChange={onPromptChangeStable}
                     onVisibleSelectionChange={expandComposerForEditorChangeStable}
-                    onCommandKeyDown={onComposerCommandKey}
+                    onCommandKeyDown={onComposerCommandKeyStable}
                     onPageScrollKeyDown={onPageScrollKeyDown}
                     onPageScrollKeyUp={onPageScrollKeyUp}
                     onPageScrollRelease={onPageScrollRelease}
                     onCitationSubmitAndSend={submitCitationAndSendStable}
                     onCitationDraftSave={saveCitationDraftToPromptStable}
-                    onPaste={onComposerPaste}
+                    onPaste={onComposerPasteStable}
                     placeholder={
                       isComposerApprovalState
                         ? "Resolve this approval request to continue"
@@ -7282,6 +7295,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     isRunning={phase === "running"}
                     canInterrupt={canInterrupt}
                     followUpBehavior={settings.followUpBehavior}
+                    canSteer={!isCompacting}
                     alternateShortcutLabel={shortcutLabelForCommand(
                       keybindings,
                       "composer.sendAlternate",
