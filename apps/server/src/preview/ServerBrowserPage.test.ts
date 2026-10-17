@@ -389,7 +389,11 @@ describe("server browser snapshot", () => {
       ariaSnapshot: never,
       on: () => {},
     } as unknown as Page;
-    const cdp = { send: never } as unknown as CDPSession;
+    // The compositor still draws, so the capture limit does not answer first.
+    const cdp = {
+      send: (method: string) =>
+        method === "Page.captureScreenshot" ? Promise.resolve({ data: "" }) : never(),
+    } as unknown as CDPSession;
     const settled = ServerBrowserPage.snapshot({
       page,
       cdp,
