@@ -10,11 +10,13 @@ import { primaryEnvironmentIdAtom } from "~/state/primaryEnvironment";
 import { isElectron } from "~/env";
 import { useClientSettingsHydrated } from "~/hooks/useSettings";
 import { useTheme } from "~/hooks/useTheme";
+import { useDesktopHostedPreviewSessions } from "~/components/preview/usePreviewSession";
 import { useActivePreviewSessions } from "~/previewStateStore";
 import { previewEnvironment } from "~/state/preview";
 import { useEnvironmentScope } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
 
+import { holdFramesForCapture, releaseCaptureFrames } from "./agentFrameRequests";
 import { readPreviewAnnotationTheme } from "./annotationTheme";
 import { useBrowserDefaults } from "./browserDefaults";
 import { useBrowserPointerStore } from "./browserPointerStore";
@@ -27,6 +29,7 @@ export function ElectronBrowserHost() {
   const { resolvedTheme } = useTheme();
   const previewByThreadKey = useActivePreviewSessions();
   const primaryEnvironmentId = useAtomValue(primaryEnvironmentIdAtom);
+  useDesktopHostedPreviewSessions(primaryEnvironmentId);
   const sessions = useMemo(
     () =>
       Object.entries(previewByThreadKey).flatMap(([threadKey, previewState]) => {
@@ -102,10 +105,24 @@ export function ElectronBrowserHost() {
   const openPreview = useAtomCommand(previewEnvironment.open, { reportFailure: true });
   const sessionByRuntimeTabId = useRef(new Map<string, (typeof sessions)[number]>());
   useEffect(() => {
-    sessionByRuntimeTabId.current = new Map(
-      sessions.map((session) => [session.runtimeTabId, session]),
-    );
+    const next = new Map(sessions.map((session) => [session.runtimeTabId, session]));
+    for (const tabId of sessionByRuntimeTabId.current.keys()) {
+      if (!next.has(tabId)) releaseCaptureFrames(tabId);
+    }
+    sessionByRuntimeTabId.current = next;
   }, [sessions]);
+  useEffect(() => {
+    const preview = window.desktopBridge?.preview;
+    if (!preview) return;
+    const unsubscribe = preview.onFrameRequest((tabId) => {
+      const session = sessionByRuntimeTabId.current.get(tabId);
+      if (session) holdFramesForCapture(tabId, session.threadRef);
+    });
+    return () => {
+      unsubscribe();
+      for (const tabId of sessionByRuntimeTabId.current.keys()) releaseCaptureFrames(tabId);
+    };
+  }, []);
   useEffect(() => {
     const preview = window.desktopBridge?.preview;
     if (!preview) return;
