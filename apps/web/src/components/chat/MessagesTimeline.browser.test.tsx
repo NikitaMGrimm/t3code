@@ -464,26 +464,32 @@ describe("MessagesTimeline messages", () => {
       const link = `[shot.png](t3-context://v1/image/${record.contextId})`;
       const source = `\`\`\`mermaid\nflowchart LR\n    A --> B\n%% ${link}\n\`\`\``;
       const timeline = await renderTimeline([
-        message("Before\n\nAfter", { context: { version: 1, records: [record] } }),
+        message(`Before\n\n${source}\n\nAfter ${link}`, {
+          context: { version: 1, records: [record] },
+        }),
       ]);
-      const selected = document.body.appendChild(document.createElement("div"));
-      selected.innerHTML = `<div class="chat-markdown"><p>Before</p><div data-markdown-mermaid=""><button><svg><text>A</text></svg></button></div><p>After</p><button><span>shot.png</span></button></div>`;
-      selected.querySelector("[data-markdown-mermaid]")!.setAttribute("data-markdown-copy", source);
-      const chip = selected.querySelector(".chat-markdown > button")!;
-      chip.setAttribute("data-markdown-copy", link);
-      const selection = window.getSelection()!;
-      const range = document.createRange();
-      range.setStartBefore(selected.querySelector("p")!);
-      range.setEndAfter(selectChip ? chip : selected.querySelectorAll("p")[1]!);
-      selection.removeAllRanges();
-      selection.addRange(range);
-
-      const target = [...timeline.querySelectorAll("p")].find(
+      const diagram = await vi.waitFor(
+        () => {
+          const element = timeline.querySelector<HTMLElement>("[data-markdown-mermaid]");
+          expect(element?.querySelector("svg")).toBeTruthy();
+          return element!;
+        },
+        { timeout: 10_000 },
+      );
+      const chip = timeline.querySelector("[data-markdown-copy]:not([data-markdown-mermaid])");
+      expect(chip?.getAttribute("data-markdown-copy")).toContain(link.slice(1));
+      const before = [...timeline.querySelectorAll("p")].find(
         (paragraph) => paragraph.textContent === "Before",
       )!;
+      const selection = window.getSelection()!;
+      const range = document.createRange();
+      range.setStartBefore(before);
+      range.setEndAfter(selectChip ? chip! : diagram);
+      selection.removeAllRanges();
+      selection.addRange(range);
       const clipboardData = new DataTransfer();
       const copy = new ClipboardEvent("copy", { bubbles: true, cancelable: true, clipboardData });
-      await act(async () => target.dispatchEvent(copy));
+      await act(async () => before.dispatchEvent(copy));
 
       const records = decodeComposerContextFragment(
         clipboardData.getData(COMPOSER_CONTEXT_CLIPBOARD_MIME),
