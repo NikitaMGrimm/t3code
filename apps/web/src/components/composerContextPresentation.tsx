@@ -323,7 +323,6 @@ function ComposerPreviewAnnotationDetails({
   );
 }
 
-/** Sending is blocked while an attached thread lives on another machine than the draft. */
 function ComposerThreadContextChip(props: { record: ThreadContextRecord }) {
   const { environmentId } = use(ComposerContextActionsContext);
   return (

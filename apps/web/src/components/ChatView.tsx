@@ -51,7 +51,6 @@ import {
   TYPE_TO_FOCUS_FLOATING_LAYER_SELECTOR,
 } from "./chat/composerFocusRedirect";
 import { getTerminalLabel } from "@t3tools/shared/terminalLabels";
-import { threadContextsOutsideEnvironment } from "@t3tools/shared/composerContextReferences";
 import * as Schema from "effect/Schema";
 import {
   AuthOrchestrationOperateScope,
@@ -336,6 +335,7 @@ import {
   type TerminalContextSelection,
 } from "../lib/terminalContext";
 import {
+  collectInlineContextIds,
   ensureInlineContextReferences,
   removeInlineContextReference,
   stripInlineContextReferences,
@@ -557,7 +557,10 @@ import {
   supportsServerUpdateThreadContinuation,
 } from "../versionSkew";
 import { useAssetUrls } from "../assets/assetUrls";
-import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@t3tools/shared/composerContextReferences";
+import {
+  ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
+  threadContextsOutsideEnvironment,
+} from "@t3tools/shared/composerContextReferences";
 import { recallableComposerPrompt } from "./chat/composerPromptHistory";
 import { observeResize } from "~/lib/observeResize";
 
@@ -1224,8 +1227,14 @@ export default function ChatView(props: ChatViewProps) {
     const draft = store.getComposerDraft(composerDraftTarget);
     return (draft?.images.length ?? 0) > 0 || (draft?.files.length ?? 0) > 0;
   });
-  const draftThreadContexts = useComposerDraftStore(
-    (store) => store.getComposerDraft(composerDraftTarget)?.threadContexts ?? null,
+  const referencedThreadContexts = useComposerDraftStore(
+    useShallow((store) => {
+      const draft = store.getComposerDraft(composerDraftTarget);
+      if (!draft?.threadContexts.length) return [];
+      // Linked prompts can replace text without pruning stored context records.
+      const referenced = new Set(collectInlineContextIds(draft.prompt));
+      return draft.threadContexts.filter((record) => referenced.has(record.contextId));
+    }),
   );
   const composerHasNonPromptContent = useComposerDraftStore((store) => {
     const draft = store.getComposerDraft(composerDraftTarget);
@@ -3118,8 +3127,7 @@ export default function ChatView(props: ChatViewProps) {
           return (
             environment?.connection.phase === "connected" &&
             (loadBalancingSettings.loadBalancingWeights[candidate.environmentId] ?? 50) > 0 &&
-            // Only a machine that owns every attached thread can read them.
-            (draftThreadContexts ?? []).every(
+            referencedThreadContexts.every(
               (record) => record.environmentId === candidate.environmentId,
             ) &&
             providersByEnvironment
@@ -6017,9 +6025,9 @@ export default function ChatView(props: ChatViewProps) {
           : "Choose a machine to continue",
         description: loadBalancing.pending
           ? "Resource checks are still running. You can choose a machine in the composer."
-          : draftThreadContexts?.length &&
+          : referencedThreadContexts.length > 0 &&
               !logicalProjectEnvironments.some((candidate) =>
-                draftThreadContexts.every(
+                referencedThreadContexts.every(
                   (record) => record.environmentId === candidate.environmentId,
                 ),
               )
