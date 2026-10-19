@@ -63,11 +63,12 @@ class PrSynchronizationTests(unittest.TestCase):
         nightly.git("remote", "add", "origin", str(remote), cwd=self.repo)
         nightly.git("push", "origin", "HEAD:refs/heads/personal-nightly", cwd=self.repo)
 
-    def run_prepare(self, pulls, now, forced=False, manual=False, include="", remove=""):
+    def run_prepare(self, pulls, now, forced=False, manual=False, include="", remove="", stable_inputs=""):
         env = {"RUNNER_TEMP": self.temp.name, "GITHUB_OUTPUT": str(Path(self.temp.name) / "output"),
                "GITHUB_EVENT_NAME": "workflow_dispatch" if forced or manual else "schedule",
                "GITHUB_RUN_ID": "123", "PERSONAL_NIGHTLY_FORCE": "true" if forced else "false",
-               "PERSONAL_NIGHTLY_INCLUDE_PRS": include, "PERSONAL_NIGHTLY_REMOVE_PRS": remove}
+               "PERSONAL_NIGHTLY_INCLUDE_PRS": include, "PERSONAL_NIGHTLY_REMOVE_PRS": remove,
+               "PERSONAL_NIGHTLY_STABLE_INPUTS": stable_inputs}
         args = ["personal-nightly", "prepare", "--sync-prs", "--tag", self.tag]
         with patch.object(Path, "cwd", return_value=self.repo), patch.object(sys, "argv", args), \
                 patch.dict(os.environ, env), patch.object(nightly.time, "time", return_value=now), \
@@ -111,6 +112,40 @@ class PrSynchronizationTests(unittest.TestCase):
         fetch.assert_called_once()
         self.assertEqual(status["phase"], "building")
         self.assertEqual((self.repo / "pr.txt").read_text(), "new\n")
+
+    def test_vps_digest_skips_duplicate_debounce_but_preserves_cooldown(self):
+        self.remote()
+        first = self.pull(1, {"pr.txt": "new\n"})
+        inputs = {"upstreamTag": self.tag, "pullRequests": nightly.pull_request_inputs([first]),
+                  "resolutions": nightly.hashlib.sha256(json.dumps({}, sort_keys=True).encode()).hexdigest()}
+        snapshot = {"inputs": inputs, "baseCommit": self.head()}
+        digest = nightly.hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
+        nightly.write_state(self.repo, "build-timing.json", {"completedAt": 100, "sequence": 1})
+        status, fetch = self.run_prepare([first], 101, manual=True, stable_inputs=digest)
+        self.assertEqual(status["phase"], "debouncing")
+        fetch.assert_not_called()
+        status, fetch = self.run_prepare([first], 1900, manual=True, stable_inputs=digest)
+        self.assertEqual(status["phase"], "building")
+        fetch.assert_called_once()
+
+    def test_vps_digest_is_invalid_after_a_personal_branch_push(self):
+        inputs = {"upstreamTag": self.tag, "pullRequests": [], "resolutions": "abc"}
+        snapshot = {"inputs": inputs, "baseCommit": self.head()}
+        digest = nightly.hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
+        self.assertTrue(nightly.inputs_stabilized_externally(inputs, self.head(), digest))
+        (self.repo / "personal.txt").write_text("another fix\n")
+        self.commit("personal push")
+        self.assertFalse(nightly.inputs_stabilized_externally(inputs, self.head(), digest))
+
+    def test_stale_vps_digest_does_not_skip_debounce(self):
+        self.remote()
+        first = self.pull(1, {"pr.txt": "new\n"})
+        inputs = {"upstreamTag": self.tag, "pullRequests": nightly.pull_request_inputs([first]),
+                  "resolutions": nightly.hashlib.sha256(json.dumps({}, sort_keys=True).encode()).hexdigest()}
+        nightly.write_state(self.repo, "inputs.json", {"inputs": inputs, "observedAt": 1})
+        status, fetch = self.run_prepare([first], 10000, manual=True, stable_inputs="a" * 64)
+        self.assertEqual(status["phase"], "debouncing")
+        fetch.assert_not_called()
 
     def test_an_ordinary_manual_check_does_not_bypass_cooldown(self):
         self.remote()

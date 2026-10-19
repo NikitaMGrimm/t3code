@@ -211,6 +211,12 @@ def debounce_inputs(previous, inputs, now, seconds=120):
     return state, now - state["observedAt"] >= seconds
 
 
+def inputs_stabilized_externally(inputs, base_commit, digest):
+    # Only the exact snapshot observed by the VPS may skip the duplicate debounce.
+    snapshot = {"inputs": inputs, "baseCommit": base_commit}
+    return digest == hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
+
+
 def build_is_cooling_down(timing, now):
     completed = timing.get("completedAt")
     return completed is not None and now < completed + 30 * 60
@@ -587,6 +593,8 @@ def main():
                                 and previous.get("inputs") == inputs and previous.get("baseCommit") == original)
             observed = read_state(repo, "inputs.json")
             observation, stable = debounce_inputs(observed, inputs, time.time())
+            if external_digest := os.environ.get("PERSONAL_NIGHTLY_STABLE_INPUTS", ""):
+                stable = inputs_stabilized_externally(inputs, original, external_digest)
             if observation != observed:
                 write_state(repo, "inputs.json", observation)
             timing = read_state(repo, "build-timing.json")

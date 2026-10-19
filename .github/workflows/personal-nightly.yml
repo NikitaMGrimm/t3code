@@ -15,8 +15,10 @@ on:
         description: "Build now, bypassing debounce, cooldown, and unchanged failure suppression"
         type: boolean
         default: false
-  schedule:
-    - cron: "*/5 * * * *"
+      stable_inputs:
+        description: "Input digest already stabilized by the VPS checker (leave empty for manual runs)"
+        type: string
+        default: ""
 
 concurrency:
   group: personal-nightly
@@ -74,6 +76,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PERSONAL_NIGHTLY_SEQUENCE: ${{ steps.attempt.outputs.sequence }}
           PERSONAL_NIGHTLY_FORCE: ${{ inputs.force || false }}
+          PERSONAL_NIGHTLY_STABLE_INPUTS: ${{ inputs.stable_inputs }}
           PERSONAL_NIGHTLY_INCLUDE_PRS: ${{ inputs.include_prs }}
           PERSONAL_NIGHTLY_REMOVE_PRS: ${{ inputs.remove_prs }}
         run: |

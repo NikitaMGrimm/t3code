@@ -16,10 +16,11 @@ use `t3 service install` for app-controlled server updates. It checks the releas
 checksum and retains versioned runtimes. The personal VPS uses its existing
 deployment coordinator so the app can update its managed container safely.
 
-The Personal nightly GitHub workflow checks for an official nightly, all open
-upstream PRs by this fork's owner, and selected upstream PRs every five minutes. It waits until changed PR
-inputs have stayed unchanged for two minutes before building. GitHub can delay
-scheduled checks. Only one build runs at a time. After a build finishes, checks
+The personal VPS checks for an official nightly, all open upstream PRs by this
+fork's owner, and selected upstream PRs every five minutes. It dispatches the
+Personal nightly GitHub workflow only when build inputs have changed and stayed
+unchanged for two minutes. The workflow has no GitHub cron; manual runs remain
+available. Only one build runs at a time. After a build finishes, checks
 wait 30 minutes before starting another; changes during the build and cooldown
 are grouped into the next snapshot. The active build finishes from the PR heads
 it started with, so new PR pushes do not discard its packages. No rebuild happens
@@ -83,7 +84,7 @@ eligible check rebuilds with your fix.
 
 Run **Actions → Personal nightly → Run workflow** on `personal-nightly` and select
 **force** to bypass the debounce and cooldown when an immediate build is needed.
-Otherwise, wait for the next eligible scheduled check. The existing update controls
+Otherwise, wait for the next eligible VPS check. The existing update controls
 offer the release after its checks and builds pass.
 
 Each changelog combines the official nightly notes since the previous successful
