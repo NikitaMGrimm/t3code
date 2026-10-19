@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "phase": "building",
+  "phase": "ready",
   "upstreamTag": "v0.1.1-nightly.20261019.3373",
   "conflicts": [],
   "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39316235492",
-  "releasedVersion": "0.1.1-nightly.20261019.1792372646843",
+  "releasedVersion": "0.1.1-nightly.20261019.1792440272094",
   "baseCommit": "d15ecf683b06b578d7d7e8bf51d9468d8b8cecee",
   "sequence": 1792440272094,
   "candidateCommit": "4b6d1a61da75682a3f4a9df1c04d27dc8bb4159e",
