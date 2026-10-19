@@ -12,8 +12,11 @@ export const PersonalUpdateStatus = Schema.Struct({
   phase: Schema.Literals(["building", "ready", "conflict", "failed"]),
   upstreamTag: Schema.String,
   conflicts: Schema.Array(Schema.String),
+  // A workflow run, or the release page of a build published without one.
   runUrl: Schema.String.check(
-    Schema.isPattern(/^https:\/\/github\.com\/NikitaMGrimm\/t3code\/actions\/runs\/\d+$/),
+    Schema.isPattern(
+      /^https:\/\/github\.com\/NikitaMGrimm\/t3code\/(?:actions\/runs\/\d+|releases\/tag\/v\d+\.\d+\.\d+-nightly\.\d{8}\.\d+)$/,
+    ),
   ),
   releasedVersion: Schema.NullOr(NightlyVersion),
 });

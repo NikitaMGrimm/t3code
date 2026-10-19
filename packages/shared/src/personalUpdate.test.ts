@@ -23,6 +23,18 @@ describe("personal nightly status", () => {
     ).toThrow();
     expect(() => decodePersonalUpdateStatus({ ...status, releasedVersion: "latest" })).toThrow();
   });
+  it("links a release published without a workflow run to its fork release page", () => {
+    const runUrl =
+      "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.0.46-nightly.20261017.1792261191643";
+    expect(decodePersonalUpdateStatus({ ...status, runUrl }).runUrl).toBe(runUrl);
+    for (const untrusted of [
+      "https://github.com/pingdotgg/t3code/releases/tag/v0.0.46-nightly.20261017.1",
+      "https://github.com/NikitaMGrimm/t3code/releases/tag/latest",
+      "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.0.46-nightly.20261017.1/../../x",
+    ]) {
+      expect(() => decodePersonalUpdateStatus({ ...status, runUrl: untrusted })).toThrow();
+    }
+  });
   it("allows conflicts before the first successful release", () => {
     expect(
       decodePersonalUpdateStatus({ ...status, releasedVersion: null }).releasedVersion,
