@@ -72,24 +72,24 @@ export async function importComposerContextClipboard(
     decodeComposerContextFragment(input.fragment) ?? decodeComposerContextClipboardHtml(input.html);
   if (!fragment) return null;
   const selected = referencedComposerContext(input.text, { version: 1, records: fragment.records });
+  const imported = reidentifyComposerContext(input.text, selected?.records ?? [], uuidv4);
   const skippedThreads =
     destinationEnvironmentId === undefined
       ? []
       : threadContextsOutsideEnvironment({
-          text: input.text,
-          records: selected?.records ?? [],
+          text: imported.text,
+          records: imported.context.records,
           environmentId: destinationEnvironmentId,
         });
   const skippedIds = new Set(skippedThreads.map((record) => record.contextId));
-  const retained = (selected?.records ?? []).filter((record) => !skippedIds.has(record.contextId));
+  const retained = imported.context.records.filter((record) => !skippedIds.has(record.contextId));
   if (existingContextCount + retained.length > COMPOSER_CONTEXT_MAX_RECORDS)
     throw new Error("Remove some context items from the draft before pasting more.");
-  const imported = reidentifyComposerContext(input.text, retained, uuidv4);
   const attachments: DraftComposerAttachment[] = [];
   const records: ComposerContextRecord[] = [];
   const failures: string[] = [];
   try {
-    for (const record of imported.context.records) {
+    for (const record of retained) {
       checkAborted(signal);
       if (!("attachmentId" in record)) {
         records.push(record);

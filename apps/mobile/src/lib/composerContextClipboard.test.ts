@@ -53,6 +53,7 @@ vi.mock("./composerImages", () => ({
 vi.mock("./uuid", () => ({ uuidv4: () => `import-${++mocks.sequence}` }));
 
 import { importComposerContextClipboard } from "./composerContextClipboard";
+import { createComposerContextHistory } from "./composerContext";
 
 const image = {
   version: 1 as const,
@@ -88,7 +89,7 @@ const clipboard = {
 const localThread = {
   version: 1 as const,
   kind: "thread" as const,
-  contextId: ComposerContextId.make("local-thread"),
+  contextId: ComposerContextId.make("thread_local-thread"),
   label: "Local discussion",
   environmentId: EnvironmentId.make("destination"),
   threadId: ThreadId.make("local-thread"),
@@ -96,7 +97,7 @@ const localThread = {
 };
 const foreignThread = {
   ...localThread,
-  contextId: ComposerContextId.make("foreign-thread"),
+  contextId: ComposerContextId.make("thread_foreign-thread"),
   label: "Remote discussion",
   environmentId: EnvironmentId.make("source"),
   threadId: ThreadId.make("foreign-thread"),
@@ -112,7 +113,8 @@ const mixedClipboard = {
       ...mixedRecords,
       {
         ...foreignThread,
-        contextId: ComposerContextId.make("uncopied-thread"),
+        contextId: ComposerContextId.make("thread_uncopied-thread"),
+        threadId: ThreadId.make("uncopied-thread"),
         title: "Not in the copied selection",
       },
     ],
@@ -213,16 +215,21 @@ describe("mobile context clipboard imports", () => {
       references.slice(1).map((reference) => reference.contextId),
     );
     expect(
-      references
-        .slice(1)
-        .every(
-          (reference) => !mixedRecords.some((record) => record.contextId === reference.contextId),
-        ),
+      references.every(
+        (reference) => !mixedRecords.some((record) => record.contextId === reference.contextId),
+      ),
     ).toBe(true);
     expect(
       result!.context.records.some((record) => record.contextId === references[0]!.contextId),
     ).toBe(false);
     expect(result!.text).toMatch(/^Compare these findings: .* before changing anything\.$/);
+
+    const restoreHistory = createComposerContextHistory();
+    restoreHistory(formatComposerContextReference(foreignThread), {
+      version: 1,
+      records: [foreignThread],
+    });
+    expect(restoreHistory(`${result!.text} Next step`, result!.context)).toEqual(result!.context);
 
     mocks.download.mockClear();
     await expect(
