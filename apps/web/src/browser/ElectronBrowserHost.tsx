@@ -7,7 +7,7 @@ import {
   FILL_PREVIEW_VIEWPORT,
 } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
-import { type ComponentProps, useEffect, useEffectEvent, useState } from "react";
+import { type ComponentProps, useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { primaryEnvironmentIdAtom } from "~/state/primaryEnvironment";
 
