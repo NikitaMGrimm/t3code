@@ -5,10 +5,10 @@
   "conflicts": [
     "pnpm-lock.yaml"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39249626610",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39298708452",
   "releasedVersion": "0.1.1-nightly.20261019.1792372646843",
   "baseCommit": "6a74bd25cd8183a8a916bcbb24d08a4730dddbe9",
-  "sequence": 1792411662201,
+  "sequence": 1792432737447,
   "conflictPullRequest": 14574,
   "inputs": {
     "upstreamTag": "v0.1.1-nightly.20261019.3360",
@@ -61,6 +61,11 @@
       {
         "number": 19919,
         "headSha": "68c1401c7658857110ef8660cc904778c37d2895",
+        "baseRef": "main"
+      },
+      {
+        "number": 21839,
+        "headSha": "2febdb33aac90f9ad065a77be4b1c84cc3659c37",
         "baseRef": "main"
       }
     ],
@@ -185,6 +190,18 @@
       "author": "MahirAbbas",
       "url": "https://github.com/pingdotgg/t3code/pull/19919",
       "headRepository": "MahirAbbas/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 21839,
+      "title": "fix(web): file preview videos keep their own aspect ratio",
+      "headSha": "2febdb33aac90f9ad065a77be4b1c84cc3659c37",
+      "baseSha": "e5d6a092b0ba845292e14dc3b3dc6484447b18f7",
+      "headRef": "fix/file-preview-video-aspect",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/21839",
+      "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     }
   ]
