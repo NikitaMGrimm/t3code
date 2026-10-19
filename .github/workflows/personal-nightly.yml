@@ -195,10 +195,11 @@ jobs:
     outputs:
       phase: ${{ steps.verify.outputs.phase }}
     steps:
+      # Git 2.55 fails checkout's in-step credential removal on the vendored .repos
+      # gitlinks, which have no .gitmodules URL. This job's token is read-only, as in bundle.
       - uses: actions/checkout@v6
         with:
           ref: ${{ needs.prepare.outputs.ref }}
-          persist-credentials: false
       - uses: actions/download-artifact@v8
         with:
           pattern: desktop-*
