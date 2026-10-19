@@ -6,6 +6,10 @@ import {
   ThreadId,
 } from "@t3tools/contracts";
 import { encodeComposerContextFragment } from "@t3tools/shared/composerContextClipboard";
+import {
+  collectComposerContextReferences,
+  formatComposerContextReference,
+} from "@t3tools/shared/composerContextReferences";
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
@@ -81,6 +85,41 @@ const clipboard = {
   html: "",
 };
 
+const localThread = {
+  version: 1 as const,
+  kind: "thread" as const,
+  contextId: ComposerContextId.make("local-thread"),
+  label: "Local discussion",
+  environmentId: EnvironmentId.make("destination"),
+  threadId: ThreadId.make("local-thread"),
+  title: "Local discussion",
+};
+const foreignThread = {
+  ...localThread,
+  contextId: ComposerContextId.make("foreign-thread"),
+  label: "Remote discussion",
+  environmentId: EnvironmentId.make("source"),
+  threadId: ThreadId.make("foreign-thread"),
+  title: "Remote discussion",
+};
+const mixedRecords = [foreignThread, localThread, terminal, image];
+const mixedClipboard = {
+  text: `Compare these findings: ${mixedRecords.map(formatComposerContextReference).join(" ")} before changing anything.`,
+  fragment: encodeComposerContextFragment({
+    version: 1,
+    source: { environmentId: EnvironmentId.make("source") },
+    records: [
+      ...mixedRecords,
+      {
+        ...foreignThread,
+        contextId: ComposerContextId.make("uncopied-thread"),
+        title: "Not in the copied selection",
+      },
+    ],
+  })!,
+  html: "",
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.sequence = 0;
@@ -147,53 +186,107 @@ describe("mobile context clipboard imports", () => {
     expect(mocks.download).not.toHaveBeenCalled();
   });
 
-  const thread = (id: string, environmentId: string) => ({
-    version: 1 as const,
-    kind: "thread" as const,
-    contextId: ComposerContextId.make(id),
-    label: id,
-    environmentId: EnvironmentId.make(environmentId),
-    threadId: ThreadId.make(id),
-    title: id,
-  });
-
-  it("drops threads owned by another machine than the destination", async () => {
+  it("pastes local threads, text context and files at the cap after excluding foreign threads", async () => {
     const result = await importComposerContextClipboard(
-      {
-        text: "[local](t3-context://v1/thread/local) [foreign](t3-context://v1/thread/foreign)",
-        fragment: encodeComposerContextFragment({
-          version: 1,
-          source: { environmentId: EnvironmentId.make("source") },
-          records: [thread("local", "destination"), thread("foreign", "source")],
-        })!,
-        html: "",
-      },
+      mixedClipboard,
       0,
       new AbortController().signal,
-      // Only one slot is free: the dropped thread must not count against it.
-      COMPOSER_CONTEXT_MAX_RECORDS - 1,
+      COMPOSER_CONTEXT_MAX_RECORDS - 3,
       EnvironmentId.make("destination"),
     );
-    expect(result?.context.records.map((record) => record.label)).toEqual(["local"]);
-    expect(result?.skippedThreads).toEqual(["foreign"]);
+    expect(result).not.toBeNull();
+    expect(result!.context.records).toEqual([
+      { ...localThread, contextId: expect.any(String) },
+      { ...terminal, contextId: expect.any(String) },
+      { ...image, contextId: expect.any(String), attachmentId: result!.attachments[0]!.id },
+    ]);
+    expect(result!.attachments).toEqual([
+      expect.objectContaining({ name: image.name, fileUri: "file:///owned.png" }),
+    ]);
+    expect(result!.failures).toEqual([]);
+    expect(result!.skippedThreads).toEqual([foreignThread.title]);
+    const references = collectComposerContextReferences(result!.text);
+    expect(references.map((reference) => reference.label)).toEqual(
+      mixedRecords.map((record) => record.label),
+    );
+    expect(result!.context.records.map((record) => record.contextId)).toEqual(
+      references.slice(1).map((reference) => reference.contextId),
+    );
+    expect(
+      references
+        .slice(1)
+        .every(
+          (reference) => !mixedRecords.some((record) => record.contextId === reference.contextId),
+        ),
+    ).toBe(true);
+    expect(
+      result!.context.records.some((record) => record.contextId === references[0]!.contextId),
+    ).toBe(false);
+    expect(result!.text).toMatch(/^Compare these findings: .* before changing anything\.$/);
+
+    mocks.download.mockClear();
+    await expect(
+      importComposerContextClipboard(
+        mixedClipboard,
+        0,
+        new AbortController().signal,
+        COMPOSER_CONTEXT_MAX_RECORDS - 2,
+        EnvironmentId.make("destination"),
+      ),
+    ).rejects.toThrow("Remove some context");
+    expect(mocks.download).not.toHaveBeenCalled();
   });
 
-  it("keeps threads when the destination machine is unknown", async () => {
+  it("reports foreign threads and failed files together while keeping the rest of a paste", async () => {
+    mocks.download.mockRejectedValueOnce(new Error("source disconnected"));
     const result = await importComposerContextClipboard(
-      {
-        text: "[foreign](t3-context://v1/thread/foreign)",
-        fragment: encodeComposerContextFragment({
-          version: 1,
-          source: { environmentId: EnvironmentId.make("source") },
-          records: [thread("foreign", "source")],
-        })!,
-        html: "",
-      },
+      mixedClipboard,
+      0,
+      new AbortController().signal,
+      0,
+      EnvironmentId.make("destination"),
+    );
+    expect(result).not.toBeNull();
+    expect(result!.context.records).toEqual([
+      { ...localThread, contextId: expect.any(String) },
+      { ...terminal, contextId: expect.any(String) },
+    ]);
+    expect(result!.attachments).toEqual([]);
+    expect(result!.failures).toEqual([image.name]);
+    expect(result!.skippedThreads).toEqual([foreignThread.title]);
+    const references = collectComposerContextReferences(result!.text);
+    expect(references.map((reference) => reference.label)).toEqual(
+      mixedRecords.map((record) => record.label),
+    );
+    expect(
+      references
+        .filter(
+          (reference) =>
+            !result!.context.records.some((record) => record.contextId === reference.contextId),
+        )
+        .map((reference) => reference.label),
+    ).toEqual([foreignThread.label, image.label]);
+    expect(result!.text).toMatch(/^Compare these findings: .* before changing anything\.$/);
+  });
+
+  it("preserves both machines' thread references when pasting without a destination", async () => {
+    const result = await importComposerContextClipboard(
+      mixedClipboard,
       0,
       new AbortController().signal,
     );
-    expect(result?.context.records.map((record) => record.label)).toEqual(["foreign"]);
-    expect(result?.skippedThreads).toEqual([]);
+    expect(result).not.toBeNull();
+    expect(result!.context.records).toEqual([
+      { ...foreignThread, contextId: expect.any(String) },
+      { ...localThread, contextId: expect.any(String) },
+      { ...terminal, contextId: expect.any(String) },
+      { ...image, contextId: expect.any(String), attachmentId: result!.attachments[0]!.id },
+    ]);
+    expect(result!.attachments).toHaveLength(1);
+    expect(result!.failures).toEqual([]);
+    expect(
+      collectComposerContextReferences(result!.text).map((reference) => reference.contextId),
+    ).toEqual(result!.context.records.map((record) => record.contextId));
   });
 
   it("refuses an overflowing context paste before copying files", async () => {
