@@ -19,7 +19,8 @@ export function refreshPersonalUpdateStatus(): Promise<void> {
   controller = request;
   pending = (async () => {
     try {
-      const response = await fetch(PERSONAL_UPDATE_STATUS_URL, {
+      // The raw GitHub CDN caches each URL for minutes regardless of the request's cache mode.
+      const response = await fetch(`${PERSONAL_UPDATE_STATUS_URL}?check=${Date.now()}`, {
         cache: "no-store",
         signal: request.signal,
       });
