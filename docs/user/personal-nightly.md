@@ -67,6 +67,9 @@ When an owner pushes a conflict fix, the next eligible check retries their new
 head with the normal debounce and cooldown. Conflicts with another included PR,
 your personal fixes, or changes not yet present in the official nightly still
 need reconciliation. The last published release remains available meanwhile.
+When the official nightly deletes a file that an included PR still changes,
+remove it from `personal-nightly` and port the change as a personal fix; later
+builds keep that file deleted for the PR.
 
 Start a fix branch from this fork's `personal-nightly` branch. After testing,
 merge it back into `personal-nightly`, or cherry-pick the tested commits there.
