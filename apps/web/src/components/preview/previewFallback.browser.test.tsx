@@ -54,9 +54,8 @@ function previewState() {
 }
 
 vi.mock("~/env", () => ({ isElectron: true }));
-// Browser ESM links named imports, so each mock keeps its module's other exports.
-vi.mock("@effect/atom-react", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@effect/atom-react")>()),
+vi.mock("@effect/atom-react", async () => ({
+  RegistryContext: (await import("react")).createContext(null),
   useAtomValue: () => threadRef.environmentId,
 }));
 vi.mock("~/state/primaryEnvironment", () => ({ primaryEnvironmentIdAtom: {} }));
@@ -64,9 +63,10 @@ vi.mock("~/state/entities", () => ({
   readEnvironmentSupportsServerBrowser: () => true,
   useEnvironmentSupportsServerBrowser: () => true,
 }));
-vi.mock("~/previewStateStore", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("~/previewStateStore")>()),
+vi.mock("~/previewStateStore", () => ({
   useThreadPreviewState: previewState,
+  readThreadPreviewState: previewState,
+  whenPreviewTabKnown: vi.fn(),
   useActivePreviewSessions: () => ({ [scopedThreadKey(threadRef)]: previewState() }),
   isPreviewSupportedInRuntime: () => true,
 }));
@@ -79,8 +79,8 @@ vi.mock("~/browser/browserPointerStore", () => ({ useBrowserPointerStore: {} }))
 vi.mock("~/state/session", () => ({ useEnvironmentScope: () => true }));
 vi.mock("~/state/preview", () => ({ previewEnvironment: { open: {} } }));
 vi.mock("~/state/use-atom-command", () => ({ useAtomCommand: () => vi.fn() }));
-vi.mock("~/components/preview/usePreviewSession", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("~/components/preview/usePreviewSession")>()),
+vi.mock("~/components/preview/usePreviewSession", () => ({
+  usePreviewSession: () => undefined,
   useDesktopHostedPreviewSessions: () => undefined,
 }));
 vi.mock("~/browser/openFileInPreview", () => ({ openUrlInPreview: vi.fn() }));
@@ -99,8 +99,8 @@ vi.mock("~/browser/browserRecording", () => ({
   findActiveBrowserRecordingRuntimeTabId: () => null,
   useActiveBrowserRecordingTabIds: () => new Set(),
 }));
-vi.mock("~/browser/browserSurfaceStore", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("~/browser/browserSurfaceStore")>()),
+vi.mock("~/browser/browserSurfaceStore", () => ({
+  acquireBrowserSurfaceActivity: () => () => {},
   useBrowserSurfaceStore: (select: (state: { byTabId: Record<string, never> }) => unknown) =>
     select({ byTabId: {} }),
 }));
@@ -151,8 +151,8 @@ vi.mock("~/state/device", () => ({
   useDeviceState: () => ({ state: { devices: [], hosts: [] } }),
 }));
 vi.mock("../device/DeviceStreamView", () => ({ DeviceStreamView: () => null }));
-vi.mock("~/components/ui/button", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("~/components/ui/button")>()),
+vi.mock("~/components/ui/button", () => ({
+  buttonVariants: () => "",
   Button: (props: ComponentProps<"button">) => createElement("button", props),
 }));
 vi.mock("~/components/ui/tooltip", () => ({
