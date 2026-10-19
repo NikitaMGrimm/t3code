@@ -108,18 +108,15 @@ export function ComposerEditor({
         );
         return;
       }
-      const warnings = [
-        ...(result.failures.length > 0
-          ? [
-              "Some attachments could not be copied. Reconnect to the source environment and copy them again.",
-            ]
-          : []),
-        ...(result.skippedThreads.length > 0
-          ? [
-              `${result.skippedThreads.map((title) => `"${title}"`).join(", ")} ${result.skippedThreads.length === 1 ? "is" : "are"} on another machine.`,
-            ]
-          : []),
-      ];
+      const warnings: string[] = [];
+      if (result.failures.length > 0)
+        warnings.push(
+          "Some attachments could not be copied. Reconnect to the source environment and copy them again.",
+        );
+      if (result.skippedThreads.length > 0)
+        warnings.push(
+          `${result.skippedThreads.map((title) => `"${title}"`).join(", ")} ${result.skippedThreads.length === 1 ? "is" : "are"} on another machine.`,
+        );
       if (warnings.length > 0)
         Dialog.alert(
           "Some context is unavailable",

@@ -367,6 +367,14 @@ export function serializeTableElementToCsv(table: Element): string {
   return lines.join("\n");
 }
 
+function mermaidSourceHtml(source: string) {
+  const pre = document.createElement("pre");
+  const code = document.createElement("code");
+  code.textContent = source.trim();
+  pre.appendChild(code);
+  return pre;
+}
+
 /** A formula's TeX as code, so pasted rich text never carries KaTeX's unstyled glyph markup. */
 function mathSourceElement(wrapper: Element): Element {
   const code = document.createElement("code");
@@ -378,6 +386,10 @@ function mathSourceElement(wrapper: Element): Element {
 }
 
 function sanitizedHtmlFrom(container: Element): string {
+  for (const diagram of container.querySelectorAll("[data-markdown-mermaid]")) {
+    const source = diagram.getAttribute("data-markdown-copy");
+    if (source !== null) diagram.replaceChildren(mermaidSourceHtml(source));
+  }
   for (const wrapper of container.querySelectorAll(MATH_SELECTOR)) {
     wrapper.replaceWith(mathSourceElement(wrapper));
   }
@@ -418,26 +430,17 @@ export function chatMarkdownClipboardPayload(
       htmls.push(`<meta charset="utf-8">${mathSourceElement(math).outerHTML}`);
       continue;
     }
-    // A selection within a diagram copies its complete Mermaid source.
     const diagramSource = ancestorElement
       ?.closest("[data-markdown-mermaid]")
       ?.getAttribute("data-markdown-copy");
-    if (diagramSource) {
-      texts.push(diagramSource.trim());
-      htmls.push(sanitizedHtmlFrom(container));
-      continue;
-    }
-    if (ancestorElement?.closest("pre")) {
-      const text = range.toString();
-      if (text) {
-        texts.push(text);
-        htmls.push(sanitizedHtmlFrom(container));
-      }
-      continue;
-    }
-    const text = serializeRenderedMarkdownFragment(container);
+    const text =
+      diagramSource?.trim() ??
+      (ancestorElement?.closest("pre")
+        ? range.toString()
+        : serializeRenderedMarkdownFragment(container));
     if (!text) continue;
     texts.push(text);
+    if (diagramSource != null) container.replaceChildren(mermaidSourceHtml(diagramSource));
     htmls.push(sanitizedHtmlFrom(container));
   }
   if (texts.length === 0) return null;

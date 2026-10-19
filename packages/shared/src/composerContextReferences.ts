@@ -322,10 +322,7 @@ export function projectComposerContextForProvider(input: {
   return `${body}\n\n<${CONTEXT_ENVELOPE_TAG} version="1">\n${entries.join("\n")}\n</${CONTEXT_ENVELOPE_TAG}>`;
 }
 
-/**
- * Attached threads an agent on `environmentId` cannot read: `t3_thread_read` only sees its own
- * server's threads, so a draft moved to another machine strands these references.
- */
+// Thread reads are environment-local even when a draft moves between machines.
 export function threadContextsOutsideEnvironment(input: {
   text: string;
   records: ReadonlyArray<ComposerContextRecord>;

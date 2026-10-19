@@ -958,7 +958,6 @@ export function NewTaskFlowProvider(props: React.PropsWithChildren) {
     if ((text.length === 0 && draft.attachments.length === 0) || !draftModelSelection) {
       return null;
     }
-    // A thread attached on another machine is unreadable here; the submit path explains why.
     if (
       threadContextsOutsideEnvironment({
         text: draft.text,

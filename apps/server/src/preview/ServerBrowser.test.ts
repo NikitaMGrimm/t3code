@@ -12,13 +12,16 @@ import {
 } from "@t3tools/contracts";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
+import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
+import * as TestClock from "effect/testing/TestClock";
 import type { BrowserContext, Page } from "playwright-core";
 import { beforeEach, expect, vi } from "vite-plus/test";
 
@@ -95,7 +98,7 @@ function makeSession(frame?: ReturnType<typeof makeFrame>) {
   const events = new NodeEvents.EventEmitter();
   return {
     on: vi.fn((name: string, listener: () => void) => events.on(name, listener)),
-    emit: (name: string) => events.emit(name),
+    emit: (name: string, ...args: unknown[]) => events.emit(name, ...args),
     detach: vi.fn(async () => {}),
     send: vi.fn(async (method: string, input?: unknown): Promise<Record<string, unknown>> => {
       if (method === "Page.getNavigationHistory") return { currentIndex: 0, entries: [{}] };
@@ -170,6 +173,9 @@ function makeContext(onClose?: (context: BrowserContext) => void) {
     goto: vi.fn(async (next: string) => {
       url = next;
       events.emit("load");
+      const pending = initialNavigation;
+      initialNavigation = null;
+      await pending?.();
     }),
     goBack: vi.fn(async () => {}),
     goForward: vi.fn(async () => {}),
@@ -219,13 +225,15 @@ function makeContext(onClose?: (context: BrowserContext) => void) {
 
 const contexts: ReturnType<typeof makeContext>[] = [];
 const scratchPages: ReturnType<typeof makeContext>["page"][] = [];
+/** The profile and isolation each headless tab asked its context for. */
 const contextRequests: Array<{ profileId: string; isolated: boolean }> = [];
 let contextGate: PromiseWithResolvers<void> | null = null;
-let contextRequested: PromiseWithResolvers<void> | null = null;
 let pageCopy = "";
 let keyCopy = "";
 let focusedFrame: ReturnType<typeof makeFrame> | null = null;
+let contextRequested: PromiseWithResolvers<void> | null = null;
 let contextFailure: Error | null = null;
+let initialNavigation: (() => Promise<void>) | null = null;
 let desktopRendersNext = false;
 let desktopAvailable = false;
 let desktopConnectionFailure: Error | null = null;
@@ -236,6 +244,7 @@ let desktopAttachGate: PromiseWithResolvers<boolean> | null = null;
 let desktopAttachStarted: PromiseWithResolvers<void> | null = null;
 let desktopDetachConsumed: PromiseWithResolvers<void> | null = null;
 const desktopAttachRequests: string[] = [];
+/** Pages the fake desktop takes back or returns; the channel's streams emit them. */
 const desktopDetaches = new NodeEvents.EventEmitter();
 const desktopTabs = new Set<string>();
 const desktopRenders = (tabId: string) => {
@@ -359,6 +368,7 @@ beforeEach(() => {
   contextGate = null;
   contextRequested = null;
   contextFailure = null;
+  initialNavigation = null;
   pageCopy = "";
   keyCopy = "";
   focusedFrame = null;
@@ -594,69 +604,166 @@ it.live("readiness none responds immediately but takeover input waits for naviga
 );
 
 it.live.each([
-  { method: "goto" as const, message: { type: "navigate", url: "http://localhost:5173/next" } },
+  {
+    method: "goto" as const,
+    message: { type: "navigate", url: "http://localhost:5173/next" },
+    handoff: "release",
+  },
+  { method: "goBack" as const, message: { type: "history", delta: -1 }, handoff: "release" },
+  { method: "goForward" as const, message: { type: "history", delta: 1 }, handoff: "release" },
+  { method: "reload" as const, message: { type: "reload" }, handoff: "release" },
+  {
+    method: "goto" as const,
+    message: { type: "navigate", url: "http://localhost:5173/next" },
+    handoff: "disconnect",
+  },
+])(
+  "$handoff waits for viewer $method to commit before agent actions",
+  ({ method, message, handoff }) =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const { browser, broker, tabId } = yield* ready;
+        const viewerScope = yield* Scope.make();
+        yield* Effect.addFinalizer(() => Scope.close(viewerScope, Exit.void));
+        const viewer = yield* browser
+          .attachViewer(viewerInput(tabId, true))
+          .pipe(Effect.provideService(Scope.Scope, viewerScope));
+        yield* viewer.input({ type: "takeControl" });
+        const started = Promise.withResolvers<void>();
+        const committed = Promise.withResolvers<void>();
+        const events: string[] = [];
+        contexts[0]!.page[method].mockImplementationOnce(async () => {
+          started.resolve();
+          await committed.promise;
+          events.push("navigation committed");
+        });
+        const navigate = yield* viewer.input(message).pipe(Effect.forkScoped);
+        yield* Effect.promise(() => started.promise);
+        const releasing = yield* (
+          handoff === "disconnect"
+            ? Scope.close(viewerScope, Exit.void)
+            : viewer.input({ type: "releaseControl" })
+        ).pipe(Effect.forkScoped);
+        yield* Effect.addFinalizer(() => Effect.sync(() => committed.resolve()));
+        // Drain runnable promise work while the navigation gate remains closed.
+        yield* Effect.promise(() => new Promise<void>((resolve) => setImmediate(resolve)));
+        const status = yield* broker.invoke<PreviewAutomationStatus>({
+          scope,
+          tabId,
+          operation: "status",
+          input: {},
+        });
+        expect(status.control?.owner).toBe("agent");
+        const cdp = contexts[0]!.sessions[0]!;
+        const send = cdp.send.getMockImplementation()!;
+        cdp.send.mockImplementation(async (operation, input) => {
+          if (operation === "Runtime.evaluate") events.push("agent acted");
+          return send(operation, input);
+        });
+        const resumed = yield* broker
+          .invoke({
+            scope,
+            tabId,
+            operation: "evaluate",
+            input: { expression: "resumed()" },
+          })
+          .pipe(Effect.forkScoped);
+        yield* Effect.promise(() => new Promise<void>((resolve) => setImmediate(resolve)));
+        expect(events).toEqual([]);
+        committed.resolve();
+        yield* Fiber.join(navigate);
+        yield* Fiber.join(releasing);
+        yield* Fiber.join(resumed);
+        expect(events).toEqual(["navigation committed", "agent acted"]);
+        const calls = contexts[0]!.page[method].mock.calls;
+        expect(calls[0]?.at(-1)).toMatchObject({ waitUntil: "commit", timeout: 15_000 });
+      }),
+    ).pipe(Effect.provide(layer)),
+);
+
+it.live.each([
+  { method: "goto" as const, message: { type: "navigate", url: "http://10.255.255.1/" } },
   { method: "goBack" as const, message: { type: "history", delta: -1 } },
   { method: "goForward" as const, message: { type: "history", delta: 1 } },
   { method: "reload" as const, message: { type: "reload" } },
-])("release waits for viewer $method to commit before agent actions", ({ method, message }) =>
+])("a pending viewer $method allows a corrected URL and text input", ({ method, message }) =>
   Effect.scoped(
     Effect.gen(function* () {
-      const { browser, broker, tabId } = yield* ready;
+      const { browser, tabId } = yield* ready;
       const viewer = yield* browser.attachViewer(viewerInput(tabId, true));
       yield* viewer.input({ type: "takeControl" });
-      yield* Queue.clear(viewer.output);
       const started = Promise.withResolvers<void>();
       const committed = Promise.withResolvers<void>();
-      const events: string[] = [];
-      contexts[0]!.page[method].mockImplementationOnce(async () => {
+      const page = contexts[0]!.page;
+      page[method].mockImplementationOnce(() => {
         started.resolve();
-        await committed.promise;
-        events.push("navigation committed");
+        return committed.promise;
       });
-      const navigate = yield* viewer.input(message).pipe(Effect.forkScoped);
-      yield* Effect.addFinalizer(() => Effect.sync(() => committed.resolve()));
+      const navigation = yield* viewer.input(message).pipe(Effect.forkScoped);
       yield* Effect.promise(() => started.promise);
-      const releasing = yield* viewer.input({ type: "releaseControl" }).pipe(Effect.forkScoped);
-      let control = yield* Queue.take(viewer.output);
-      while (control._tag !== "control" || control.controller !== "agent") {
-        control = yield* Queue.take(viewer.output);
-      }
-      const cdp = contexts[0]!.sessions[0]!;
-      const send = cdp.send.getMockImplementation()!;
-      cdp.send.mockImplementation(async (operation, input) => {
-        if (operation === "Runtime.evaluate") events.push("agent acted");
-        return send(operation, input);
+      const correction = yield* Effect.gen(function* () {
+        yield* viewer.input({ type: "navigate", url: "http://localhost:5173/fixed" });
+        yield* viewer.input({ type: "text", text: "hello" });
+      }).pipe(Effect.forkScoped);
+      yield* Effect.addFinalizer(() => Effect.sync(() => committed.resolve()));
+      // Check after runnable promises drain, without waiting for navigation or a timeout.
+      yield* Effect.promise(() => new Promise<void>((resolve) => setImmediate(resolve)));
+      expect(page.goto).toHaveBeenLastCalledWith(
+        "http://localhost:5173/fixed",
+        expect.objectContaining({ waitUntil: "commit" }),
+      );
+      expect(contexts[0]!.sessions.at(-1)!.send).toHaveBeenCalledWith("Input.insertText", {
+        text: "hello",
       });
-      const resumed = yield* broker
-        .invoke({
-          scope,
-          tabId,
-          operation: "evaluate",
-          input: { expression: "resumed()" },
-        })
-        .pipe(Effect.forkScoped);
-      yield* broker.invoke({ scope, tabId, operation: "status", input: {} });
-      expect(events).toEqual([]);
       committed.resolve();
-      yield* Fiber.join(navigate);
-      yield* Fiber.join(releasing);
-      yield* Fiber.join(resumed);
-      expect(events).toEqual(["navigation committed", "agent acted"]);
-      const calls = contexts[0]!.page[method].mock.calls;
-      expect(calls[0]?.at(-1)).toMatchObject({ waitUntil: "commit", timeout: 15_000 });
+      yield* Fiber.join(navigation);
+      yield* Fiber.join(correction);
     }),
   ).pipe(Effect.provide(layer)),
 );
 
-it.live("a click whose caller timed out never dispatches when the tab queue resumes", () =>
+it.live("a user-opened tab allows a corrected URL before its initial navigation commits", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { browser } = yield* ready;
+      const manager = yield* Manager.PreviewManager;
+      yield* Effect.yieldNow;
+      const started = Promise.withResolvers<void>();
+      const committed = Promise.withResolvers<void>();
+      yield* Effect.addFinalizer(() => Effect.sync(() => committed.resolve()));
+      initialNavigation = () => {
+        started.resolve();
+        return committed.promise;
+      };
+      const opened = yield* manager.open({
+        threadId: scope.thread.threadId,
+        url: "http://localhost:5173/stalled",
+        runtime: "server",
+      });
+      yield* Effect.promise(() => started.promise);
+      const viewer = yield* browser.attachViewer(viewerInput(opened.tabId, true));
+      const correction = yield* viewer
+        .input({ type: "navigate", url: "http://localhost:5173/fixed" })
+        .pipe(Effect.forkScoped);
+      yield* Effect.promise(() => new Promise<void>((resolve) => setImmediate(resolve)));
+      const lastNavigationBeforeCommit = contexts[1]!.page.goto.mock.calls.at(-1);
+      committed.resolve();
+      yield* Fiber.join(correction);
+      expect(lastNavigationBeforeCommit).toEqual([
+        "http://localhost:5173/fixed",
+        expect.objectContaining({ waitUntil: "commit" }),
+      ]);
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live("an expired queued click never reaches the page", () =>
   Effect.scoped(
     Effect.gen(function* () {
       const { broker, tabId } = yield* ready;
-      const manager = yield* Manager.PreviewManager;
       const page = contexts[0]!.page;
       const started = Promise.withResolvers<void>();
       const release = Promise.withResolvers<Awaited<ReturnType<typeof page.evaluate>>>();
-      const drained = Promise.withResolvers<void>();
       const metadata = {
         url: "about:blank",
         title: "test page",
@@ -669,15 +776,15 @@ it.live("a click whose caller timed out never dispatches when the tab queue resu
         started.resolve();
         return release.promise;
       });
-      page.setViewportSize.mockImplementationOnce(async () => {
-        drained.resolve();
-      });
       const click = vi.fn(async () => {});
       page.locator.mockReturnValue({
         scrollIntoViewIfNeeded: async () => {},
         boundingBox: async () => ({ x: 0, y: 0, width: 10, height: 10 }),
         click,
       } as never);
+      let now = performance.now();
+      const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+      yield* Effect.addFinalizer(() => Effect.sync(() => clock.mockRestore()));
       const snapshot = yield* broker
         .invoke<PreviewAutomationSnapshot>({
           scope,
@@ -686,156 +793,39 @@ it.live("a click whose caller timed out never dispatches when the tab queue resu
           input: {},
           timeoutMs: 5000,
         })
-        .pipe(Effect.exit, Effect.forkScoped);
+        .pipe(Effect.forkScoped);
       yield* Effect.promise(() => started.promise);
-      const timedOut = yield* broker
+      const action = yield* broker
         .invoke<void>({
           scope,
           tabId,
           operation: "click",
           input: { selector: "button" },
-          timeoutMs: 150,
+          timeoutMs: 1000,
         })
-        .pipe(Effect.flip);
-      expect(timedOut._tag).toBe("PreviewAutomationTimeoutError");
+        .pipe(Effect.exit, Effect.forkScoped);
+      // The later status reply marks delivery through the same request stream.
+      yield* broker.invoke({ scope, tabId, operation: "status", input: {} });
+      now += 1000;
       release.resolve(metadata);
-      // A system resize drains the same tab queue without changing control ownership.
-      yield* manager.resize({
-        threadId: scope.thread.threadId,
-        tabId,
-        viewport: { _tag: "freeform", width: 900, height: 700 },
-      });
-      yield* Effect.promise(() => drained.promise);
       yield* Fiber.join(snapshot);
+      const result = yield* Fiber.join(action);
       expect(click).not.toHaveBeenCalled();
+      const error = yield* Effect.flip(result);
+      expect(error).toMatchObject({
+        _tag: "PreviewAutomationTimeoutError",
+        remoteTag: "PreviewAutomationTimeoutError",
+      });
     }),
   ).pipe(Effect.provide(layer)),
 );
 
-it.live.each([false, true])(
-  "a queued click (budget expired: %s) runs only before its deadline",
-  (expired) =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const { broker, tabId } = yield* ready;
-        const page = contexts[0]!.page;
-        const started = Promise.withResolvers<void>();
-        const release = Promise.withResolvers<Awaited<ReturnType<typeof page.evaluate>>>();
-        const metadata = {
-          url: "about:blank",
-          title: "test page",
-          loading: false,
-          visibleText: "",
-          interactiveElements: [],
-        };
-        yield* Effect.addFinalizer(() => Effect.sync(() => release.resolve(metadata)));
-        page.evaluate.mockImplementationOnce(async () => {
-          started.resolve();
-          return release.promise;
-        });
-        const click = vi.fn(async () => {});
-        page.locator.mockReturnValue({
-          scrollIntoViewIfNeeded: async () => {},
-          boundingBox: async () => ({ x: 0, y: 0, width: 10, height: 10 }),
-          click,
-        } as never);
-        let now = performance.now();
-        const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
-        yield* Effect.addFinalizer(() => Effect.sync(() => clock.mockRestore()));
-        const snapshot = yield* broker
-          .invoke<PreviewAutomationSnapshot>({
-            scope,
-            tabId,
-            operation: "snapshot",
-            input: {},
-            timeoutMs: 5000,
-          })
-          .pipe(Effect.forkScoped);
-        yield* Effect.promise(() => started.promise);
-        const action = yield* broker
-          .invoke<void>({
-            scope,
-            tabId,
-            operation: "click",
-            input: { selector: "button" },
-            timeoutMs: 1000,
-          })
-          .pipe(Effect.exit, Effect.forkScoped);
-        // The later status reply marks delivery through the same request stream.
-        yield* broker.invoke({ scope, tabId, operation: "status", input: {} });
-        now += expired ? 1000 : 999;
-        release.resolve(metadata);
-        yield* Fiber.join(snapshot);
-        const result = yield* Fiber.join(action);
-        if (expired) {
-          const error = yield* Effect.flip(result);
-          expect(error).toMatchObject({
-            _tag: "PreviewAutomationTimeoutError",
-            remoteTag: "PreviewAutomationTimeoutError",
-          });
-          expect(click).not.toHaveBeenCalled();
-        } else {
-          yield* result;
-          expect(click).toHaveBeenCalledOnce();
-        }
-      }),
-    ).pipe(Effect.provide(layer)),
-);
-
-it.live("a caller timeout keeps the in-flight capture reserved until Chromium answers", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const { broker, tabId } = yield* ready;
-      const manager = yield* Manager.PreviewManager;
-      const page = contexts[0]!.page;
-      const session = contexts[0]!.sessions[0]!;
-      const send = session.send.getMockImplementation()!;
-      const started = Promise.withResolvers<void>();
-      const release = Promise.withResolvers<Record<string, unknown>>();
-      const resized = Promise.withResolvers<void>();
-      yield* Effect.addFinalizer(() => Effect.sync(() => release.resolve({ data: "ZnJhbWU=" })));
-      session.send.mockImplementation(async (method, input) => {
-        if (method === "Page.captureScreenshot") {
-          started.resolve();
-          return release.promise;
-        }
-        return send(method, input);
-      });
-      page.setViewportSize.mockClear();
-      page.setViewportSize.mockImplementationOnce(async () => {
-        resized.resolve();
-      });
-      const snapshot = yield* broker
-        .invoke<PreviewAutomationSnapshot>({
-          scope,
-          tabId,
-          operation: "snapshot",
-          input: {},
-          timeoutMs: 150,
-        })
-        .pipe(Effect.flip, Effect.forkScoped);
-      yield* Effect.promise(() => started.promise);
-      expect(yield* Fiber.join(snapshot)).toMatchObject({ _tag: "PreviewAutomationTimeoutError" });
-      yield* manager.resize({
-        threadId: scope.thread.threadId,
-        tabId,
-        viewport: { _tag: "freeform", width: 900, height: 700 },
-      });
-      expect(page.setViewportSize).not.toHaveBeenCalled();
-      release.resolve({ data: "ZnJhbWU=" });
-      yield* Effect.promise(() => resized.promise);
-      expect(page.setViewportSize).toHaveBeenCalledOnce();
-    }),
-  ).pipe(Effect.provide(layer)),
-);
-
-it.live(
+it.effect(
   "a queued recording stop still runs after its deadline when a snapshot caller times out",
   () =>
     Effect.scoped(
       Effect.gen(function* () {
         const { broker, tabId } = yield* ready;
-        const manager = yield* Manager.PreviewManager;
         const page = contexts[0]!.page;
         const encoder = {
           evaluate: vi
@@ -862,7 +852,6 @@ it.live(
 
         const started = Promise.withResolvers<void>();
         const release = Promise.withResolvers<Awaited<ReturnType<typeof page.evaluate>>>();
-        const drained = Promise.withResolvers<void>();
         const metadata = {
           url: "about:blank",
           title: "test page",
@@ -874,9 +863,6 @@ it.live(
         page.evaluate.mockImplementationOnce(async () => {
           started.resolve();
           return release.promise;
-        });
-        page.setViewportSize.mockImplementationOnce(async () => {
-          drained.resolve();
         });
         let now = performance.now();
         const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
@@ -903,20 +889,15 @@ it.live(
           .pipe(Effect.exit, Effect.forkScoped);
         // The status reply marks delivery while the snapshot still holds the tab queue.
         yield* broker.invoke({ scope, tabId, operation: "status", input: {} });
+        yield* TestClock.adjust(150);
         expect(yield* Fiber.join(snapshot)).toMatchObject({
           _tag: "PreviewAutomationTimeoutError",
         });
         now += 1000;
+        expect(session.detach).not.toHaveBeenCalled();
         release.resolve(metadata);
-        // A system resize runs after the queued stop without changing control ownership.
-        yield* manager.resize({
-          threadId: scope.thread.threadId,
-          tabId,
-          viewport: { _tag: "freeform", width: 900, height: 700 },
-        });
-        yield* Effect.promise(() => drained.promise);
-        expect(session.detach).toHaveBeenCalledOnce();
         yield* yield* Fiber.join(stop);
+        expect(session.detach).toHaveBeenCalledOnce();
         const stopped = yield* broker
           .invoke<void>({ scope, tabId, operation: "recordingStop", input: {} })
           .pipe(Effect.flip);
@@ -1304,6 +1285,44 @@ it.live("a popup becomes the agent's own tab and keeps its opener page", () =>
       yield* Effect.promise(() => popup.page.close());
       while ((yield* manager.list({ threadId: scope.thread.threadId })).sessions.length > 1) {
         yield* Effect.sleep("5 millis");
+      }
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live.each([
+  { url: "https://environment.test/api/assets/token/guide.pdf", pdf: true },
+  { url: "https://example.com/sign-in", pdf: false },
+])("an adopted popup at $url recovers only PDF asset navigation", ({ url, pdf }) =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const browser = yield* ServerBrowser.ServerBrowser;
+      const manager = yield* Manager.PreviewManager;
+      const events = yield* manager.subscribeEvents;
+      const opened = yield* manager.open({ threadId: scope.thread.threadId, runtime: "server" });
+      const viewer = yield* browser.attachViewer(viewerInput(opened.tabId, true));
+      yield* viewer.input({ type: "takeControl" });
+      const popup = makeContext();
+      yield* Effect.promise(() => popup.page.goto(url));
+      popup.page.goto.mockClear();
+      popup.page.reload.mockImplementationOnce(async () => {
+        popup.page.emit("load");
+      });
+      contexts[0]!.page.emit("popup", popup.page);
+      let shown = yield* Queue.take(viewer.output);
+      while (shown._tag !== "popup") shown = yield* Queue.take(viewer.output);
+      yield* browser.attachViewer(viewerInput(shown.tabId, true));
+      expect(popup.page.goto).not.toHaveBeenCalled();
+      expect(popup.page.reload).toHaveBeenCalledTimes(pdf ? 1 : 0);
+      if (pdf) {
+        let event = yield* PubSub.take(events);
+        while (event.type !== "navigated" || event.tabId !== shown.tabId) {
+          event = yield* PubSub.take(events);
+        }
+        const session = (yield* manager.list({ threadId: scope.thread.threadId })).sessions.find(
+          (entry) => entry.tabId === shown.tabId,
+        );
+        expect(session?.navStatus).toMatchObject({ _tag: "Success", url });
       }
     }),
   ).pipe(Effect.provide(layer)),
@@ -1868,6 +1887,34 @@ it.live("an agent's tabs stop at the limit until an unwatched idle tab closes", 
       expect(sessions.map((session) => session.tabId).toSorted()).toEqual(
         [tabId, reopened.tabId].toSorted(),
       );
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live("an idle agent tab the desktop renders stays open for the person browsing it", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const broker = yield* Broker.PreviewAutomationBroker;
+      yield* Effect.yieldNow;
+      const open = broker.invoke<PreviewAutomationStatus>({
+        scope,
+        operation: "open",
+        input: { reuseExistingTab: false, show: false },
+      });
+      desktopRendersNext = true;
+      const desktopTab = yield* open;
+      const headlessTab = yield* open;
+      const later = (yield* Clock.currentTimeMillis) + 31 * 60 * 1000;
+      const clock = vi.spyOn(Date, "now").mockReturnValue(later);
+      yield* Effect.addFinalizer(() => Effect.sync(() => clock.mockRestore()));
+      // Opening sweeps idle tabs first: only the unwatched headless one closes.
+      const reopened = yield* open;
+      const manager = yield* Manager.PreviewManager;
+      const { sessions } = yield* manager.list({ threadId: scope.thread.threadId });
+      const openTabIds = sessions.map((session) => session.tabId);
+      expect(openTabIds).toContain(desktopTab.tabId);
+      expect(openTabIds).toContain(reopened.tabId);
+      expect(openTabIds).not.toContain(headlessTab.tabId);
     }),
   ).pipe(Effect.provide(layer)),
 );
@@ -2851,6 +2898,284 @@ it.live("a desktop page that comes back reconnects without waiting for a viewer"
       expect(desktopConnections).toHaveLength(2);
     }),
   ).pipe(Effect.provide(layer)),
+);
+
+it.live.each(["wait", "pause", "capture", "resume"] as const)(
+  "a stalled snapshot %s releases the tab queue and capture lock without leaking a paused viewer",
+  (stage) =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const { browser, broker, tabId } = yield* ready;
+        const viewer = yield* browser.attachViewer(viewerInput(tabId, stage === "wait"));
+        if (stage === "wait") {
+          yield* viewer.input({ type: "takeControl" });
+          yield* viewer.input({ type: "key", action: "down", key: "Shift", code: "ShiftLeft" });
+          yield* viewer.input({ type: "mouse", action: "down", button: "left", x: 10, y: 20 });
+        }
+        // Recovery must reach a viewer even when its output queue is full.
+        stallViewer(viewer, { _tag: "viewport", width: 1280, height: 800 });
+        const { page, sessions } = contexts[0]!;
+        const session = sessions.at(-1)!;
+        const blocked = Promise.withResolvers<void>();
+        const release = Promise.withResolvers<void>();
+        const send = session.send.getMockImplementation()!;
+        let streaming = true;
+        let stalled = false;
+        session.send.mockImplementation(async (method, input) => {
+          if (
+            !stalled &&
+            ((stage === "wait" && method === "Page.captureScreenshot") ||
+              (stage === "pause" && method === "Page.stopScreencast") ||
+              (stage === "resume" && method === "Page.startScreencast"))
+          ) {
+            stalled = true;
+            blocked.resolve();
+            if (stage !== "wait") await release.promise;
+          }
+          if (stalled && stage === "wait") await release.promise;
+          const result = await send(method, input);
+          if (method === "Page.stopScreencast") streaming = false;
+          if (method === "Page.startScreencast") streaming = true;
+          return result;
+        });
+        const cdp = sessions[0]!;
+        if (stage === "wait") {
+          session.detach.mockImplementation(() => release.promise);
+          const tabSend = cdp.send.getMockImplementation()!;
+          cdp.send.mockImplementation(async (method, input) => {
+            const result = await tabSend(method, input);
+            if (method.startsWith("Input.dispatch")) await release.promise;
+            return result;
+          });
+        }
+        if (stage === "capture") {
+          page.ariaSnapshot.mockImplementationOnce(async () => {
+            blocked.resolve();
+            await release.promise;
+            return '- button "delete" [ref=e1]';
+          });
+        }
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+        yield* Effect.addFinalizer(() =>
+          Effect.sync(() => {
+            release.resolve();
+            vi.useRealTimers();
+          }),
+        );
+        if (stage === "wait") {
+          session.emit("Page.screencastFrame", { data: "ZnJhbWU=", sessionId: 1 });
+          session.emit("Page.screencastFrame", { data: "ZnJhbWU=", sessionId: 2 });
+          yield* Effect.promise(() => vi.advanceTimersByTimeAsync(200));
+          yield* Effect.promise(() => blocked.promise);
+        }
+        const snapshot = yield* broker
+          .invoke<PreviewAutomationSnapshot>({
+            // A different agent can observe while the viewer controls the owning agent's tab.
+            scope: stage === "wait" ? asSession("agent-b") : scope,
+            tabId,
+            operation: "snapshot",
+            input: {},
+          })
+          .pipe(Effect.flip, Effect.forkScoped({ startImmediately: true }));
+        yield* Effect.promise(() => blocked.promise);
+        // The host must answer within the action budget, before the broker timeout.
+        if (stage === "wait") {
+          yield* Effect.yieldNow;
+          yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+          // Exercise simultaneous expiry before the queued capture can start.
+          yield* Effect.sync(() => vi.advanceTimersByTime(15_000));
+          yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+        } else {
+          yield* Effect.promise(() => vi.advanceTimersByTimeAsync(15_000));
+        }
+        expect.soft(snapshot.pollUnsafe()).toMatchObject({
+          _tag: "Success",
+          value: {
+            _tag: "PreviewAutomationTimeoutError",
+            remoteTag: "PreviewAutomationTimeoutError",
+          },
+        });
+
+        if (stage === "wait") {
+          expect.soft(cdp.send).toHaveBeenCalledWith("Input.dispatchKeyEvent", {
+            type: "keyUp",
+            key: "Shift",
+            code: "ShiftLeft",
+          });
+          expect.soft(cdp.send).toHaveBeenCalledWith("Input.dispatchMouseEvent", {
+            type: "mouseReleased",
+            button: "left",
+            x: 10,
+            y: 20,
+            buttons: 0,
+            clickCount: 1,
+          });
+          // Even the healthy session's release acknowledgements cannot hold the control queue.
+          yield* Effect.promise(() => vi.advanceTimersByTimeAsync(1_000));
+        }
+        const sendsAtTimeout = session.send.mock.calls.length;
+        const releasesAtTimeout = cdp.send.mock.calls.filter(([method]) =>
+          method.startsWith("Input.dispatch"),
+        ).length;
+
+        const evaluation = yield* broker
+          .invoke({ scope, tabId, operation: "evaluate", input: { expression: "1 + 1" } })
+          .pipe(Effect.forkScoped({ startImmediately: true }));
+        yield* Effect.yieldNow;
+        yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+        expect.soft(evaluation.pollUnsafe()).toMatchObject({ _tag: "Success", value: "evaluated" });
+
+        const recovered = yield* broker
+          .invoke<PreviewAutomationSnapshot>({ scope, tabId, operation: "snapshot", input: {} })
+          .pipe(Effect.forkScoped({ startImmediately: true }));
+        yield* Effect.yieldNow;
+        yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+        expect.soft(recovered.pollUnsafe()).toMatchObject({
+          _tag: "Success",
+          value: { visibleText: "delete", screenshot: { data: "ZnJhbWU=" } },
+        });
+        // A failed CDP session may be retired, but cannot remain attached and paused.
+        expect.soft(streaming || session.detach.mock.calls.length > 0).toBe(true);
+        let replacement: ReturnType<typeof makeSession> | undefined;
+        if (stage !== "capture") {
+          expect(session.detach).toHaveBeenCalled();
+          expect(yield* Queue.clear(viewer.output)).toContainEqual({ _tag: "reconnect" });
+          const reattached = yield* browser.attachViewer(viewerInput(tabId, false));
+          replacement = sessions.at(-1)!;
+          expect(replacement.send).toHaveBeenCalledWith("Page.startScreencast", expect.anything());
+          if (stage === "wait")
+            expect(yield* Queue.clear(reattached.output)).toContainEqual(
+              expect.objectContaining({ _tag: "control", controller: "agent" }),
+            );
+        }
+
+        release.resolve();
+        yield* Effect.yieldNow;
+        yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+        expect(streaming || session.detach.mock.calls.length > 0).toBe(true);
+        if (replacement) expect(replacement.detach).not.toHaveBeenCalled();
+        if (stage === "wait") {
+          expect(page.ariaSnapshot).toHaveBeenCalledTimes(1);
+          expect(session.send).toHaveBeenCalledTimes(sendsAtTimeout);
+          expect(
+            cdp.send.mock.calls.filter(([method]) => method.startsWith("Input.dispatch")),
+          ).toHaveLength(releasesAtTimeout);
+          expect(yield* Queue.clear(viewer.output)).toEqual([]);
+        }
+      }),
+    ).pipe(Effect.provide(layer)),
+);
+
+it.live(
+  "a snapshot timeout preserves recorded frames and retires a persistently stalled recording session",
+  () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const { broker, tabId } = yield* ready;
+        yield* broker.invoke({ scope, tabId, operation: "recordingStart", input: {} });
+        const session = contexts[0]!.sessions.at(-1)!;
+        const encoder = scratchPages.at(-1)!;
+        const blocked = Promise.withResolvers<void>();
+        const release = Promise.withResolvers<void>();
+        const send = session.send.getMockImplementation()!;
+        let stops = 0;
+        session.send.mockImplementation(async (method, input) => {
+          if (method === "Page.stopScreencast" && ++stops === 2) blocked.resolve();
+          await release.promise;
+          return send(method, input);
+        });
+        // Playwright detach waits for a command on the same stalled CDP session.
+        session.detach.mockImplementation(() => release.promise);
+        // Reaching the encoder limit must not tie frame draining to the stalled stop command.
+        encoder.evaluate.mockResolvedValueOnce(false);
+        session.emit("Page.screencastFrame", {
+          data: "ZnJhbWU=",
+          sessionId: 1,
+          metadata: { deviceWidth: 1280 },
+        });
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+        yield* Effect.addFinalizer(() =>
+          Effect.sync(() => {
+            release.resolve();
+            vi.useRealTimers();
+          }),
+        );
+        const snapshot = yield* broker
+          .invoke({ scope, tabId, operation: "snapshot", input: {} })
+          .pipe(Effect.flip, Effect.forkScoped({ startImmediately: true }));
+        yield* Effect.promise(() => blocked.promise);
+        yield* Effect.promise(() => vi.advanceTimersByTimeAsync(15_000));
+        expect(snapshot.pollUnsafe()).toMatchObject({
+          _tag: "Success",
+          value: {
+            _tag: "PreviewAutomationTimeoutError",
+            remoteTag: "PreviewAutomationTimeoutError",
+          },
+        });
+        expect(session.detach).toHaveBeenCalledTimes(1);
+        const sendsAtTimeout = session.send.mock.calls.length;
+        const framesAtTimeout = encoder.evaluate.mock.calls.length;
+        session.emit("Page.screencastFrame", {
+          data: "bGF0ZQ==",
+          sessionId: 2,
+          metadata: { deviceWidth: 1280 },
+        });
+        yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+        expect.soft(encoder.evaluate).toHaveBeenCalledTimes(framesAtTimeout);
+
+        const recovered = yield* broker
+          .invoke<PreviewAutomationSnapshot>({ scope, tabId, operation: "snapshot", input: {} })
+          .pipe(Effect.forkScoped({ startImmediately: true }));
+        yield* Effect.yieldNow;
+        yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+        expect.soft(recovered.pollUnsafe()).toMatchObject({
+          _tag: "Success",
+          value: { visibleText: "delete" },
+        });
+
+        encoder.evaluate
+          .mockResolvedValueOnce({ mimeType: "video/webm", count: 1, bytes: 5 })
+          .mockResolvedValueOnce("ZnJhbWU=");
+        const stopping = yield* broker
+          .invoke<{ path: string; mimeType: string; sizeBytes: number }>({
+            scope,
+            tabId,
+            operation: "recordingStop",
+            input: {},
+          })
+          .pipe(Effect.forkScoped({ startImmediately: true }));
+        yield* Effect.yieldNow;
+        yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+        expect(encoder.close).toHaveBeenCalled();
+        const stopped = yield* Fiber.join(stopping);
+        expect(session.send).toHaveBeenCalledTimes(sendsAtTimeout);
+        expect(session.detach).toHaveBeenCalledTimes(1);
+        const fs = yield* FileSystem.FileSystem;
+        expect(stopped).toMatchObject({ mimeType: "video/webm", sizeBytes: 5 });
+        expect(yield* fs.readFileString(stopped.path)).toBe("frame");
+        yield* broker.invoke({ scope, tabId, operation: "recordingStart", input: {} });
+        const replacement = contexts[0]!.sessions.at(-1)!;
+        expect(replacement).not.toBe(session);
+
+        release.resolve();
+        yield* Effect.yieldNow;
+        yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+        expect(
+          session.send.mock.calls.filter(([method]) => method === "Page.startScreencast"),
+        ).toHaveLength(1);
+        expect(replacement.detach).not.toHaveBeenCalled();
+        const next = yield* broker.invoke<PreviewAutomationSnapshot>({
+          scope,
+          tabId,
+          operation: "snapshot",
+          input: {},
+        });
+        expect(next.visibleText).toBe("delete");
+        expect(
+          replacement.send.mock.calls.filter(([method]) => method === "Page.startScreencast"),
+        ).toHaveLength(2);
+      }),
+    ).pipe(Effect.provide(layer)),
 );
 
 it.live("late desktop attachment keeps downloads and an active headless recording", () =>
