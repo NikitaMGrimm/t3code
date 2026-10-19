@@ -10,6 +10,7 @@ import {
 } from "@t3tools/contracts";
 import {
   COMPOSER_CONTEXT_CLIPBOARD_MIME,
+  decodeComposerContextClipboardHtml,
   decodeComposerContextFragment,
 } from "@t3tools/shared/composerContextClipboard";
 import type { LegendListRef } from "@legendapp/list/react";
@@ -158,6 +159,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   for (const root of roots.splice(0)) await act(async () => root.unmount());
+  window.getSelection()?.removeAllRanges();
   document.body.replaceChildren();
   vi.unstubAllGlobals();
 });
@@ -175,6 +177,22 @@ function renderTimeline(entries: ReadonlyArray<Entry>, props: Partial<TimelinePr
   return renderElement(
     <MessagesTimeline {...baseProps()} timelineEntries={entries as Entry[]} {...props} />,
   );
+}
+
+async function copyRange(range: Range) {
+  const selection = window.getSelection()!;
+  selection.removeAllRanges();
+  selection.addRange(range);
+  const clipboardData = new DataTransfer();
+  const event = new ClipboardEvent("copy", { bubbles: true, cancelable: true, clipboardData });
+  const target = range.startContainer.parentElement!;
+  try {
+    await act(async () => target.dispatchEvent(event));
+    expect(event.defaultPrevented).toBe(true);
+    return clipboardData;
+  } finally {
+    selection.removeAllRanges();
+  }
 }
 
 function text() {
@@ -448,62 +466,108 @@ describe("MessagesTimeline work rows", () => {
 });
 
 describe("MessagesTimeline messages", () => {
-  it.each([false, true])(
-    "copies context records only when their chip is selected: %s",
-    async (selectChip) => {
-      const record = {
-        version: 1 as const,
-        kind: "image" as const,
-        contextId: ComposerContextId.make("image-1"),
-        label: "shot.png",
-        attachmentId: "attachment-1",
-        name: "shot.png",
-        mimeType: "image/png",
-        sizeBytes: 1,
-      };
-      const link = `[shot.png](t3-context://v1/image/${record.contextId})`;
-      const source = `\`\`\`mermaid\nflowchart LR\n    A --> B\n%% ${link}\n\`\`\``;
-      const timeline = await renderTimeline([
-        message(`Before\n\n${source}\n\nAfter ${link}`, {
-          context: { version: 1, records: [record] },
-        }),
-      ]);
+  it.each([
+    { role: "assistant", selection: "across" },
+    { role: "user", selection: "across" },
+    { role: "assistant", selection: "inside" },
+    { role: "user", selection: "source" },
+  ] as const)(
+    "copies Mermaid selection $selection in $role messages",
+    async ({ role, selection }) => {
+      const source = "```mermaid\nflowchart LR\n    A[Select message] --> B[Copy Markdown]\n```";
+      await renderTimeline([message(`Before diagram.\n\n${source}\n\nAfter diagram.`, { role })]);
       const diagram = await vi.waitFor(
         () => {
-          const element = timeline.querySelector<HTMLElement>("[data-markdown-mermaid]");
-          expect(element?.querySelector("svg")).toBeTruthy();
-          return element!;
+          const svg = container.querySelector('[aria-label="Expand diagram"] svg');
+          expect(svg).not.toBeNull();
+          return svg!;
         },
         { timeout: 10_000 },
       );
-      const chip = timeline.querySelector("[data-markdown-copy]:not([data-markdown-mermaid])");
-      expect(chip?.getAttribute("data-markdown-copy")).toContain(link.slice(1));
-      const before = [...timeline.querySelectorAll("p")].find(
-        (paragraph) => paragraph.textContent === "Before",
-      )!;
-      const selection = window.getSelection()!;
       const range = document.createRange();
-      range.setStartBefore(before);
-      range.setEndAfter(selectChip ? chip! : diagram);
-      selection.removeAllRanges();
-      selection.addRange(range);
-      const clipboardData = new DataTransfer();
-      const copy = new ClipboardEvent("copy", { bubbles: true, cancelable: true, clipboardData });
-      await act(async () => before.dispatchEvent(copy));
-
-      const records = decodeComposerContextFragment(
-        clipboardData.getData(COMPOSER_CONTEXT_CLIPBOARD_MIME),
-      )?.records;
-      if (selectChip) {
-        expect(copy.defaultPrevented).toBe(true);
-        expect(clipboardData.getData("text/plain")).toContain(source);
-        expect(records).toEqual([record]);
+      let expected = source;
+      if (selection === "across") {
+        const paragraphs = [...container.querySelectorAll("p")];
+        const before = paragraphs.find((p) => p.textContent === "Before diagram.")!.firstChild!;
+        const after = paragraphs.find((p) => p.textContent === "After diagram.")!.firstChild!;
+        range.setStart(before, 2);
+        range.setEnd(after, 5);
+        expected = `fore diagram.\n\n${source}\n\nAfter`;
+      } else if (selection === "inside") {
+        const label = [...diagram.querySelectorAll("p, text")].find(
+          (element) => element.textContent === "Select message",
+        )!;
+        const labelText = document.createTreeWalker(label, NodeFilter.SHOW_TEXT).nextNode()!;
+        range.setStart(labelText, 2);
+        range.setEnd(labelText, 5);
       } else {
-        expect(records).toBeUndefined();
+        await click(button("Show code"));
+        const code = container.querySelector("pre code")!;
+        const firstToken = document.createTreeWalker(code, NodeFilter.SHOW_TEXT).nextNode()!;
+        range.setStart(firstToken, 0);
+        range.setEnd(firstToken, 9);
+        expected = "flowchart";
       }
-      selection.removeAllRanges();
+
+      const clipboard = await copyRange(range);
+      expect(clipboard.getData("text/plain")).toBe(expected);
     },
   );
+
+  it("exports context records only after selecting the chip, not its link in Mermaid source", async () => {
+    const record = {
+      version: 1 as const,
+      kind: "image" as const,
+      contextId: ComposerContextId.make("image-1"),
+      label: "shot.png",
+      attachmentId: "attachment-1",
+      name: "shot.png",
+      mimeType: "image/png",
+      sizeBytes: 1,
+    };
+    const link = `[shot.png](t3-context://v1/image/${record.contextId})`;
+    const source = `\`\`\`mermaid\nflowchart LR\n    A --> B\n%% ${link}\n\`\`\``;
+    await renderTimeline([
+      message(`Before\n\n${source}\n\nAfter\n\n${link}`, {
+        context: { version: 1, records: [record] },
+        attachments: [
+          {
+            type: "image",
+            id: record.attachmentId,
+            name: record.name,
+            mimeType: record.mimeType,
+            sizeBytes: record.sizeBytes,
+          },
+        ],
+      }),
+    ]);
+    await vi.waitFor(
+      () => expect(container.querySelector('[aria-label="Expand diagram"] svg')).not.toBeNull(),
+      { timeout: 10_000 },
+    );
+    const paragraphs = [...container.querySelectorAll("p")];
+    const before = paragraphs.find((p) => p.textContent === "Before")!.firstChild!;
+    const after = paragraphs.find((p) => p.textContent === "After")!.firstChild!;
+    const chip = button(/^Image attachment, shot\.png,/);
+    const range = document.createRange();
+    range.setStart(before, 0);
+    range.setEnd(after, 5);
+
+    const withoutChip = await copyRange(range);
+    expect(withoutChip.getData("text/plain")).toBe(`Before\n\n${source}\n\nAfter`);
+    expect(withoutChip.getData(COMPOSER_CONTEXT_CLIPBOARD_MIME)).toBe("");
+    expect(decodeComposerContextClipboardHtml(withoutChip.getData("text/html"))).toBeNull();
+
+    range.setEndAfter(chip);
+    const withChip = await copyRange(range);
+    expect(withChip.getData("text/plain")).toBe(`Before\n\n${source}\n\nAfter\n\n!${link}`);
+    expect(
+      decodeComposerContextFragment(withChip.getData(COMPOSER_CONTEXT_CLIPBOARD_MIME))?.records,
+    ).toEqual([record]);
+    expect(decodeComposerContextClipboardHtml(withChip.getData("text/html"))?.records).toEqual([
+      record,
+    ]);
+  });
 
   it("preserves XML-like tags and comparisons in user messages as text", async () => {
     const source = [
