@@ -1,16 +1,20 @@
 {
   "schema": 1,
-  "phase": "conflict",
+  "phase": "ready",
   "upstreamTag": "v0.1.1-nightly.20261019.3373",
-  "conflicts": [
-    "apps/web/src/components/ChatMarkdown.browser.test.tsx",
-    "apps/web/src/components/chat/ThreadDetailsPrRows.browser.test.tsx"
-  ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39326871584",
+  "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39331539080",
   "releasedVersion": "0.1.1-nightly.20261019.1792440272094",
-  "baseCommit": "4b6d1a61da75682a3f4a9df1c04d27dc8bb4159e",
-  "sequence": 1792444911955,
-  "conflictPullRequest": 18308,
+  "baseCommit": "5eff9516b8fec292fd996360f6f6fbe3f43b6eed",
+  "sequence": 1792447092622,
+  "waiting": {
+    "pullRequest": 18308,
+    "baseCommit": "284ce8fe2ff99076657707fd754e538403d88d76",
+    "paths": [
+      "apps/web/src/components/ChatMarkdown.browser.test.tsx",
+      "apps/web/src/components/chat/ThreadDetailsPrRows.browser.test.tsx"
+    ]
+  },
   "inputs": {
     "upstreamTag": "v0.1.1-nightly.20261019.3373",
     "pullRequests": [
