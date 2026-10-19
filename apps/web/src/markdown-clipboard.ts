@@ -375,24 +375,14 @@ export function chatMarkdownClipboardPayload(
     const ancestor = range.commonAncestorContainer;
     const ancestorElement =
       ancestor.nodeType === Node.ELEMENT_NODE ? (ancestor as Element) : ancestor.parentElement;
-    // A selection within a diagram copies its complete Mermaid source.
     const diagramSource = ancestorElement
       ?.closest("[data-markdown-mermaid]")
       ?.getAttribute("data-markdown-copy");
-    if (diagramSource) {
-      texts.push(diagramSource.trim());
-      htmls.push(sanitizedHtmlFrom(container));
-      continue;
-    }
-    if (ancestorElement?.closest("pre")) {
-      const text = range.toString();
-      if (text) {
-        texts.push(text);
-        htmls.push(sanitizedHtmlFrom(container));
-      }
-      continue;
-    }
-    const text = serializeRenderedMarkdownFragment(container);
+    const text =
+      diagramSource?.trim() ??
+      (ancestorElement?.closest("pre")
+        ? range.toString()
+        : serializeRenderedMarkdownFragment(container));
     if (!text) continue;
     texts.push(text);
     htmls.push(sanitizedHtmlFrom(container));
