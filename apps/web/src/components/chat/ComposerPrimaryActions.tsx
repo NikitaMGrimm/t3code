@@ -130,8 +130,11 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   const stageBackdropVariant = useSidebarStageBackdropVariant(
     environmentIdentificationMode === "artwork",
   );
-  const withLeadingActions = (action: ReactNode) => (
+  // Every branch returns this one fragment shape so React keeps the leading controls
+  // mounted when a branch changes, including when the Compact chip appears or goes away.
+  const withLeadingActions = (action: ReactNode, chip: ReactNode = null) => (
     <>
+      {chip}
       {leadingActions}
       {action}
     </>
@@ -370,39 +373,36 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
 
   // The chip's label changes width when toggled, so it leads the composer's right-aligned
   // actions: only its own left edge moves, and the actions beside the send button stay put.
-  return (
-    <>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <button
-              type="button"
-              className={cn(
-                "flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-xs tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-64 sm:h-8 [&_svg]:pointer-events-none [&_svg]:size-3.5",
-                keepFullHistory
-                  ? "border-border text-muted-foreground hover:text-foreground"
-                  : "border-warning/40 text-warning hover:bg-warning/8",
-              )}
-              {...pointerFocusProps}
-              aria-pressed={!keepFullHistory}
-              aria-label={`Compact ${compactTokens} tokens of history before sending`}
-              disabled={!canOperateThread}
-              onClick={onToggleKeepFullHistory}
-            />
-          }
-        >
-          <Minimize2Icon aria-hidden="true" />
-          {keepFullHistory ? "Full" : "Compact"}
-          <span>{compactTokens}</span>
-        </TooltipTrigger>
-        <TooltipPopup>
-          {keepFullHistory
-            ? `Next send keeps all ${compactTokens} tokens. Click to compact first`
-            : `Next send compacts ${compactTokens} tokens first. Click to keep full history`}
-        </TooltipPopup>
-      </Tooltip>
-      {leadingActions}
-      {submit}
-    </>
+  return withLeadingActions(
+    submit,
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            className={cn(
+              "flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-xs tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-64 sm:h-8 [&_svg]:pointer-events-none [&_svg]:size-3.5",
+              keepFullHistory
+                ? "border-border text-muted-foreground hover:text-foreground"
+                : "border-warning/40 text-warning hover:bg-warning/8",
+            )}
+            {...pointerFocusProps}
+            aria-pressed={!keepFullHistory}
+            aria-label={`Compact ${compactTokens} tokens of history before sending`}
+            disabled={!canOperateThread}
+            onClick={onToggleKeepFullHistory}
+          />
+        }
+      >
+        <Minimize2Icon aria-hidden="true" />
+        {keepFullHistory ? "Full" : "Compact"}
+        <span>{compactTokens}</span>
+      </TooltipTrigger>
+      <TooltipPopup>
+        {keepFullHistory
+          ? `Next send keeps all ${compactTokens} tokens. Click to compact first`
+          : `Next send compacts ${compactTokens} tokens first. Click to keep full history`}
+      </TooltipPopup>
+    </Tooltip>,
   );
 });
