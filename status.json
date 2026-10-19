@@ -3,10 +3,10 @@
   "phase": "ready",
   "upstreamTag": "v0.1.1-nightly.20261019.3373",
   "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39331539080",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39334000109",
   "releasedVersion": "0.1.1-nightly.20261019.1792440272094",
-  "baseCommit": "5eff9516b8fec292fd996360f6f6fbe3f43b6eed",
-  "sequence": 1792447092622,
+  "baseCommit": "b6938a664dc5e93792a8a5a967b26528e761cf26",
+  "sequence": 1792448315471,
   "waiting": {
     "pullRequest": 18308,
     "baseCommit": "284ce8fe2ff99076657707fd754e538403d88d76",
