@@ -1,6 +1,7 @@
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { userEvent } from "vite-plus/test/browser";
 
 vi.mock("~/hooks/useSettings", () => ({
   useEnvironmentIdentificationMode: () => "none",
@@ -14,11 +15,13 @@ import { ComposerPrimaryActions } from "./ComposerPrimaryActions";
 
 let root: Root;
 let container: HTMLDivElement;
+let tabStart: HTMLButtonElement;
 
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  tabStart = document.createElement("button");
   container = document.createElement("div");
-  document.body.append(container);
+  document.body.append(tabStart, container);
   root = createRoot(container);
 });
 
@@ -65,55 +68,51 @@ const pendingProps: Props = {
 const attach = <button type="button">Attach</button>;
 
 async function render(props: Props) {
-  await act(async () => root.render(<ComposerPrimaryActions {...props} />));
+  await act(async () => root.render(<ComposerPrimaryActions {...props} leadingActions={attach} />));
 }
 
-function focusOrder(): string[] {
-  return [...container.querySelectorAll<HTMLElement>("button")].map(
-    (button) => button.getAttribute("aria-label") ?? button.textContent?.trim() ?? "",
-  );
-}
-
-function expectBefore(order: string[], first: string, second: string) {
-  expect(order).toContain(first);
-  expect(order).toContain(second);
-  expect(order.indexOf(first)).toBeLessThan(order.indexOf(second));
+// Real Tab presses, so this checks focus order rather than DOM order.
+async function tabOrder(): Promise<string[]> {
+  const labels: string[] = [];
+  tabStart.focus();
+  for (const _ of container.querySelectorAll("button")) {
+    await act(() => userEvent.tab());
+    const focused = document.activeElement;
+    if (!(focused instanceof HTMLElement) || !container.contains(focused)) break;
+    labels.push(focused.getAttribute("aria-label") ?? focused.textContent?.trim() ?? "");
+  }
+  return labels;
 }
 
 describe("ComposerPrimaryActions", () => {
-  it("puts the Compact chip ahead of the leading actions in focus order", async () => {
-    await render({ ...sendProps, compactBeforeSendTokens: 169_000, leadingActions: attach });
+  it("keeps the Compact chip ahead of attach and send in both of its states", async () => {
+    const chip = "Compact 169k tokens of history before sending";
 
-    const order = focusOrder();
-    const chip = order.find((label) => label.includes("Compact 169k tokens"));
-    expect(chip).toBeDefined();
-    expectBefore(order, chip!, "Attach");
-    expectBefore(order, "Attach", "Compact and send");
+    await render({ ...sendProps, compactBeforeSendTokens: 169_000 });
+    expect(await tabOrder()).toEqual([chip, "Attach", "Compact and send"]);
+
+    await render({ ...sendProps, compactBeforeSendTokens: 169_000, keepFullHistory: true });
+    expect(await tabOrder()).toEqual([chip, "Attach", "Submit message"]);
   });
 
-  it("keeps the leading actions before every primary action", async () => {
-    const cases: Array<[Props, string]> = [
-      [{ ...sendProps, leadingActions: attach }, "Submit message"],
-      [{ ...pendingProps, leadingActions: attach }, "Submit"],
-      [{ ...sendProps, leadingActions: attach, showPlanFollowUpPrompt: true }, "Refine"],
+  it("keeps attach ahead of the primary action in every composer state", async () => {
+    const cases: Array<[Props, string[]]> = [
+      [sendProps, ["Attach", "Submit message"]],
+      [pendingProps, ["Attach", "Submit"]],
+      [{ ...sendProps, showPlanFollowUpPrompt: true }, ["Attach", "Refine"]],
       [
-        {
-          ...sendProps,
-          leadingActions: attach,
-          showPlanFollowUpPrompt: true,
-          promptHasText: false,
-        },
-        "Implement",
+        { ...sendProps, showPlanFollowUpPrompt: true, promptHasText: false },
+        ["Attach", "Implement", "Implementation actions"],
       ],
       [
-        { ...sendProps, leadingActions: attach, canInterrupt: true, hasSendableContent: false },
-        "Stop generation",
+        { ...sendProps, canInterrupt: true, hasSendableContent: false },
+        ["Attach", "Stop generation"],
       ],
     ];
 
-    for (const [props, primaryAction] of cases) {
+    for (const [props, expected] of cases) {
       await render(props);
-      expectBefore(focusOrder(), "Attach", primaryAction);
+      expect(await tabOrder()).toEqual(expected);
     }
   });
 });
