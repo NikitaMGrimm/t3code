@@ -68,10 +68,14 @@ function resolveCodeBlockLanguage(pre: Element): string | null {
   return declared && declared !== "text" ? declared : null;
 }
 
-function serializeCodeBlock(pre: Element): string {
-  const code = (pre.textContent ?? "").replace(/\n$/, "");
+export function serializeCodeBlockToMarkdown(source: string, language: string | null): string {
+  const code = source.replace(/\n$/, "");
   const fence = codeFenceFor(code);
-  return `${fence}${resolveCodeBlockLanguage(pre) ?? ""}\n${code}\n${fence}\n\n`;
+  return `${fence}${language ?? ""}\n${code}\n${fence}\n\n`;
+}
+
+function serializeCodeBlock(pre: Element): string {
+  return serializeCodeBlockToMarkdown(pre.textContent ?? "", resolveCodeBlockLanguage(pre));
 }
 
 function serializeTableCell(cell: Element): string {
@@ -377,6 +381,15 @@ export function chatMarkdownClipboardPayload(
       ?.getAttribute("data-markdown-copy");
     if (formula) {
       texts.push(formula.trim());
+      htmls.push(sanitizedHtmlFrom(container));
+      continue;
+    }
+    // A selection within a diagram copies its complete Mermaid source.
+    const diagramSource = ancestorElement
+      ?.closest("[data-markdown-mermaid]")
+      ?.getAttribute("data-markdown-copy");
+    if (diagramSource) {
+      texts.push(diagramSource.trim());
       htmls.push(sanitizedHtmlFrom(container));
       continue;
     }
