@@ -2,7 +2,7 @@
   "repository": "NikitaMGrimm/t3code",
   "branch": "personal-nightly",
   "upstreamRepository": "pingdotgg/t3code",
-  "upstreamTag": "v0.0.46-nightly.20261015.3176",
+  "upstreamTag": "v0.1.1-nightly.20261018.3335",
   "pullRequests": [
     {
       "number": 14574,
@@ -17,50 +17,14 @@
       "baseRepository": "pingdotgg/t3code"
     },
     {
-      "number": 15269,
-      "title": "fix(web): allow Working threads to be dragged into chat as references",
-      "headSha": "52edf3f78271a2121d407067d0078d7eb0441d84",
-      "baseSha": "ab3a3cd162d90fd9f01ac62efdb9d4ad55c33639",
-      "headRef": "fix/working-thread-references",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/15269",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 16198,
-      "title": "fix(web): show math labels in Mermaid diagrams",
-      "headSha": "22146b0958f6cc9735d64c96a173cdbaff3fd286",
-      "baseSha": "ec1313c8f8333292506f05a355bb72d308a455d8",
-      "headRef": "fix/mermaid-math",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/16198",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
       "number": 16249,
       "title": "fix(web): preserve Mermaid source when copying selected text",
-      "headSha": "85382ed96075b4f858637960d789634b13572bf6",
-      "baseSha": "ec1313c8f8333292506f05a355bb72d308a455d8",
+      "headSha": "da4b580bbdf61c721b6591ef33c4820c4a3f5e19",
+      "baseSha": "da7c4f234db35096af2c16d5e24c60dbe9495583",
       "headRef": "feat/mermaid-selection-copy",
       "baseRef": "main",
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/16249",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 16453,
-      "title": "fix(server): honor configured remote diff bases",
-      "headSha": "2f4f6a60b7c6b8bfb135edbf5bd66a21060a060b",
-      "baseSha": "ec1313c8f8333292506f05a355bb72d308a455d8",
-      "headRef": "fix/remote-diff-base",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/16453",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     },
@@ -91,8 +55,8 @@
     {
       "number": 17892,
       "title": "fix(web): attach button no longer shifts when the Compact chip toggles",
-      "headSha": "ac5376b0c7b3494ed93d27894460bfe7a2b2ac80",
-      "baseSha": "ec1313c8f8333292506f05a355bb72d308a455d8",
+      "headSha": "ea4a7d0527e627f9f7f1c72aaf48f244084e1998",
+      "baseSha": "b827ca48d728484cd2090d6da6f6477e5ca35386",
       "headRef": "fix/composer-compact-chip-order",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -103,8 +67,8 @@
     {
       "number": 18308,
       "title": "fix(web): render completed Mermaid blocks while streaming",
-      "headSha": "4b20037e43448225e0105de81c52151a680d295e",
-      "baseSha": "ac2cc78d4a4aa9508acb65ad5e9dab319dd1962a",
+      "headSha": "6ad2e0c045524bcfe3a7259a7debea5290e187a1",
+      "baseSha": "da7c4f234db35096af2c16d5e24c60dbe9495583",
       "headRef": "resubmit/mermaid-streaming",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -113,22 +77,10 @@
       "baseRepository": "pingdotgg/t3code"
     },
     {
-      "number": 18309,
-      "title": "fix(server): keep workspace skills when provider health fails",
-      "headSha": "fb900da24b7f72fa602bbc62d0a44bdc4ae6d7a5",
-      "baseSha": "ac2cc78d4a4aa9508acb65ad5e9dab319dd1962a",
-      "headRef": "resubmit/codex-skill-health",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/18309",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
       "number": 18310,
       "title": "fix(composer): don't send attached threads to a machine that can't read them",
-      "headSha": "dcdc52ec43bef41bc4a01f09c9c6c48f7bd52bfc",
-      "baseSha": "3ff452bd65adf758e68b886d1e3778ae1ec7d970",
+      "headSha": "41b50c2ae125014ba3515dcbe39916ef8d18b0e3",
+      "baseSha": "4a5dade3b4915cdfd25729d2c24d5751a282ef7e",
       "headRef": "resubmit/reference-machine-selection",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -139,8 +91,8 @@
     {
       "number": 18322,
       "title": "fix(mobile): don't send or paste attached threads a machine can't read",
-      "headSha": "b241e2ae6406c3a27b1cae0aea7067e46d790d76",
-      "baseSha": "3ff452bd65adf758e68b886d1e3778ae1ec7d970",
+      "headSha": "c19def9d301435bb9792608c740ee229d8fa6cc4",
+      "baseSha": "d8e9fd267e26b7680f035edc0b40db09d2685dbb",
       "headRef": "resubmit/reference-machine-selection-mobile",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -161,54 +113,6 @@
       "baseRepository": "pingdotgg/t3code"
     },
     {
-      "number": 19044,
-      "title": "fix(web): stacked composer notices keep their right border",
-      "headSha": "6584d98cba8fc1b89b4aae0ae1b44a30c7535dba",
-      "baseSha": "6524a8d43795dc543f7cfb572388cdea3662ad48",
-      "headRef": "fix/stacked-notice-border-clip",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/19044",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 19671,
-      "title": "fix(composer): paths such as /tmp/build.sh no longer open the slash menu",
-      "headSha": "b99dd76ada68bfb796715f1776772eee44802ccb",
-      "baseSha": "40a7908df54d5069c93835032c9e955b56b55f1d",
-      "headRef": "fix/slash-menu-paths-literal",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/19671",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 19674,
-      "title": "fix(opencode): a failed command lookup no longer wipes a workspace's commands",
-      "headSha": "960bc73d7a54e3a1b7fd63068e06e5749d1360a2",
-      "baseSha": "742c229957b69a0cc5a1379dff6c66b595854057",
-      "headRef": "fix/opencode-commands-pending-on-failed-lookup",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/19674",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 19737,
-      "title": "fix(server): reject unresolved explicit preview tabs",
-      "headSha": "ff921228b5a63dd05a28d59fc992fbb8efb59309",
-      "baseSha": "cfafb4bb54d244e4612f5681aad3832ea64cb0fb",
-      "headRef": "fix/preview-explicit-tab-target",
-      "baseRef": "main",
-      "author": "aravhawk",
-      "url": "https://github.com/pingdotgg/t3code/pull/19737",
-      "headRepository": "aravhawk/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
       "number": 19919,
       "title": "fix(web): agent tabs in background threads open in the desktop browser",
       "headSha": "a357bf832b381aad01b245ab3b9ade0444cdda45",
@@ -221,5 +125,5 @@
       "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "234db55a886f9bdade8d3a8f4f22155bfcbe919a"
+  "prBaseline": "07031801024a91e30b94d06a50ea7ebdb4e301d7"
 }
