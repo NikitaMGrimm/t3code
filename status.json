@@ -6,10 +6,10 @@
     "apps/web/src/components/ChatMarkdown.browser.test.tsx",
     "apps/web/src/components/chat/ThreadDetailsPrRows.browser.test.tsx"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39324026506",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39326871584",
   "releasedVersion": "0.1.1-nightly.20261019.1792440272094",
   "baseCommit": "4b6d1a61da75682a3f4a9df1c04d27dc8bb4159e",
-  "sequence": 1792443638437,
+  "sequence": 1792444911955,
   "conflictPullRequest": 18308,
   "inputs": {
     "upstreamTag": "v0.1.1-nightly.20261019.3373",
@@ -46,7 +46,7 @@
       },
       {
         "number": 18310,
-        "headSha": "12a189e2ad392e4203308dd313395081078256d0",
+        "headSha": "0475aa6e4321734c6511771d35c5f491a05ca99f",
         "baseRef": "main"
       },
       {
@@ -153,8 +153,8 @@
     {
       "number": 18310,
       "title": "fix(composer): don't send attached threads to a machine that can't read them",
-      "headSha": "12a189e2ad392e4203308dd313395081078256d0",
-      "baseSha": "ab6be13d438abeace7617e8d789d59cf2e880f42",
+      "headSha": "0475aa6e4321734c6511771d35c5f491a05ca99f",
+      "baseSha": "f0fb0e8525fca72f0259c7b44a2b15aafde52a31",
       "headRef": "resubmit/reference-machine-selection",
       "baseRef": "main",
       "author": "NikitaMGrimm",
