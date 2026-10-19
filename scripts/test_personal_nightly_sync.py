@@ -51,6 +51,14 @@ class PrSynchronizationTests(unittest.TestCase):
         return {"number": number, "title": f"Fix {number}", "headSha": head, "baseSha": base,
                 "baseRef": base_ref, "headRef": f"pr-{number}"}
 
+    def unreleased_upstream(self, files):
+        nightly.git("checkout", "upstream", cwd=self.repo)
+        for name, text in files.items():
+            (self.repo / name).write_text(text)
+        newer = self.commit("unreleased upstream")
+        nightly.git("checkout", "personal-nightly", cwd=self.repo)
+        return newer
+
     def prepare(self, pulls, releases=(), resolutions=None):
         return nightly.prepare(self.repo, self.tag, "123", releases, pulls, resolutions)
 
@@ -542,6 +550,138 @@ class PrSynchronizationTests(unittest.TestCase):
         owned = dict(tooling_pull(tooling), author="nikitamgrimm")
         self.assertEqual(self.prepare([owned])["phase"], "building")
         self.assertEqual((self.repo / "scripts" / "personal-nightly.py").read_text(), "pass\n")
+
+    def test_pr_needing_unreleased_upstream_changes_waits_until_the_official_nightly_has_them(self):
+        newer = self.unreleased_upstream({"shared.txt": "unreleased upstream\n"})
+        pull = self.pull(1, {"shared.txt": "PR on unreleased upstream\n"})
+        before = self.head()
+        status = self.prepare([pull])
+        self.assertEqual(status["phase"], "waiting")
+        self.assertEqual(status["waiting"], {"pullRequest": 1, "baseCommit": newer, "paths": ["shared.txt"]})
+        self.assertNotIn("candidateCommit", status)
+        self.assertNotIn("candidateVersion", status)
+        self.assertEqual(self.head(), before)
+        self.assertEqual((self.repo / "shared.txt").read_text(), "base\n")
+        self.assertEqual(nightly.git("status", "--porcelain", cwd=self.repo).stdout, "")
+        self.tag = "v0.0.46-nightly.20261013.2"
+        nightly.git("tag", self.tag, newer, cwd=self.repo)
+        self.assertEqual(self.prepare([pull])["phase"], "building")
+        self.assertEqual((self.repo / "shared.txt").read_text(), "PR on unreleased upstream\n")
+        self.assertEqual((self.repo / "personal.txt").read_text(), "my independent fix\n")
+
+    def assert_actionable_conflict(self, pulls, conflicts=("shared.txt",)):
+        before = self.head()
+        status = self.prepare(pulls)
+        self.assertEqual(status["phase"], "conflict")
+        self.assertEqual(status["conflicts"], list(conflicts))
+        self.assertNotIn("waiting", status)
+        self.assertEqual(self.head(), before)
+
+    def test_unreleased_base_does_not_hide_a_conflict_with_an_earlier_import(self):
+        first = self.pull(1, {"shared.txt": "first PR\n"})
+        self.unreleased_upstream({"shared.txt": "unreleased upstream\n"})
+        second = self.pull(2, {"shared.txt": "PR on unreleased upstream\n"})
+        self.assert_actionable_conflict([first, second])
+
+    def test_unreleased_base_does_not_hide_a_later_import_of_the_same_file(self):
+        self.unreleased_upstream({"shared.txt": "unreleased upstream\n"})
+        waiting = self.pull(1, {"shared.txt": "PR on unreleased upstream\n"})
+        later = self.pull(2, {"shared.txt": "later PR\n"}, from_ref=self.tag)
+        self.assert_actionable_conflict([waiting, later])
+
+    def test_unreleased_base_does_not_hide_a_later_import_renaming_the_file(self):
+        self.unreleased_upstream({"shared.txt": "unreleased upstream\n"})
+        waiting = self.pull(1, {"shared.txt": "PR on unreleased upstream\n"})
+        nightly.git("checkout", "-B", "pr-2", self.tag, cwd=self.repo)
+        nightly.git("mv", "shared.txt", "moved.txt", cwd=self.repo)
+        renamed = {"number": 2, "title": "Fix 2", "headSha": self.commit("PR 2 renames shared.txt"),
+                   "baseSha": nightly.git("rev-parse", self.tag, cwd=self.repo).stdout.strip(),
+                   "baseRef": "main", "headRef": "pr-2"}
+        nightly.git("checkout", "personal-nightly", cwd=self.repo)
+        self.assert_actionable_conflict([waiting, renamed])
+
+    def test_unreleased_base_does_not_hide_a_personal_change_to_the_file(self):
+        self.unreleased_upstream({"shared.txt": "unreleased upstream\n"})
+        waiting = self.pull(1, {"shared.txt": "PR on unreleased upstream\n"})
+        (self.repo / "shared.txt").write_text("personal change\n")
+        self.commit("personal shared fix")
+        self.assert_actionable_conflict([waiting])
+
+    def test_unreleased_base_does_not_hide_an_earlier_import_conflicting_with_newer_upstream(self):
+        earlier = self.pull(1, {"other.txt": "earlier PR\n"})
+        self.unreleased_upstream({"shared.txt": "unreleased upstream\n", "other.txt": "unreleased other\n"})
+        waiting = self.pull(2, {"shared.txt": "PR on unreleased upstream\n"})
+        self.assert_actionable_conflict([earlier, waiting])
+
+    def test_unreleased_base_does_not_hide_a_conflict_the_import_stop_never_reached(self):
+        self.unreleased_upstream({"shared.txt": "unreleased upstream\n"})
+        waiting = self.pull(1, {"shared.txt": "PR on unreleased upstream\n", "other.txt": "waiting PR\n"})
+        later = self.pull(2, {"other.txt": "later PR\n"}, from_ref=self.tag)
+        self.assert_actionable_conflict([waiting, later])
+
+    def test_stacked_retargeted_and_tooling_prs_on_unreleased_bases_stay_actionable(self):
+        self.unreleased_upstream({"shared.txt": "unreleased upstream\n"})
+        parent = self.pull(20, {"parent.txt": "parent\n"})
+        child = self.pull(10, {"shared.txt": "child on unreleased upstream\n"}, "pr-20", "pr-20")
+        self.assert_actionable_conflict([parent, child])
+        retargeted = self.pull(1, {"shared.txt": "PR on unreleased upstream\n"}, base_ref="release")
+        self.assert_actionable_conflict([retargeted])
+        (self.repo / ".github").mkdir(exist_ok=True)
+        tooling = dict(self.pull(2, {"shared.txt": "PR on unreleased upstream\n", ".github/x.yml": "on: push\n"}),
+                       author="someone-else")
+        self.assert_actionable_conflict([tooling], [".github/x.yml"])
+
+    def test_waiting_keeps_the_release_without_a_candidate_and_retries_with_a_new_nightly(self):
+        self.remote()
+        version = self.tag.removeprefix("v")
+        nightly.write_status(self.repo, {"phase": "ready", "releasedVersion": version, "sequence": 1})
+        newer = self.unreleased_upstream({"shared.txt": "unreleased upstream\n"})
+        pull = self.pull(1, {"shared.txt": "PR on unreleased upstream\n"})
+        before = self.head()
+        status, _ = self.run_prepare([pull], 100, forced=True)
+        self.assertEqual(status["phase"], "waiting")
+        self.assertIn("phase=waiting\n", (Path(self.temp.name) / "output").read_text())
+        heads = nightly.git("ls-remote", "--heads", "origin", cwd=self.repo).stdout
+        self.assertEqual(sorted(line.split("\t")[1] for line in heads.splitlines()),
+                         ["refs/heads/personal-nightly", "refs/heads/personal-update-status"])
+        saved = nightly.read_state(self.repo, "status.json")
+        self.assertEqual(saved["phase"], "ready")
+        self.assertEqual(saved["releasedVersion"], version)
+        self.assertEqual(saved["conflicts"], [])
+        self.assertEqual(saved["waiting"], {"pullRequest": 1, "baseCommit": newer, "paths": ["shared.txt"]})
+        self.assertEqual(self.head(), before)
+        suppressed, fetch = self.run_prepare([pull], 200)
+        self.assertEqual(suppressed["phase"], "debouncing")
+        fetch.assert_not_called()
+        self.tag = "v0.0.46-nightly.20261013.2"
+        nightly.git("tag", self.tag, newer, cwd=self.repo)
+        observed, _ = self.run_prepare([pull], 300)
+        self.assertEqual(observed["phase"], "debouncing")
+        built, fetch = self.run_prepare([pull], 420)
+        fetch.assert_called_once()
+        self.assertEqual(built["phase"], "building")
+        self.assertEqual((self.repo / "shared.txt").read_text(), "PR on unreleased upstream\n")
+
+    def test_first_waiting_build_does_not_advertise_a_release(self):
+        self.remote()
+        self.unreleased_upstream({"shared.txt": "unreleased upstream\n"})
+        pull = self.pull(1, {"shared.txt": "PR on unreleased upstream\n"})
+        self.run_prepare([pull], 100, forced=True)
+        saved = nightly.read_state(self.repo, "status.json")
+        self.assertEqual(saved["phase"], "building")
+        self.assertIsNone(saved["releasedVersion"])
+        self.assertEqual(saved["waiting"]["pullRequest"], 1)
+
+    def test_conflict_identity_ignores_unrelated_prs_and_follows_the_conflicting_change(self):
+        unrelated = self.pull(1, {"other.txt": "unrelated\n"})
+        first = self.pull(2, {"shared.txt": "first PR\n"})
+        second = self.pull(3, {"shared.txt": "conflicting third PR\n"})
+        identity = self.prepare([unrelated, first, second])["conflictIdentity"]
+        self.assertRegex(identity, r"^[0-9a-f]{64}$")
+        updated = self.pull(1, {"other.txt": "updated unrelated\n"})
+        self.assertEqual(self.prepare([updated, first, second])["conflictIdentity"], identity)
+        changed = self.pull(3, {"shared.txt": "another conflicting edit\n"})
+        self.assertNotEqual(self.prepare([updated, first, changed])["conflictIdentity"], identity)
 
     def test_recording_a_resolution_retries_a_conflict_without_other_changes(self):
         self.remote()

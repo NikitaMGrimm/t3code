@@ -40,6 +40,38 @@ describe("personal nightly status", () => {
       decodePersonalUpdateStatus({ ...status, releasedVersion: null }).releasedVersion,
     ).toBeNull();
   });
+  it("quietly waits for an official nightly while keeping the current release", () => {
+    const waiting = {
+      pullRequest: 18308,
+      baseCommit: "284ce8fe2ff99076657707fd754e538403d88d76",
+      paths: ["apps/web/src/components/ChatMarkdown.browser.test.tsx"],
+    };
+    for (const phase of ["ready", "building"]) {
+      const decoded = decodePersonalUpdateStatus({ ...status, phase, conflicts: [], waiting });
+      expect(decoded.waiting).toEqual(waiting);
+      expect(personalUpdateMessage(decoded)).toBe(
+        "Waiting for an official nightly with the upstream changes #18308 needs. Your current build is kept.",
+      );
+    }
+    expect(decodePersonalUpdateStatus(status).waiting).toBeUndefined();
+    for (const invalid of [
+      { ...waiting, baseCommit: "main" },
+      { ...waiting, pullRequest: 0 },
+      { ...waiting, paths: [] },
+    ]) {
+      expect(() =>
+        decodePersonalUpdateStatus({ ...status, phase: "ready", conflicts: [], waiting: invalid }),
+      ).toThrow();
+    }
+    expect(() => decodePersonalUpdateStatus({ ...status, waiting })).toThrow();
+  });
+  it("carries a stable conflict identity and accepts feeds without one", () => {
+    const conflictIdentity = "a".repeat(64);
+    expect(decodePersonalUpdateStatus({ ...status, conflictIdentity }).conflictIdentity).toBe(
+      conflictIdentity,
+    );
+    expect(decodePersonalUpdateStatus(status).conflictIdentity).toBeUndefined();
+  });
   it("preserves the producer's attempt sequence and accepts older feeds without it", () => {
     expect(decodePersonalUpdateStatus({ ...status, sequence: 1791417149067 }).sequence).toBe(
       1791417149067,
