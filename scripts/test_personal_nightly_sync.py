@@ -464,6 +464,32 @@ class PrSynchronizationTests(unittest.TestCase):
         changed = self.pull(2, {"shared.txt": "different change\n"})
         self.assertEqual(self.prepare([first, changed], resolutions=resolutions)["phase"], "conflict")
 
+    def test_a_reviewed_upstream_deletion_survives_a_pr_that_still_modifies_the_file(self):
+        nightly.git("checkout", "upstream", cwd=self.repo)
+        (self.repo / "old.test.txt").write_text("old test\n")
+        self.commit("upstream adds a test")
+        self.tag = "v0.0.46-nightly.20261013.2"
+        nightly.git("tag", self.tag, cwd=self.repo)
+        nightly.git("checkout", "personal-nightly", cwd=self.repo)
+        pull = self.pull(1, {"old.test.txt": "PR test\n", "pr.txt": "PR fix\n"})
+        self.assertEqual(self.prepare([pull])["phase"], "building")
+        nightly.git("checkout", "upstream", cwd=self.repo)
+        nightly.git("rm", "old.test.txt", cwd=self.repo)
+        self.commit("upstream moves the test")
+        self.tag = "v0.0.46-nightly.20261014.3"
+        nightly.git("tag", self.tag, cwd=self.repo)
+        nightly.git("checkout", "personal-nightly", cwd=self.repo)
+        # The first time, deleting a file the PR modifies needs a person.
+        self.assertEqual(self.prepare([pull])["conflicts"], ["old.test.txt"])
+        nightly.git("rm", "old.test.txt", cwd=self.repo)
+        self.commit("keep the upstream deletion")
+        self.assertEqual(self.prepare([pull])["phase"], "building")
+        self.assertFalse((self.repo / "old.test.txt").exists())
+        self.assertEqual((self.repo / "pr.txt").read_text(), "PR fix\n")
+        # A PR the last candidate did not include has not had that review.
+        other = self.pull(2, {"old.test.txt": "other test\n"}, from_ref=self.tag + "~1")
+        self.assertEqual(self.prepare([pull, other])["conflicts"], ["old.test.txt"])
+
     def test_only_the_owner_can_change_release_tooling_through_a_pr(self):
         def tooling_pull(files):
             for directory in (".github/workflows", "scripts"):

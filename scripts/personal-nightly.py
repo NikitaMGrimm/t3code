@@ -270,7 +270,7 @@ def release_tooling_changes(repo, config, pull):
     return [path for path in changed.split("\0") if RELEASE_TOOLING.match(path)]
 
 
-def merge_delta(repo, base, head):
+def merge_delta(repo, base, head, keep_deleted=lambda path: False):
     """Give ort an explicit merge base without importing a PR's upstream history."""
     current_tree = git("rev-parse", "HEAD^{tree}", cwd=repo).stdout.strip()
     incoming_tree = git("rev-parse", f"{head}^{{tree}}", cwd=repo).stdout.strip()
@@ -283,7 +283,16 @@ def merge_delta(repo, base, head):
     conflicts = git("diff", "--name-only", "--diff-filter=U", cwd=repo).stdout.splitlines()
     if result.returncode and not conflicts and not (Path(repo) / ".git" / "MERGE_HEAD").exists():
         raise RuntimeError("The PR merge failed without file conflicts: " + result.stderr)
-    return conflicts
+    # rerere cannot record keeping a file upstream deleted and the PR still modifies.
+    kept = [path for path in conflicts if deleted_here(repo, path) and keep_deleted(path)]
+    if kept:
+        git("rm", "--quiet", "--", *kept, cwd=repo)
+    return [path for path in conflicts if path not in kept]
+
+
+def deleted_here(repo, path):
+    entries = git("ls-files", "--unmerged", "-z", "--", path, cwd=repo).stdout.split("\0")
+    return {entry.split("\t")[0].split()[2] for entry in entries if entry} == {"1", "3"}
 
 
 def assemble(repo, tag, config, pulls, resolutions):
@@ -305,10 +314,17 @@ def assemble(repo, tag, config, pulls, resolutions):
             cache.mkdir(parents=True)
             for name, content in files.items():
                 (cache / name).write_text(content)
+        included = {pull["number"] for pull in config.get("pullRequests", [])}
         for pull in ordered_pull_requests(pulls):
             previous = git("rev-parse", "HEAD", cwd=checkout).stdout.strip()
+
+            # The last candidate, which already included this PR, dropped the file.
+            def reviewed_deletion(path, pull=pull):
+                return pull["number"] in included and git(
+                    "cat-file", "-e", f"{original}:{path}", cwd=checkout, check=False).returncode != 0
+
             conflicts = (release_tooling_changes(checkout, config, pull)
-                         or merge_delta(checkout, pull["baseSha"], pull["headSha"]))
+                         or merge_delta(checkout, pull["baseSha"], pull["headSha"], reviewed_deletion))
             if conflicts:
                 return {"conflicts": conflicts, "conflictPullRequest": pull["number"]}
             tree = git("write-tree", cwd=checkout).stdout.strip()
