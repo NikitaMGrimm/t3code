@@ -1,7 +1,7 @@
 import { useIsFocused } from "@react-navigation/native";
 import { useEvent } from "expo";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { AppState, Pressable, View } from "react-native";
 
 import { AppActivityIndicator } from "./ui/AppActivityIndicator";
@@ -133,10 +133,11 @@ function MediaVideoPlayerContent(props: MediaVideoPlayerProps) {
   const [videoSize, setVideoSize] = useState<{ width: number; height: number } | null>(null);
   const [bounds, setBounds] = useState<{ width: number; height: number } | null>(null);
   const sizeSource = props.fitToVideo && videoSize === null ? props.uri : null;
-  useEffect(() => {
+  // Layout effect so this request queues ahead of the poster's passive one. Otherwise tapping Play
+  // unmounts the poster, aborts the extraction it started, and this load begins again from scratch.
+  useLayoutEffect(() => {
     if (sizeSource === null) return;
-    // Thumbnails are oriented like the displayed frame, unlike VideoTrack.size. Loading here rather
-    // than from the thumbnail image keeps working after Play unmounts it; the shared cache dedupes.
+    // Thumbnails are oriented like the displayed frame, unlike VideoTrack.size.
     const controller = new AbortController();
     void loadVideoThumbnail(
       props.thumbnailKey,
