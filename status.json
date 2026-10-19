@@ -1,15 +1,14 @@
 {
   "schema": 1,
-  "phase": "conflict",
+  "phase": "building",
   "upstreamTag": "v0.1.1-nightly.20261019.3373",
-  "conflicts": [
-    "pnpm-lock.yaml"
-  ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39306908996",
+  "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39313648882",
   "releasedVersion": "0.1.1-nightly.20261019.1792372646843",
-  "baseCommit": "6a74bd25cd8183a8a916bcbb24d08a4730dddbe9",
-  "sequence": 1792436261554,
-  "conflictPullRequest": 14574,
+  "baseCommit": "0e22500776aada999d949c2ce5e3ff1a6ecdf51e",
+  "sequence": 1792439143380,
+  "candidateCommit": "18cf2acc3eab27d54095fa6775b74f76855c7485",
+  "candidateVersion": "0.1.1-nightly.20261019.1792439143380",
   "inputs": {
     "upstreamTag": "v0.1.1-nightly.20261019.3373",
     "pullRequests": [
@@ -69,7 +68,7 @@
         "baseRef": "main"
       }
     ],
-    "resolutions": "f38a7235d4e3b2617cbb8e727c9b20a21953f634c68244e3702210fc5c2d21f5"
+    "resolutions": "3467868597b083887b0b801d594edaa0ddaec3e0f5c6d51166f9db45d89b399c"
   },
   "pullRequests": [
     {
