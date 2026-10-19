@@ -6,6 +6,13 @@ export const PERSONAL_RELEASE_REPOSITORY = personalNightly.repository;
 export const PERSONAL_UPDATE_STATUS_URL = `https://raw.githubusercontent.com/${PERSONAL_RELEASE_REPOSITORY}/personal-update-status/status.json`;
 const NightlyVersion = Schema.String.check(Schema.isPattern(/^\d+\.\d+\.\d+-nightly\.\d{8}\.\d+$/));
 
+// An imported PR needs upstream files that the official nightly does not have yet.
+const PersonalUpdateWait = Schema.Struct({
+  pullRequest: Schema.Int.check(Schema.isGreaterThan(0)),
+  baseCommit: Schema.String.check(Schema.isPattern(/^[0-9a-f]{40}$/)),
+  paths: Schema.Array(Schema.String).check(Schema.isMinLength(1)),
+});
+
 export const PersonalUpdateStatus = Schema.Struct({
   schema: Schema.Literal(1),
   sequence: Schema.optional(Schema.Int),
@@ -19,7 +26,14 @@ export const PersonalUpdateStatus = Schema.Struct({
     ),
   ),
   releasedVersion: Schema.NullOr(NightlyVersion),
-});
+  conflictIdentity: Schema.optional(Schema.String),
+  waiting: Schema.optional(PersonalUpdateWait),
+}).check(
+  Schema.makeFilter(
+    (status) =>
+      status.waiting === undefined || status.phase === "ready" || status.phase === "building",
+  ),
+);
 export type PersonalUpdateStatus = typeof PersonalUpdateStatus.Type;
 export const decodePersonalUpdateStatus = Schema.decodeUnknownSync(PersonalUpdateStatus);
 
@@ -34,6 +48,9 @@ export function newerPersonalRelease(
 }
 
 export function personalUpdateMessage(status: PersonalUpdateStatus): string {
+  if (status.waiting) {
+    return `Waiting for an official nightly with the upstream changes #${status.waiting.pullRequest} needs. Your current build is kept.`;
+  }
   switch (status.phase) {
     case "conflict":
       return `Nightly update has merge conflicts: ${status.conflicts.join(", ")}. Your current build is kept.`;

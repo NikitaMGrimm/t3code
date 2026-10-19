@@ -49,7 +49,8 @@ class PrSynchronizationTests(unittest.TestCase):
         head = self.commit(f"PR {number}")
         nightly.git("checkout", "personal-nightly", cwd=self.repo)
         return {"number": number, "title": f"Fix {number}", "headSha": head, "baseSha": base,
-                "baseRef": base_ref, "headRef": f"pr-{number}"}
+                "baseRef": base_ref, "headRef": f"pr-{number}",
+                "headRepository": "pingdotgg/t3code", "baseRepository": "pingdotgg/t3code"}
 
     def unreleased_upstream(self, files):
         nightly.git("checkout", "upstream", cwd=self.repo)
@@ -594,9 +595,8 @@ class PrSynchronizationTests(unittest.TestCase):
         waiting = self.pull(1, {"shared.txt": "PR on unreleased upstream\n"})
         nightly.git("checkout", "-B", "pr-2", self.tag, cwd=self.repo)
         nightly.git("mv", "shared.txt", "moved.txt", cwd=self.repo)
-        renamed = {"number": 2, "title": "Fix 2", "headSha": self.commit("PR 2 renames shared.txt"),
-                   "baseSha": nightly.git("rev-parse", self.tag, cwd=self.repo).stdout.strip(),
-                   "baseRef": "main", "headRef": "pr-2"}
+        renamed = dict(waiting, number=2, headRef="pr-2", headSha=self.commit("PR 2 renames shared.txt"),
+                       baseSha=nightly.git("rev-parse", self.tag, cwd=self.repo).stdout.strip())
         nightly.git("checkout", "personal-nightly", cwd=self.repo)
         self.assert_actionable_conflict([waiting, renamed])
 
@@ -626,6 +626,7 @@ class PrSynchronizationTests(unittest.TestCase):
         self.assert_actionable_conflict([parent, child])
         retargeted = self.pull(1, {"shared.txt": "PR on unreleased upstream\n"}, base_ref="release")
         self.assert_actionable_conflict([retargeted])
+        self.assert_actionable_conflict([dict(retargeted, baseRef="main", baseRepository="someone/t3code")])
         (self.repo / ".github").mkdir(exist_ok=True)
         tooling = dict(self.pull(2, {"shared.txt": "PR on unreleased upstream\n", ".github/x.yml": "on: push\n"}),
                        author="someone-else")

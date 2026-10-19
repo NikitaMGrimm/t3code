@@ -13,10 +13,13 @@ export function PersonalUpdateNotification() {
     if (!status) return;
     if (status.phase !== "conflict" && status.phase !== "failed") {
       if (notice.current) toastManager.close(notice.current.id);
+      // Waiting or a release ends the episode; building the same attempt does not.
+      if (status.waiting || status.phase === "ready") notice.current = null;
       return;
     }
-    const attempt = `${status.runUrl}:${status.sequence ?? status.phase}`;
-    // Polling and Strict Mode must not reopen a dismissed notice for the same attempt.
+    const attempt =
+      status.conflictIdentity ?? `${status.runUrl}:${status.sequence ?? status.phase}`;
+    // Polling, Strict Mode, and unrelated PR changes must not reopen a dismissed notice.
     if (notice.current?.attempt === attempt) return;
     if (notice.current) toastManager.close(notice.current.id);
     const id = toastManager.add({

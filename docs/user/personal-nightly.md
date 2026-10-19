@@ -65,9 +65,11 @@ such a PR stops the build like a conflict until its author drops those changes
 or you remove it.
 
 When an owner pushes a conflict fix, the next eligible check retries their new
-head with the normal debounce and cooldown. Conflicts with another included PR,
-your personal fixes, or changes not yet present in the official nightly still
-need reconciliation. The last published release remains available meanwhile.
+head with the normal debounce and cooldown. Conflicts with another included PR or
+your personal fixes still need reconciliation. When a PR only needs upstream
+changes that the official nightly does not have yet, the update waits quietly and
+retries with the next official nightly. The last published release remains
+available meanwhile.
 When the official nightly deletes a file that an included PR still changes,
 remove it from `personal-nightly` and port the change as a personal fix; later
 builds keep that file deleted for the PR.

@@ -297,7 +297,7 @@ jobs:
 
   status:
     needs: [prepare, bundle, desktop, verify, publish]
-    if: always() && github.repository == 'NikitaMGrimm/t3code' && needs.prepare.outputs.phase != 'conflict' && needs.prepare.outputs.phase != 'unchanged' && needs.prepare.outputs.phase != 'debouncing'
+    if: always() && github.repository == 'NikitaMGrimm/t3code' && needs.prepare.outputs.phase != 'conflict' && needs.prepare.outputs.phase != 'waiting' && needs.prepare.outputs.phase != 'unchanged' && needs.prepare.outputs.phase != 'debouncing'
     runs-on: ubuntu-24.04
     permissions:
       contents: write

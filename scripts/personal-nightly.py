@@ -2,6 +2,7 @@
 """Prepare a nightly merge without advancing the last working personal branch."""
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -58,6 +59,9 @@ def write_state(repo, name, state):
             return
         if name == "status.json" and state["phase"] != "ready":
             state["releasedVersion"] = previous.get("releasedVersion")
+        if name == "status.json" and state["phase"] == "waiting":
+            # Installed clients know only these phases; the optional marker carries the wait.
+            state = {**state, "phase": "ready" if state["releasedVersion"] else "building"}
         (checkout / name).write_text(json.dumps(state, indent=2) + "\n")
         git("add", name, cwd=checkout)
         if git("diff", "--cached", "--quiet", cwd=checkout, check=False).returncode:
@@ -301,18 +305,15 @@ def deleted_here(repo, path):
     return {entry.split("\t")[0].split()[2] for entry in entries if entry} == {"1", "3"}
 
 
-def assemble(repo, tag, config, pulls, resolutions):
-    """Replace the PR baseline, then merge the personal-only delta onto it."""
-    if git("status", "--porcelain", cwd=repo).stdout:
-        raise ValueError("PR synchronization requires a clean checkout")
-    original = git("rev-parse", "HEAD", cwd=repo).stdout.strip()
-    upstream = git("rev-parse", f"{tag}^{{commit}}", cwd=repo).stdout.strip()
+@contextlib.contextmanager
+def assembly_checkout(repo, start, resolutions):
+    """A disposable clone with the recorded resolutions; nothing leaves it unless fetched back."""
     with tempfile.TemporaryDirectory(prefix="t3-nightly-assembly-") as directory:
         checkout = Path(directory) / "checkout"
         git("clone", "--shared", "--no-checkout", "--no-tags", str(repo), str(checkout))
         git("config", "user.name", "personal-nightly", cwd=checkout)
         git("config", "user.email", "personal-nightly@users.noreply.github.com", cwd=checkout)
-        git("checkout", "--detach", upstream, cwd=checkout)
+        git("checkout", "--detach", start, cwd=checkout)
         for key, files in resolutions.items():
             if not re.fullmatch(r"[0-9a-f]{40}", key) or set(files) != {"preimage", "postimage"}:
                 raise ValueError("Invalid recorded Git conflict resolution")
@@ -320,27 +321,119 @@ def assemble(repo, tag, config, pulls, resolutions):
             cache.mkdir(parents=True)
             for name, content in files.items():
                 (cache / name).write_text(content)
-        included = {pull["number"] for pull in config.get("pullRequests", [])}
-        for pull in ordered_pull_requests(pulls):
-            previous = git("rev-parse", "HEAD", cwd=checkout).stdout.strip()
+        yield checkout
 
-            # The last candidate, which already included this PR, dropped the file.
-            def reviewed_deletion(path, pull=pull):
-                return pull["number"] in included and git(
-                    "cat-file", "-e", f"{original}:{path}", cwd=checkout, check=False).returncode != 0
 
-            conflicts = (release_tooling_changes(checkout, config, pull)
-                         or merge_delta(checkout, pull["baseSha"], pull["headSha"], reviewed_deletion))
-            if conflicts:
-                return {"conflicts": conflicts, "conflictPullRequest": pull["number"]}
-            tree = git("write-tree", cwd=checkout).stdout.strip()
-            imported = git("commit-tree", tree, "-p", previous, "-m",
-                           f"{pull['title']} (personal import #{pull['number']})", cwd=checkout).stdout.strip()
-            git("reset", "--hard", imported, cwd=checkout)
+def import_pull_requests(checkout, config, pulls, original):
+    included = {pull["number"] for pull in config.get("pullRequests", [])}
+    for pull in pulls:
+        previous = git("rev-parse", "HEAD", cwd=checkout).stdout.strip()
+
+        # The last candidate, which already included this PR, dropped the file.
+        def reviewed_deletion(path, pull=pull):
+            return pull["number"] in included and git(
+                "cat-file", "-e", f"{original}:{path}", cwd=checkout, check=False).returncode != 0
+
+        conflicts = (release_tooling_changes(checkout, config, pull)
+                     or merge_delta(checkout, pull["baseSha"], pull["headSha"], reviewed_deletion))
+        if conflicts:
+            return {"conflicts": conflicts, "conflictPullRequest": pull["number"]}
+        tree = git("write-tree", cwd=checkout).stdout.strip()
+        imported = git("commit-tree", tree, "-p", previous, "-m",
+                       f"{pull['title']} (personal import #{pull['number']})", cwd=checkout).stdout.strip()
+        git("reset", "--hard", imported, cwd=checkout)
+    return None
+
+
+def unmerged_entries(checkout):
+    return sorted(entry for entry in git("ls-files", "--unmerged", "-z", cwd=checkout).stdout.split("\0") if entry)
+
+
+def conflict_identity(checkout, number):
+    """Unrelated PR changes keep the offending import and its unresolved index entries."""
+    entries = unmerged_entries(checkout)
+    return {"conflictIdentity": hashlib.sha256(json.dumps([number, entries]).encode()).hexdigest()} if entries else {}
+
+
+def tree_entry(repo, commit, path):
+    entry = git("--literal-pathspecs", "ls-tree", "-z", commit, "--", path, cwd=repo).stdout.rstrip("\0")
+    return tuple(entry.split("\t", 1)[0].split()[::2]) if entry else None
+
+
+def changed_paths(repo, base, head):
+    # Without rename detection, a rename lists both of its endpoints.
+    return [path for path in git("diff", "--name-only", "--no-renames", "-z", base, head, cwd=repo).stdout.split("\0") if path]
+
+
+def nightly_wait(repo, checkout, upstream, config, pulls, original, resolutions, stop):
+    """NightlyWait evidence that an import stop only lacks upstream files a later official nightly adds.
+
+    Any doubt keeps the conflict actionable. The diagnostic replays stay in disposable clones.
+    """
+    pull = next((pull for pull in pulls if pull["number"] == stop.get("conflictPullRequest")), None)
+    if (pull is None or pull["baseRef"] != "main" or upstream == pull["baseSha"]
+            or (pull.get("baseRepository") or "").casefold() != config["upstreamRepository"].casefold()):
+        return None
+    others = [other for other in pulls if other is not pull]
+    if (pull.get("baseRepository"), pull["baseRef"]) in {(other.get("headRepository"), other["headRef"]) for other in others}:
+        return None
+    if git("merge-base", "--is-ancestor", upstream, pull["baseSha"], cwd=repo, check=False).returncode:
+        return None
+    paths = stop["conflicts"]
+    stages = {}
+    for entry in unmerged_entries(checkout):
+        info, path = entry.split("\t", 1)
+        mode, blob, stage = info.split()
+        stages.setdefault(path, {})[stage] = (mode, blob)
+    if sorted(stages) != sorted(paths):
+        return None
+    for path in paths:
+        official = tree_entry(checkout, upstream, path)
+        expected = {"1": tree_entry(checkout, pull["baseSha"], path), "2": official,
+                    "3": tree_entry(checkout, pull["headSha"], path)}
+        if (stages[path] != expected or tree_entry(checkout, "HEAD", path) != official
+                or expected["1"] == official
+                or any(mode not in ("100644", "100755") for mode, _ in expected.values())):
+            return None
+
+    def touches(changed):
+        return any(change == path or change.startswith(path + "/") or path.startswith(change + "/")
+                   for change in changed for path in paths)
+
+    if (touches(changed_paths(repo, config["prBaseline"], original))
+            or any(touches(changed_paths(repo, other["baseSha"], other["headSha"])) for other in others)):
+        return None
+    with assembly_checkout(repo, pull["baseSha"], resolutions) as replay:
+        if import_pull_requests(replay, config, pulls[:pulls.index(pull) + 1], original):
+            return None
+    with assembly_checkout(repo, upstream, resolutions) as replay:
+        git("--literal-pathspecs", "checkout", pull["baseSha"], "--", *paths, cwd=replay)
+        tree = git("write-tree", cwd=replay).stdout.strip()
+        prerequisites = git("commit-tree", tree, "-p", upstream, "-m", "Official prerequisites", cwd=replay).stdout.strip()
+        git("reset", "--hard", prerequisites, cwd=replay)
+        if (import_pull_requests(replay, config, pulls, original)
+                or merge_delta(replay, config["prBaseline"], original)):
+            return None
+    return {"pullRequest": pull["number"], "baseCommit": pull["baseSha"], "paths": paths}
+
+
+def assemble(repo, tag, config, pulls, resolutions):
+    """Replace the PR baseline, then merge the personal-only delta onto it."""
+    if git("status", "--porcelain", cwd=repo).stdout:
+        raise ValueError("PR synchronization requires a clean checkout")
+    original = git("rev-parse", "HEAD", cwd=repo).stdout.strip()
+    upstream = git("rev-parse", f"{tag}^{{commit}}", cwd=repo).stdout.strip()
+    ordered = ordered_pull_requests(pulls)
+    with assembly_checkout(repo, upstream, resolutions) as checkout:
+        stop = import_pull_requests(checkout, config, ordered, original)
+        if stop:
+            if waiting := nightly_wait(repo, checkout, upstream, config, ordered, original, resolutions, stop):
+                return {"conflicts": [], "waiting": waiting}
+            return {**stop, **conflict_identity(checkout, stop["conflictPullRequest"])}
         baseline = git("rev-parse", "HEAD", cwd=checkout).stdout.strip()
         conflicts = merge_delta(checkout, config["prBaseline"], original)
         if conflicts:
-            return {"conflicts": conflicts}
+            return {"conflicts": conflicts, **conflict_identity(checkout, None)}
         config.update(upstreamTag=tag, pullRequests=pulls, prBaseline=baseline)
         (checkout / "personal-nightly.json").write_text(json.dumps(config, indent=2) + "\n")
         git("add", "personal-nightly.json", cwd=checkout)
@@ -385,7 +478,7 @@ def prepare(repo, tag, run_number, published_releases=(), pull_requests=None, re
         conflicts = merge_nightly(repo, tag)
     status = {
         "schema": 1,
-        "phase": "conflict" if conflicts else "building",
+        "phase": "waiting" if assembly.get("waiting") else "conflict" if conflicts else "building",
         "upstreamTag": tag,
         "conflicts": conflicts,
         "runUrl": f"https://github.com/{config['repository']}/actions/runs/{os.environ.get('GITHUB_RUN_ID', run_number)}",
@@ -394,7 +487,7 @@ def prepare(repo, tag, run_number, published_releases=(), pull_requests=None, re
         "sequence": sequence,
         **assembly,
     }
-    if conflicts:
+    if status["phase"] != "building":
         return status
     config["upstreamTag"] = tag
     config_path.write_text(json.dumps(config, indent=2) + "\n")
@@ -589,7 +682,7 @@ def main():
                       and os.environ.get("PERSONAL_NIGHTLY_FORCE") == "true")
             previous = read_state(repo, "status.json")
             original = git("rev-parse", "HEAD", cwd=repo).stdout.strip()
-            retry_suppressed = (not forced and previous.get("phase") in ("failed", "conflict")
+            retry_suppressed = (not forced and (previous.get("phase") in ("failed", "conflict") or "waiting" in previous)
                                 and previous.get("inputs") == inputs and previous.get("baseCommit") == original)
             observed = read_state(repo, "inputs.json")
             observation, stable = debounce_inputs(observed, inputs, time.time())
@@ -621,12 +714,10 @@ def main():
         if status.get("skipBuild"):
             write_status(repo, status)
             return
-        if status["phase"] == "conflict":
-            write_status(repo, status)
-        else:
+        if status["phase"] == "building":
             candidate_branch = f"personal-nightly-candidate-{args.run_number}-{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
             git("push", "origin", f"HEAD:refs/heads/{candidate_branch}", cwd=repo)
-            write_status(repo, status)
+        write_status(repo, status)
     else:
         if status_path.exists():
             status = json.loads(status_path.read_text())

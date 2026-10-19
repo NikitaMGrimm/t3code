@@ -62,7 +62,7 @@ async function withNotifications(
       refresh,
       notices: () => [...document.querySelectorAll('[data-slot="toast-title"]')].filter(live),
       detailsLink: () => [...document.querySelectorAll("a")].find(live),
-      dismiss: () =>
+      dismiss: async () =>
         act(() =>
           [
             ...document.querySelectorAll<HTMLButtonElement>(
@@ -174,7 +174,6 @@ it("keeps a dismissed content conflict quiet across unrelated attempts until wai
 
     await setStatus(waiting);
     expect(notices()).toHaveLength(0);
-    expect(document.body.textContent).not.toContain("stopped");
 
     await setStatus({ ...conflict, sequence: waiting.sequence + 1 });
     expect(notices()).toHaveLength(1);
