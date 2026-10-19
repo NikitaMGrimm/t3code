@@ -110,8 +110,19 @@ describe("HostedBrowserWebview settings hydration", () => {
       threadId: ThreadId.make("thread-fallback"),
     };
     const runtimeTabId = "late-native-fallback";
-    await act(() => {
-      renderer = create(
+    const createElement = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation(((
+      tagName: string,
+      options?: ElementCreationOptions,
+    ) => {
+      const element = createElement(tagName, options);
+      return tagName === "webview"
+        ? Object.assign(element, { getWebContentsId: () => 41 })
+        : element;
+    }) as typeof document.createElement);
+    root = createRoot(container);
+    await act(async () =>
+      root!.render(
         <HostedBrowserWebview
           threadRef={threadRef}
           tabId="server-tab"
@@ -123,19 +134,13 @@ describe("HostedBrowserWebview settings hydration", () => {
           zoomFactor={1}
           serverDriven
         />,
-        {
-          createNodeMock: (element) =>
-            element.type === "webview"
-              ? Object.assign(new EventTarget(), { getWebContentsId: () => 41 })
-              : { scrollLeft: 0, scrollTop: 0, scrollTo: () => undefined },
-        },
-      );
-    });
+      ),
+    );
     expect(mocks.createTab).toHaveBeenCalledOnce();
     expect(mocks.registerWebview).not.toHaveBeenCalled();
     vi.useFakeTimers();
-    await act(() => renderer?.unmount());
-    renderer = undefined;
+    await act(async () => root?.unmount());
+    root = undefined;
     await act(async () => {
       tabCreation.resolve();
       await tabCreation.promise;

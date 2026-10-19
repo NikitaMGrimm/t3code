@@ -151,9 +151,7 @@ it.effect("a persisted fork leaves PR watching with its parent until explicitly 
         type: "thread.pull-request-watch.sync",
         commandId: CommandId.make("fork-watch-stale-sync"),
         threadId: targetThreadId,
-        ...key,
-        startedAt: parentWatch.startedAt,
-        watch: parentWatch,
+        watches: [{ ...key, startedAt: parentWatch.startedAt, watch: parentWatch }],
         wake: {
           messageId: MessageId.make("fork-watch-unwanted-wake"),
           text: "A check failed",

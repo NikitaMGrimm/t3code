@@ -6,8 +6,8 @@ import {
   ThreadId,
 } from "@t3tools/contracts";
 import { AsyncResult, Atom } from "effect/reactivity";
-import { act, createElement } from "react";
-import { create, type ReactTestRenderer } from "react-test-renderer";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 // Stand-ins for the environment's preview queries, keyed like the real atom families.
@@ -59,7 +59,7 @@ function Host() {
   return null;
 }
 
-let renderer: ReactTestRenderer | undefined;
+let root: Root | undefined;
 
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -67,16 +67,22 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  await act(() => renderer?.unmount());
-  renderer = undefined;
+  await act(async () => root?.unmount());
+  root = undefined;
+  document.body.replaceChildren();
   vi.unstubAllGlobals();
 });
 
 describe("useDesktopHostedPreviewSessions", () => {
   it("tracks tabs an agent opens in a thread whose chat is not mounted", async () => {
-    await act(async () => {
-      renderer = create(createElement(AppAtomRegistryProvider, null, createElement(Host)));
-    });
+    root = createRoot(document.body.appendChild(document.createElement("div")));
+    await act(async () =>
+      root!.render(
+        <AppAtomRegistryProvider>
+          <Host />
+        </AppAtomRegistryProvider>,
+      ),
+    );
     expect(readThreadPreviewState(threadRef).sessions).toEqual({});
 
     const opened: PreviewEvent = {

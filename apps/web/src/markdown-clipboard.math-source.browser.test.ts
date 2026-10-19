@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 import katex from "katex";
 import { describe, expect, it } from "vite-plus/test";
 

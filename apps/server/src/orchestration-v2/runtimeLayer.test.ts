@@ -3008,15 +3008,19 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         type: "thread.pull-request-watch.sync",
         commandId: CommandId.make("pr-watch-limit-told"),
         threadId,
-        ...key,
-        startedAt: started.startedAt,
-        watch: {
-          ...started,
-          headSha: "abc1234def",
-          passed: true,
-          passedChecks: ["lint"],
-          wakes: PULL_REQUEST_WATCH_WAKE_LIMIT - 1,
-        },
+        watches: [
+          {
+            ...key,
+            startedAt: started.startedAt,
+            watch: {
+              ...started,
+              headSha: "abc1234def",
+              passed: true,
+              passedChecks: ["lint"],
+              wakes: PULL_REQUEST_WATCH_WAKE_LIMIT - 1,
+            },
+          },
+        ],
       });
 
       let status: "pending" | "success" = "pending";
@@ -3131,9 +3135,13 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         type: "thread.pull-request-watch.sync",
         commandId: CommandId.make("pr-watch-dismissed-told"),
         threadId,
-        ...key,
-        startedAt: started.startedAt,
-        watch: { ...started, headSha: "abc1234def", passed: true, passedChecks: ["lint"] },
+        watches: [
+          {
+            ...key,
+            startedAt: started.startedAt,
+            watch: { ...started, headSha: "abc1234def", passed: true, passedChecks: ["lint"] },
+          },
+        ],
       });
       yield* orchestrator.dispatch({
         type: "thread.pull-request.unlink",

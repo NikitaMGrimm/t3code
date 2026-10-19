@@ -8,7 +8,7 @@ import {
   type ComponentProps,
   type ReactNode,
 } from "react";
-import { create, type ReactTestRenderer } from "react-test-renderer";
+import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { HostedBrowserWebview } from "~/browser/HostedBrowserWebview";
 import type { ServerBrowserSurface } from "~/browser/ServerBrowserSurface";
@@ -158,32 +158,39 @@ import { ElectronBrowserHost } from "~/browser/ElectronBrowserHost";
 import { ThreadPreviewMiniPlayer } from "./ThreadPreviewMiniPlayer";
 import { previewRuntimeTabId } from "~/browser/previewRuntimeTabId";
 
-let renderer: ReactTestRenderer | undefined;
+let root: Root | undefined;
+let container: HTMLElement;
+const render = (element: ReactNode) => act(async () => root!.render(element));
+const labelled = (label: string) => container.querySelectorAll(`[aria-label="${label}"]`);
+const click = (label: string) =>
+  act(async () =>
+    container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!.click(),
+  );
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.mode = "native";
-  vi.stubGlobal("window", {});
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  container = document.body.appendChild(document.createElement("div"));
+  root = createRoot(container);
 });
 afterEach(async () => {
-  await act(() => renderer?.unmount());
-  renderer = undefined;
+  await act(async () => root?.unmount());
+  root = undefined;
+  document.body.replaceChildren();
   vi.unstubAllGlobals();
 });
 
 describe("headless fallback surfaces", () => {
   it("unmounts the hosted native guest and never remounts it for a headless snapshot", async () => {
     const runtimeTabId = previewRuntimeTabId(threadRef, "server-1", "tab-1");
-    await act(() => {
-      renderer = create(<ElectronBrowserHost />);
-    });
+    await render(<ElectronBrowserHost />);
     expect(mocks.nativeMount).toHaveBeenCalledExactlyOnceWith(runtimeTabId);
-    expect(renderer!.root.findAllByType("webview")).toHaveLength(1);
+    expect(container.querySelectorAll("webview")).toHaveLength(1);
     mocks.mode = "headless";
-    await act(() => renderer!.update(<ElectronBrowserHost />));
+    await render(<ElectronBrowserHost />);
     expect(mocks.nativeUnmount).toHaveBeenCalledExactlyOnceWith(runtimeTabId);
-    expect(renderer!.root.findAllByType("webview")).toHaveLength(0);
-    await act(() => renderer!.update(<ElectronBrowserHost />));
+    expect(container.querySelectorAll("webview")).toHaveLength(0);
+    await render(<ElectronBrowserHost />);
     expect(mocks.nativeMount).toHaveBeenCalledTimes(1);
   });
 
@@ -199,27 +206,19 @@ describe("headless fallback surfaces", () => {
         }}
       />
     );
-    await act(() => {
-      renderer = create(view());
-    });
-    expect(renderer!.root.findAllByProps({ "aria-label": "Native surface" })).toHaveLength(1);
-    const nativeCloseButton = renderer!.root.findByProps({
-      "aria-label": "Close popped-out preview",
-    });
-    await act(async () => nativeCloseButton.props.onClick());
+    await render(view());
+    expect(labelled("Native surface")).toHaveLength(1);
+    await click("Close popped-out preview");
     expect(mocks.nativeClosePopOut).toHaveBeenCalledOnce();
 
     mocks.mode = "headless";
-    await act(() => renderer!.update(view()));
-    expect(renderer!.root.findAllByProps({ "aria-label": "Native surface" })).toHaveLength(0);
+    await render(view());
+    expect(labelled("Native surface")).toHaveLength(0);
     expect(mocks.streamMount).toHaveBeenCalledExactlyOnceWith("tab-1");
     expect(mocks.reportPreview).toHaveBeenLastCalledWith(
       expect.objectContaining({ source: { width: 800, height: 600 } }),
     );
-    const serverOpenButton = renderer!.root.findByProps({
-      "aria-label": "Pop preview into separate window",
-    });
-    await act(async () => serverOpenButton.props.onClick());
+    await click("Pop preview into separate window");
     expect(mocks.serverPopOut).toHaveBeenCalledExactlyOnceWith({
       ...threadRef,
       tabId: "tab-1",
