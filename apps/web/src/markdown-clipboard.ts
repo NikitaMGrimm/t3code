@@ -68,10 +68,14 @@ function resolveCodeBlockLanguage(pre: Element): string | null {
   return declared && declared !== "text" ? declared : null;
 }
 
-function serializeCodeBlock(pre: Element): string {
-  const code = (pre.textContent ?? "").replace(/\n$/, "");
+export function serializeCodeBlockToMarkdown(source: string, language: string | null): string {
+  const code = source.replace(/\n$/, "");
   const fence = codeFenceFor(code);
-  return `${fence}${resolveCodeBlockLanguage(pre) ?? ""}\n${code}\n${fence}\n\n`;
+  return `${fence}${language ?? ""}\n${code}\n${fence}\n\n`;
+}
+
+function serializeCodeBlock(pre: Element): string {
+  return serializeCodeBlockToMarkdown(pre.textContent ?? "", resolveCodeBlockLanguage(pre));
 }
 
 function serializeTableCell(cell: Element): string {
@@ -342,7 +346,19 @@ export function serializeTableElementToCsv(table: Element): string {
   return lines.join("\n");
 }
 
+function mermaidSourceHtml(source: string) {
+  const pre = document.createElement("pre");
+  const code = document.createElement("code");
+  code.textContent = source.trim();
+  pre.appendChild(code);
+  return pre;
+}
+
 function sanitizedHtmlFrom(container: Element): string {
+  for (const diagram of container.querySelectorAll("[data-markdown-mermaid]")) {
+    const source = diagram.getAttribute("data-markdown-copy");
+    if (source !== null) diagram.replaceChildren(mermaidSourceHtml(source));
+  }
   for (const node of container.querySelectorAll(SANITIZED_HTML_SELECTOR)) {
     if (
       node.classList.contains("chat-markdown-file-link") ||
@@ -380,17 +396,17 @@ export function chatMarkdownClipboardPayload(
       htmls.push(sanitizedHtmlFrom(container));
       continue;
     }
-    if (ancestorElement?.closest("pre")) {
-      const text = range.toString();
-      if (text) {
-        texts.push(text);
-        htmls.push(sanitizedHtmlFrom(container));
-      }
-      continue;
-    }
-    const text = serializeRenderedMarkdownFragment(container);
+    const diagramSource = ancestorElement
+      ?.closest("[data-markdown-mermaid]")
+      ?.getAttribute("data-markdown-copy");
+    const text =
+      diagramSource?.trim() ??
+      (ancestorElement?.closest("pre")
+        ? range.toString()
+        : serializeRenderedMarkdownFragment(container));
     if (!text) continue;
     texts.push(text);
+    if (diagramSource != null) container.replaceChildren(mermaidSourceHtml(diagramSource));
     htmls.push(sanitizedHtmlFrom(container));
   }
   if (texts.length === 0) return null;
