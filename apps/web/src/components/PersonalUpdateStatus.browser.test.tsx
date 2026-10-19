@@ -19,6 +19,7 @@ async function withNotifications(
     detailsLink: () => HTMLAnchorElement | undefined;
     dismiss: () => Promise<void>;
   }) => Promise<void>,
+  { cdn = false } = {},
 ) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal(
@@ -35,7 +36,15 @@ async function withNotifications(
     value: () => [],
   });
   let status = initial;
-  vi.stubGlobal("fetch", async () => new Response(JSON.stringify(status)));
+  // Like the raw GitHub CDN, which serves a URL's first body until its max-age expires.
+  const cached = new Map<string, { body: string; expires: number }>();
+  vi.stubGlobal("fetch", async (url: string) => {
+    const hit = cached.get(url);
+    if (cdn && hit && hit.expires > Date.now()) return new Response(hit.body);
+    const body = JSON.stringify(status);
+    cached.set(url, { body, expires: Date.now() + 300_000 });
+    return new Response(body);
+  });
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
@@ -79,6 +88,7 @@ async function withNotifications(
     if (animations) Object.defineProperty(Element.prototype, "getAnimations", animations);
     else Reflect.deleteProperty(Element.prototype, "getAnimations");
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   }
 }
 
@@ -144,24 +154,25 @@ it("keeps dismissed failures quiet across polling and shows a failed rerun of th
   );
 });
 
+const conflict = {
+  ...failed,
+  phase: "conflict",
+  conflicts: ["apps/web/src/components/ChatView.tsx"],
+  conflictIdentity: "a".repeat(64),
+};
+const waiting = {
+  ...failed,
+  phase: "ready",
+  sequence: failed.sequence + 2,
+  runUrl: failed.runUrl.replace("123", "789"),
+  waiting: {
+    pullRequest: 18308,
+    baseCommit: "284ce8fe2ff99076657707fd754e538403d88d76",
+    paths: ["apps/web/src/components/ChatView.tsx"],
+  },
+};
+
 it("keeps a dismissed content conflict quiet across unrelated attempts until waiting clears it", async () => {
-  const conflict = {
-    ...failed,
-    phase: "conflict",
-    conflicts: ["apps/web/src/components/ChatView.tsx"],
-    conflictIdentity: "a".repeat(64),
-  };
-  const waiting = {
-    ...failed,
-    phase: "ready",
-    sequence: failed.sequence + 2,
-    runUrl: failed.runUrl.replace("123", "789"),
-    waiting: {
-      pullRequest: 18308,
-      baseCommit: "284ce8fe2ff99076657707fd754e538403d88d76",
-      paths: ["apps/web/src/components/ChatView.tsx"],
-    },
-  };
   await withNotifications(conflict, async ({ setStatus, notices, dismiss }) => {
     expect(notices()).toHaveLength(1);
     await dismiss();
@@ -178,4 +189,21 @@ it("keeps a dismissed content conflict quiet across unrelated attempts until wai
     await setStatus({ ...conflict, sequence: waiting.sequence + 1 });
     expect(notices()).toHaveLength(1);
   });
+});
+
+it("closes the current conflict on the next poll after waiting is published behind a CDN", async () => {
+  let now = Date.parse("2026-10-20T00:00:00Z");
+  vi.spyOn(Date, "now").mockImplementation(() => now);
+  // Unlike the earlier conflict, which the shared status store still holds when this mounts.
+  const current = { ...conflict, conflictIdentity: "b".repeat(64) };
+  await withNotifications(
+    current,
+    async ({ setStatus, notices }) => {
+      expect(notices()).toHaveLength(1);
+      now += 240_000;
+      await setStatus(waiting);
+      expect(notices()).toHaveLength(0);
+    },
+    { cdn: true },
+  );
 });
