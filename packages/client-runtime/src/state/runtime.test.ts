@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "@effect/vitest";
-import { EnvironmentId } from "@t3tools/contracts";
+import {
+  EnvironmentId,
+  type PreviewEvent,
+  type TerminalAttachInput,
+  type TerminalAttachStreamEvent,
+  WS_METHODS,
+} from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -26,7 +32,9 @@ import * as EnvironmentRegistry from "../connection/registry.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import { EnvironmentRpcUnavailableError } from "../rpc/client.ts";
 import type * as RpcSession from "../rpc/session.ts";
+import { createPreviewEnvironmentAtoms } from "./preview.ts";
 import type { QueryPersistence } from "./queryPersistence.ts";
+import { createTerminalEnvironmentAtoms } from "./terminal.ts";
 import {
   environmentRpcKey,
   createAtomCommandScheduler,
@@ -89,6 +97,7 @@ const makeEnvironmentQueryHarness = Effect.fn("TestEnvironmentQuery.makeHarness"
     idleTtlMs,
     persistence,
     initialState,
+    rpcSession,
     isFinal,
   }: {
     readonly refreshTrigger?: Atom.Atom<unknown>;
@@ -96,10 +105,14 @@ const makeEnvironmentQueryHarness = Effect.fn("TestEnvironmentQuery.makeHarness"
     readonly idleTtlMs?: number;
     readonly persistence?: QueryPersistence<A>;
     readonly initialState?: SupervisorConnectionState;
+    readonly rpcSession?: RpcSession.RpcSession;
   } = {},
 ) {
   const supervisorState = yield* SubscriptionRef.make(initialState ?? queryConnectionState());
-  const supervisorSession = yield* SubscriptionRef.make(Option.some(QUERY_RPC_SESSION));
+  const supervisorSession = yield* SubscriptionRef.make(
+    Option.some(rpcSession ?? QUERY_RPC_SESSION),
+  );
+  const streamGeneration = yield* SubscriptionRef.make(0);
   const supervisor = EnvironmentSupervisor.EnvironmentSupervisor.of({
     target: QUERY_ENVIRONMENT,
     state: supervisorState,
@@ -114,7 +127,12 @@ const makeEnvironmentQueryHarness = Effect.fn("TestEnvironmentQuery.makeHarness"
   const followStream: EnvironmentRegistry.EnvironmentRegistry["Service"]["followStream"] = (
     _environmentId,
     stream,
-  ) => Stream.provideService(stream, EnvironmentSupervisor.EnvironmentSupervisor, supervisor);
+  ) =>
+    SubscriptionRef.changes(streamGeneration).pipe(
+      Stream.switchMap(() =>
+        Stream.provideService(stream, EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
+      ),
+    );
   const environmentRegistry = EnvironmentRegistry.EnvironmentRegistry.of({
     run,
     followStream,
@@ -134,9 +152,11 @@ const makeEnvironmentQueryHarness = Effect.fn("TestEnvironmentQuery.makeHarness"
   });
 
   return {
+    runtime,
     atom: family({ environmentId: QUERY_ENVIRONMENT.environmentId, input: undefined }),
     supervisorSession,
     supervisorState,
+    streamGeneration,
   };
 });
 
@@ -305,6 +325,82 @@ describe("environmentRpcKey", () => {
   });
 });
 
+describe("preview event subscriptions", () => {
+  it.effect("delivers every open and close when RPC events arrive in batches", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const opened: PreviewEvent[] = ["thread-a", "thread-b"].map((threadId, index) => ({
+          type: "opened",
+          threadId,
+          tabId: `tab-${index}`,
+          serverEpoch: "epoch-1",
+          revision: index + 1,
+          createdAt: "2026-10-02T00:00:00.000Z",
+          snapshot: {
+            threadId,
+            tabId: `tab-${index}`,
+            navStatus: { _tag: "Idle" },
+            canGoBack: false,
+            canGoForward: false,
+            updatedAt: "2026-10-02T00:00:00.000Z",
+          },
+        }));
+        const closed: PreviewEvent[] = opened.map((event, index) => ({
+          type: "closed",
+          threadId: event.threadId,
+          tabId: event.tabId,
+          serverEpoch: event.serverEpoch,
+          revision: opened.length + index + 1,
+          createdAt: event.createdAt,
+        }));
+        const releaseEvents = yield* Deferred.make<void>();
+        // Each iterable is one RPC chunk; separate emissions would hide lost events.
+        const stream = Stream.fromEffect(Deferred.await(releaseEvents)).pipe(
+          Stream.flatMap(() =>
+            Stream.fromIterable(opened).pipe(
+              Stream.concat(Stream.fromIterable(closed)),
+              Stream.concat(Stream.never),
+            ),
+          ),
+        );
+        const harness = yield* makeEnvironmentQueryHarness(Effect.void, {
+          rpcSession: {
+            client: { [WS_METHODS.subscribePreviewEvents]: () => stream },
+          } as unknown as RpcSession.RpcSession,
+        });
+        const atom = createPreviewEnvironmentAtoms(harness.runtime).events({
+          environmentId: QUERY_ENVIRONMENT.environmentId,
+          input: {},
+        });
+        const registry = AtomRegistry.make();
+        const observed: PreviewEvent[] = [];
+        const sawLast = yield* Deferred.make<void>();
+        const unsubscribe = registry.subscribe(
+          atom,
+          (result) => {
+            if (!AsyncResult.isSuccess(result)) return;
+            observed.push(result.value);
+            if (result.value === closed[closed.length - 1]) {
+              Deferred.doneUnsafe(sawLast, Exit.void);
+            }
+          },
+          { immediate: true },
+        );
+        yield* Effect.addFinalizer(() =>
+          Effect.sync(() => {
+            unsubscribe();
+            registry.dispose();
+          }),
+        );
+
+        yield* Deferred.succeed(releaseEvents, undefined);
+        yield* Deferred.await(sawLast);
+        expect(observed).toEqual([...opened, ...closed]);
+      }),
+    ),
+  );
+});
+
 describe("finite environment subscription lifecycle", () => {
   it.effect(
     "exposes early values and settles on the terminal value without waiting for a reconnect",
@@ -374,6 +470,76 @@ describe("finite environment subscription lifecycle", () => {
 });
 
 describe("environment query lifecycle", () => {
+  it.effect("terminal attach resubscribes with resume only after the stream replied", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeEnvironmentQueryHarness(Effect.void);
+      const inputs = yield* Queue.unbounded<TerminalAttachInput>();
+      const events = yield* Queue.unbounded<TerminalAttachStreamEvent>();
+      const received = yield* Deferred.make<void>();
+      const client = {
+        [WS_METHODS.terminalAttach]: (input: TerminalAttachInput) =>
+          Stream.fromEffect(Queue.offer(inputs, input)).pipe(
+            Stream.drain,
+            Stream.concat(Stream.fromQueue(events)),
+          ),
+      } as unknown as RpcSession.RpcSession["client"];
+      const firstSession = { ...QUERY_RPC_SESSION, client };
+      yield* SubscriptionRef.set(harness.supervisorSession, Option.some(firstSession));
+      const input = {
+        threadId: "thread-1",
+        terminalId: "terminal-1",
+        cwd: "/tmp/project",
+        restartIfNotRunning: true,
+      };
+      const atoms = createTerminalEnvironmentAtoms(harness.runtime);
+      const registry = AtomRegistry.make();
+      const atom = atoms.attach({ environmentId: QUERY_ENVIRONMENT.environmentId, input });
+      const unmount = registry.subscribe(
+        atom,
+        (result) => {
+          if (AsyncResult.isSuccess(result) && result.value.version > 0) {
+            Deferred.doneUnsafe(received, Exit.void);
+          }
+        },
+        { immediate: true },
+      );
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          unmount();
+          registry.dispose();
+        }),
+      );
+
+      expect(yield* Queue.take(inputs)).toEqual(input);
+      yield* SubscriptionRef.set(harness.supervisorSession, Option.some({ ...firstSession }));
+      expect(yield* Queue.take(inputs)).toEqual(input);
+      yield* Queue.offer(events, {
+        type: "closed",
+        threadId: input.threadId,
+        terminalId: input.terminalId,
+      });
+      yield* Deferred.await(received);
+
+      yield* SubscriptionRef.set(harness.supervisorSession, Option.some({ ...firstSession }));
+      expect(yield* Queue.take(inputs)).toEqual({ ...input, resume: true });
+      // Catalog replacements rerun the same stream through followStream's switchMap.
+      yield* SubscriptionRef.update(harness.streamGeneration, (generation) => generation + 1);
+      expect(yield* Queue.take(inputs)).toEqual({ ...input, resume: true });
+
+      unmount();
+      registry.dispose();
+      const remountedRegistry = AtomRegistry.make();
+      const remount = remountedRegistry.subscribe(atom, () => {}, { immediate: true });
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          remount();
+          remountedRegistry.dispose();
+        }),
+      );
+      expect(yield* Queue.take(inputs)).toEqual(input);
+    }),
+  );
+
   it.effect("keeps the previous value when a refetch returns equal content", () =>
     Effect.scoped(
       Effect.gen(function* () {

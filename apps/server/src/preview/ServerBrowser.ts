@@ -82,6 +82,7 @@ import * as PreviewBrowser from "./PreviewBrowser.ts";
 import * as PreviewBrowserHost from "./PreviewBrowserHost.ts";
 import { presentAsChrome, ServerBrowserContexts } from "./ServerBrowserContexts.ts";
 import { BrowserControlInterrupted, SessionControl } from "./SessionControl.ts";
+import { installPdfDocumentNavigation, isPdfAssetUrl } from "./PdfDocumentNavigation.ts";
 
 const SERVER_HOST_CLIENT_ID = SERVER_BROWSER_AUTOMATION_CLIENT_ID;
 const RENDER_SCALE = 2;
@@ -94,6 +95,8 @@ const SCREENCAST_MOTION_QUALITY = 50;
 const HOST_RECONNECT_DELAY = "1 second";
 const DESKTOP_ATTACH_TIMEOUT = "10 seconds";
 const VIEWER_OUTPUT_LIMIT = 64;
+const SNAPSHOT_TIMEOUT_MS = 15_000;
+const VIEWER_INPUT_RELEASE_TIMEOUT_MS = 1_000;
 const RECORDING_SCREENCAST = { format: "jpeg", quality: 90, everyNthFrame: 1 } as const;
 const decodeViewportSetting = Schema.decodeUnknownSync(PreviewViewportSettingSchema);
 const AGENT_CURSOR_MOVE_MS = 160;
@@ -250,6 +253,7 @@ interface ViewerState {
   readonly push: (output: ServerBrowserViewerOutput) => void;
   readonly pause: () => Promise<void>;
   readonly resume: () => Promise<void>;
+  readonly disconnect: () => void;
   scrolledAt: number;
 
   requestedSize: { width: number; height: number; order: number } | null;
@@ -266,7 +270,7 @@ interface EncoderWindow {
 
 interface Recording {
   readonly encoder: Page;
-  readonly session: CDPSession;
+  session: CDPSession | null;
   readonly startedAt: string;
   readonly framesInFlight: Set<Promise<void>>;
 }
@@ -773,6 +777,7 @@ const make = Effect.gen(function* () {
     if (!desktop) await prepareContext(context);
     const page = adopted?.page ?? desktop?.page ?? (await context.newPage());
     const cdp = await context.newCDPSession(page);
+    await installPdfDocumentNavigation(cdp);
     // The desktop's page is already a normal browser. A popup's first request
     // went out before it became a tab; everything after presents as Chrome.
     if (!desktop) await presentAsChrome(cdp, host);
@@ -922,13 +927,20 @@ const make = Effect.gen(function* () {
     page.on("crash", () => dropTab(tab, true));
     tabs.set(key, tab);
     reportLiveTabs();
-    // A popup is already loading its own URL, and the desktop loads its tab's.
-    if (!adopted && !desktop && snapshot.navStatus._tag === "Loading") {
-      tab.initialNavigation = page
-        .goto(snapshot.navStatus.url, { waitUntil: "commit", timeout: NAVIGATION_TIMEOUT_MS })
-        .then(constVoid);
+    // Existing desktop and popup PDFs can start loading before interception attaches.
+    if (
+      snapshot.navStatus._tag === "Loading" &&
+      ((!adopted && !desktop) || isPdfAssetUrl(snapshot.navStatus.url))
+    ) {
+      const options = { waitUntil: "commit", timeout: NAVIGATION_TIMEOUT_MS } as const;
+      tab.initialNavigation = (
+        (desktop || adopted) && page.url() === snapshot.navStatus.url
+          ? page.reload(options)
+          : page.goto(snapshot.navStatus.url, options)
+      ).then(constVoid);
 
-      tab.control.track(tab.initialNavigation);
+      if (tab.control.agentId !== null) tab.control.track(tab.initialNavigation);
+      else void tab.initialNavigation.catch(constVoid);
     }
     return tab;
   };
@@ -1298,10 +1310,17 @@ const make = Effect.gen(function* () {
       );
   };
 
+  // Desktop browsing bypasses streamed viewers and server input tracking,
+  // so these idle signals only apply to headless tabs.
   const closeIdleAgentTabs = () => {
     const cutoff = Date.now() - AGENT_TAB_IDLE_MS;
     for (const tab of tabs.values()) {
-      if (tab.control.agentId !== null && tab.viewers.size === 0 && tab.usedAt < cutoff)
+      if (
+        tab.control.agentId !== null &&
+        tab.desktop === null &&
+        tab.viewers.size === 0 &&
+        tab.usedAt < cutoff
+      )
         dropTab(tab, true);
     }
   };
@@ -1507,7 +1526,14 @@ const make = Effect.gen(function* () {
         const opened = await tab.page.context().newCDPSession(tab.page);
         session = opened;
         const framesInFlight = new Set<Promise<void>>();
+        const recording: Recording = {
+          encoder,
+          session: opened,
+          startedAt: new Date().toISOString(),
+          framesInFlight,
+        };
         opened.on("Page.screencastFrame", (frame) => {
+          if (recording.session !== opened) return;
           const cssWidth = tab.page.viewportSize()?.width ?? frame.metadata.deviceWidth;
           const delivered: Promise<void> = encoder
             .evaluate(
@@ -1515,26 +1541,23 @@ const make = Effect.gen(function* () {
                 (globalThis as unknown as EncoderWindow).__t3Recorder.frame(data, width),
               [frame.data, cssWidth] as const,
             )
-            .then(async (accepted) => {
-              if (!accepted) await opened.send("Page.stopScreencast");
+            .then((accepted) => {
+              // Draining encoded frames must not wait for a stalled screencast session.
+              if (!accepted && recording.session === opened)
+                void opened.send("Page.stopScreencast").catch(constVoid);
             })
             .catch(constVoid)
             .finally(() => {
               framesInFlight.delete(delivered);
-              void opened
-                .send("Page.screencastFrameAck", { sessionId: frame.sessionId })
-                .catch(constVoid);
+              if (recording.session === opened)
+                void opened
+                  .send("Page.screencastFrameAck", { sessionId: frame.sessionId })
+                  .catch(constVoid);
             });
           framesInFlight.add(delivered);
         });
         await opened.send("Page.startScreencast", RECORDING_SCREENCAST);
         if (tab.closing) throw new Error("The tab closed while the recording started.");
-        const recording: Recording = {
-          encoder,
-          session: opened,
-          startedAt: new Date().toISOString(),
-          framesInFlight,
-        };
         tab.recording = recording;
         return recording;
       } catch (cause) {
@@ -1550,27 +1573,65 @@ const make = Effect.gen(function* () {
   };
 
   // Scaled captures repaint every screencast; pause them to avoid leaking that frame.
-  const withScreencastsPaused = <A>(tab: ServerTab, capture: () => Promise<A>): Promise<A> =>
-    withCaptureLock(tab, async () => {
-      tab.capturing += 1;
-      const recording = tab.recording;
-      try {
-        await Promise.all([
-          ...[...tab.viewers].map((viewer) => viewer.pause()),
-          recording?.session.send("Page.stopScreencast").catch(constVoid),
-        ]);
-        return await capture();
-      } finally {
-        tab.capturing -= 1;
-
-        await Promise.all([
-          ...[...tab.viewers].map((viewer) => viewer.resume()),
-          recording && tab.recording === recording
-            ? recording.session.send("Page.startScreencast", RECORDING_SCREENCAST).catch(constVoid)
-            : undefined,
-        ]);
-      }
+  const withScreencastsPaused = <A>(tab: ServerTab, capture: () => Promise<A>): Promise<A> => {
+    let expired = false;
+    let capturing = false;
+    let recording: Recording | null = null;
+    const endCapture = () => {
+      if (!capturing) return;
+      capturing = false;
+      tab.capturing -= 1;
+    };
+    const timeout = new ServerBrowserPage.ServerBrowserOperationError(
+      "PreviewAutomationTimeoutError",
+      "The browser did not finish pausing, capturing, and resuming its screencasts in time.",
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        expired = true;
+        endCapture();
+        // Retire the sessions: a late stop must never pause a recovered viewer.
+        for (const viewer of tab.viewers) viewer.disconnect();
+        // Detach itself can stall; retire the session while keeping the encoded frames.
+        const session = recording?.session;
+        if (recording) recording.session = null;
+        void session?.detach().catch(constVoid);
+        reject(timeout);
+      }, SNAPSHOT_TIMEOUT_MS);
     });
+    const locked = withCaptureLock(tab, () => {
+      // The deadline also covers waiting for a viewer's still capture.
+      if (expired) throw timeout;
+      capturing = true;
+      tab.capturing += 1;
+      recording = tab.recording;
+      const captured = (async () => {
+        try {
+          await Promise.all([
+            ...[...tab.viewers].map((viewer) => viewer.pause()),
+            recording?.session?.send("Page.stopScreencast").catch(constVoid),
+          ]);
+          if (expired) throw timeout;
+          return await capture();
+        } finally {
+          endCapture();
+          if (!expired) {
+            await Promise.all([
+              ...[...tab.viewers].map((viewer) => viewer.resume()),
+              recording && tab.recording === recording
+                ? recording.session
+                    ?.send("Page.startScreencast", RECORDING_SCREENCAST)
+                    .catch(constVoid)
+                : undefined,
+            ]);
+          }
+        }
+      })();
+      return Promise.race([captured, deadline]);
+    });
+    return Promise.race([locked, deadline]).finally(() => clearTimeout(timer));
+  };
 
   const stopRecording = (tab: ServerTab) =>
     withCaptureLock(tab, async () => {
@@ -1584,9 +1645,9 @@ const make = Effect.gen(function* () {
       let mimeType: string | null;
       const chunks: Array<Buffer> = [];
       try {
-        await recording.session.send("Page.stopScreencast").catch(constVoid);
+        await recording.session?.send("Page.stopScreencast").catch(constVoid);
         await Promise.all(recording.framesInFlight);
-        await recording.session.detach().catch(constVoid);
+        await recording.session?.detach().catch(constVoid);
         const stopped = await recording.encoder.evaluate(() =>
           (globalThis as unknown as EncoderWindow).__t3Recorder.stop(),
         );
@@ -2131,24 +2192,29 @@ const make = Effect.gen(function* () {
       }
     });
 
-  const releaseViewerInput = async (viewer: ViewerState, session: CDPSession) => {
-    for (const { key, code } of viewer.pressedKeys.values()) {
-      await session.send("Input.dispatchKeyEvent", { type: "keyUp", key, code }).catch(constVoid);
-    }
+  const releaseViewerInput = (viewer: ViewerState, session: CDPSession) => {
+    const keys = [...viewer.pressedKeys.values()];
+    const buttons = [...viewer.pressedButtons];
     viewer.pressedKeys.clear();
-    for (const [button, point] of viewer.pressedButtons) {
-      await session
-        .send("Input.dispatchMouseEvent", {
-          type: "mouseReleased",
-          button,
-          ...point,
-          buttons: 0,
-          clickCount: 1,
-        })
-        .catch(constVoid);
-    }
     viewer.pressedButtons.clear();
     viewer.requestedSize = null;
+    // Send every release before awaiting: an abandoned cleanup must not send late input.
+    return Promise.all([
+      ...keys.map(({ key, code }) =>
+        session.send("Input.dispatchKeyEvent", { type: "keyUp", key, code }).catch(constVoid),
+      ),
+      ...buttons.map(([button, point]) =>
+        session
+          .send("Input.dispatchMouseEvent", {
+            type: "mouseReleased",
+            button,
+            ...point,
+            buttons: 0,
+            clickCount: 1,
+          })
+          .catch(constVoid),
+      ),
+    ]).then(constVoid);
   };
 
   const dispatchViewerInput = async (
@@ -2253,23 +2319,26 @@ const make = Effect.gen(function* () {
         await applySetting(tab, setting);
         return;
       }
+      // A stalled navigation must not block a corrected URL or further viewer input.
       case "navigate":
         if (typeof message.url === "string") {
           const url = normalizePreviewUrl(message.url);
-          await tab.page.goto(url, VIEWER_NAVIGATION_OPTIONS);
+          tab.control.trackUntilHandoff(tab.page.goto(url, VIEWER_NAVIGATION_OPTIONS));
         }
         return;
       case "history":
-        await (num(message.delta) < 0
-          ? tab.page.goBack(VIEWER_NAVIGATION_OPTIONS)
-          : tab.page.goForward(VIEWER_NAVIGATION_OPTIONS));
+        tab.control.trackUntilHandoff(
+          num(message.delta) < 0
+            ? tab.page.goBack(VIEWER_NAVIGATION_OPTIONS)
+            : tab.page.goForward(VIEWER_NAVIGATION_OPTIONS),
+        );
         return;
       case "reload":
         if (message.ignoreCache === true) {
           await session.send("Page.reload", { ignoreCache: true });
           return;
         }
-        await tab.page.reload(VIEWER_NAVIGATION_OPTIONS);
+        tab.control.trackUntilHandoff(tab.page.reload(VIEWER_NAVIGATION_OPTIONS));
         return;
       case "probe": {
         const x = num(message.x);
@@ -2296,14 +2365,7 @@ const make = Effect.gen(function* () {
           try: () => tab.page.context().newCDPSession(tab.page),
           catch: (cause) => new ServerBrowserLaunchError({ cause }),
         }),
-        (session) =>
-          Effect.promise(() =>
-            session
-              .send("Page.stopScreencast")
-              .catch(constVoid)
-              .then(() => session.detach())
-              .catch(constVoid),
-          ),
+        (session) => Effect.promise(() => session.detach().catch(constVoid)),
       );
       const quality = Math.min(100, Math.max(1, Math.round(input.quality)));
       // Chromium may drop the final frame during a burst; send a still when it settles.
@@ -2311,13 +2373,15 @@ const make = Effect.gen(function* () {
       let mayHaveDropped = false;
       let motion = false;
       const recentFrames: Array<number> = [];
+      let disconnected = false;
       let screencastParams = Promise.resolve();
       let screencastScale = 1;
       const startScreencast = (scale: number) => {
         screencastScale = scale;
         screencastParams = screencastParams.then(async () => {
-          if (tab.capturing > 0) return;
+          if (disconnected || tab.capturing > 0) return;
           await session.send("Page.stopScreencast").catch(constVoid);
+          if (disconnected) return;
           await session
             .send("Page.startScreencast", {
               format: "jpeg",
@@ -2357,11 +2421,36 @@ const make = Effect.gen(function* () {
         },
         pause: () => {
           screencastParams = screencastParams.then(() =>
-            session.send("Page.stopScreencast").then(constVoid, constVoid),
+            disconnected
+              ? undefined
+              : session.send("Page.stopScreencast").then(constVoid, constVoid),
           );
           return screencastParams;
         },
         resume: () => startScreencast(screencastScale),
+        disconnect: () => {
+          disconnected = true;
+          tab.viewers.delete(viewer);
+          viewer.push({ _tag: "reconnect" });
+          void session.detach().catch(constVoid);
+          runFork(
+            Effect.promise(async () => {
+              const releasing = tab.control.disconnect(viewer.id, () => {
+                // The viewer session is stalled; release held input through the tab instead.
+                let timer: ReturnType<typeof setTimeout> | undefined;
+                const deadline = new Promise<void>((resolve) => {
+                  timer = setTimeout(resolve, VIEWER_INPUT_RELEASE_TIMEOUT_MS);
+                });
+                return Promise.race([releaseViewerInput(viewer, tab.cdp), deadline]).finally(() =>
+                  clearTimeout(timer),
+                );
+              });
+              broadcastControl(tab);
+              reportLiveTabs();
+              await releasing;
+            }),
+          );
+        },
         scrolledAt: 0,
         requestedSize: null,
       };
@@ -2372,6 +2461,7 @@ const make = Effect.gen(function* () {
         }),
         () =>
           Effect.promise(async () => {
+            disconnected = true;
             await tab.control.disconnect(viewer.id, () => releaseViewerInput(viewer, session));
             tab.viewers.delete(viewer);
             broadcastControl(tab);
@@ -2385,14 +2475,26 @@ const make = Effect.gen(function* () {
       pushFileChooser(tab);
       // Full scale: a scaled capture would flash in every other viewer.
       const pushStill = async () => {
-        const data = await withCaptureLock(tab, () =>
-          ServerBrowserPage.captureViewport(tab.page, session, {
-            format: "jpeg",
-            quality,
-            scale: 1,
-          }),
-        ).catch(() => null);
-        if (data)
+        if (disconnected) return;
+        const data = await withCaptureLock(tab, () => {
+          if (disconnected) return Promise.resolve(null);
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          const deadline = new Promise<null>((resolve) => {
+            timer = setTimeout(() => {
+              viewer.disconnect();
+              resolve(null);
+            }, SNAPSHOT_TIMEOUT_MS);
+          });
+          return Promise.race([
+            ServerBrowserPage.captureViewport(tab.page, session, {
+              format: "jpeg",
+              quality,
+              scale: 1,
+            }),
+            deadline,
+          ]).finally(() => clearTimeout(timer));
+        }).catch(() => null);
+        if (data && !disconnected)
           viewer.push({ _tag: "frame", data: Buffer.from(data, "base64"), ack: Effect.void });
       };
       let settleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -2403,6 +2505,7 @@ const make = Effect.gen(function* () {
       );
       let screencastStarted = false;
       session.on("Page.screencastFrame", (frame) => {
+        if (disconnected) return;
         screencastStarted = true;
         if (framesInFlight > 0) mayHaveDropped = true;
         framesInFlight += 1;
@@ -2455,7 +2558,7 @@ const make = Effect.gen(function* () {
         output,
         input: (raw: unknown) =>
           Effect.promise(async () => {
-            if (!viewer.canOperate) return;
+            if (disconnected || !viewer.canOperate) return;
             const message = asRecord(raw);
             if (!message) return;
             try {

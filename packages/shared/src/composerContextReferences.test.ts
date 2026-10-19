@@ -1,4 +1,9 @@
-import type { ComposerContextId, ComposerContextRecord } from "@t3tools/contracts";
+import {
+  type ComposerContextId,
+  type ComposerContextRecord,
+  EnvironmentId,
+  ThreadId,
+} from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -303,32 +308,42 @@ describe("provider projection", () => {
 });
 
 describe("threadContextsOutsideEnvironment", () => {
-  const thread = (id: string, environmentId: string): ComposerContextRecord => ({
-    version: 1,
-    kind: "thread",
-    contextId: ctx(`thread_${id}`),
-    label: id,
-    environmentId: environmentId as never,
-    threadId: id as never,
-    title: id,
-  });
-  const text = "[a](t3-context://v1/thread/thread_a) [b](t3-context://v1/thread/thread_b)";
+  it("returns only referenced foreign threads, ignoring local and removed references", () => {
+    const local = {
+      version: 1 as const,
+      kind: "thread" as const,
+      contextId: ctx("thread_local"),
+      label: "Local thread",
+      environmentId: EnvironmentId.make("env-local"),
+      threadId: ThreadId.make("local"),
+      title: "Local thread",
+    };
+    const foreign = {
+      ...local,
+      contextId: ctx("thread_foreign"),
+      environmentId: EnvironmentId.make("env-foreign"),
+      threadId: ThreadId.make("foreign"),
+    };
+    const removed = {
+      ...foreign,
+      contextId: ctx("thread_removed"),
+      threadId: ThreadId.make("removed"),
+    };
+    const records = [local, foreign, removed];
+    const localReference = "[Local](t3-context://v1/thread/thread_local)";
 
-  it("returns referenced threads owned by another environment", () => {
-    const stranded = threadContextsOutsideEnvironment({
-      text,
-      records: [thread("a", "env-a"), thread("b", "env-b")],
-      environmentId: "env-b" as never,
-    });
-    expect(stranded.map((record) => record.threadId)).toEqual(["a"]);
-  });
-
-  it("ignores records whose chip was removed from the text", () => {
     expect(
       threadContextsOutsideEnvironment({
-        text: "no references left",
-        records: [thread("a", "env-a")],
-        environmentId: "env-b" as never,
+        text: `${localReference} [Foreign](t3-context://v1/thread/thread_foreign)`,
+        records,
+        environmentId: local.environmentId,
+      }),
+    ).toEqual([foreign]);
+    expect(
+      threadContextsOutsideEnvironment({
+        text: localReference,
+        records,
+        environmentId: local.environmentId,
       }),
     ).toEqual([]);
   });

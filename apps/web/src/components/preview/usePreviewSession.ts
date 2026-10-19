@@ -102,26 +102,24 @@ export function usePreviewSession(threadRef: ScopedThreadRef): void {
 
 const inactiveAtom = Atom.make(() => undefined);
 
-/**
- * The desktop hosts its own server's tabs even while their chat is not shown.
- * Otherwise an agent tab in a background thread never gets a webview and the
- * server falls back to its headless browser. Keep each thread's sync running
- * once the environment reports a tab for it.
- */
+// Discover background tabs without listing every thread at startup. Retain each
+// sync for the host's lifetime so later events still arrive while chat is absent.
 const desktopHostedPreviewSyncAtom = Atom.family((environmentId: EnvironmentId) => {
   const eventsAtom = previewEnvironment.events({ environmentId, input: {} });
   return Atom.make((get) => {
-    const syncedThreadKeys = new Set<string>();
+    const syncedThreadIds = new Set<string>();
     get.subscribe(
       eventsAtom,
       (result) => {
         if (!AsyncResult.isSuccess(result) || result.value.type === "closed") return;
-        const threadKey = scopedThreadKey(
-          scopeThreadRef(environmentId, ThreadId.make(result.value.threadId)),
+        const threadId = result.value.threadId;
+        if (syncedThreadIds.has(threadId)) return;
+        syncedThreadIds.add(threadId);
+        get.mount(
+          previewSessionSyncAtom(
+            scopedThreadKey(scopeThreadRef(environmentId, ThreadId.make(threadId))),
+          ),
         );
-        if (syncedThreadKeys.has(threadKey)) return;
-        syncedThreadKeys.add(threadKey);
-        get.mount(previewSessionSyncAtom(threadKey));
       },
       { immediate: true },
     );
