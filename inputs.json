@@ -1,6 +1,6 @@
 {
   "inputs": {
-    "upstreamTag": "v0.1.1-nightly.20261018.3335",
+    "upstreamTag": "v0.1.1-nightly.20261019.3348",
     "pullRequests": [
       {
         "number": 14574,
@@ -14,12 +14,12 @@
       },
       {
         "number": 16941,
-        "headSha": "102deab30a01e955345c4f8f9bcdb2e97d2d5d31",
+        "headSha": "e7bc457af8bb799b28ceec39f127fbf6f930120b",
         "baseRef": "main"
       },
       {
         "number": 17871,
-        "headSha": "695f58d4d10efb47d780bf8a678d16da8cdee1d0",
+        "headSha": "3bd2412b0c3910e38df27c9f84ff992acd89d129",
         "baseRef": "main"
       },
       {
@@ -34,12 +34,12 @@
       },
       {
         "number": 18310,
-        "headSha": "41b50c2ae125014ba3515dcbe39916ef8d18b0e3",
+        "headSha": "12a189e2ad392e4203308dd313395081078256d0",
         "baseRef": "main"
       },
       {
         "number": 18322,
-        "headSha": "c19def9d301435bb9792608c740ee229d8fa6cc4",
+        "headSha": "1ecea4f87290930f89a8e906504c9524158fb30f",
         "baseRef": "main"
       },
       {
@@ -49,11 +49,11 @@
       },
       {
         "number": 19919,
-        "headSha": "a357bf832b381aad01b245ab3b9ade0444cdda45",
+        "headSha": "68c1401c7658857110ef8660cc904778c37d2895",
         "baseRef": "main"
       }
     ],
     "resolutions": "f38a7235d4e3b2617cbb8e727c9b20a21953f634c68244e3702210fc5c2d21f5"
   },
-  "observedAt": 1792374738.5902436
+  "observedAt": 1792406546.6592934
 }
