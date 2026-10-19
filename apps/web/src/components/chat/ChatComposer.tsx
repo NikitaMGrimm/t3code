@@ -2482,9 +2482,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     names: new Set(),
   });
   const attachmentInputRef = useRef<HTMLInputElement>(null);
-  const openAttachmentPicker = () => {
+  const openAttachmentPickerStable = useStableCallback(() => {
     attachmentInputRef.current?.click();
-  };
+  });
   const composerFormRef = useRef<HTMLFormElement>(null);
   const composerSurfaceRef = useRef<HTMLDivElement>(null);
   const providerInputRejectedRef = useRef(false);
@@ -7291,7 +7291,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     />
                   ) : null}
                   <ComposerFooterPrimaryActions
-                    onAttachFiles={showComposerAttachAction ? openAttachmentPicker : null}
+                    onAttachFiles={showComposerAttachAction ? openAttachmentPickerStable : null}
                     compact={isComposerResting || isComposerPrimaryActionsCompact}
                     canOperateThread={canOperateThread}
                     activeContextWindow={
