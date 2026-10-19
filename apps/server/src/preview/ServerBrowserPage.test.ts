@@ -69,11 +69,13 @@ describe("server browser element refs", () => {
   it("gives up on a screenshot when the page draws no frame", async () => {
     // A desktop tab whose thread is not open never answers a capture.
     let captures = 0;
+    const captureStarted = Promise.withResolvers<void>();
     const stuck = {
       send: (method: string, params?: object) => {
         if (method !== "Page.captureScreenshot")
           return cdp.send(method as "Page.getLayoutMetrics", params);
         captures += 1;
+        captureStarted.resolve();
         return new Promise(() => {});
       },
     } as unknown as CDPSession;
@@ -89,6 +91,8 @@ describe("server browser element refs", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
       const rejected = expect(snapshotOf()).rejects.toThrow("did not draw a frame");
+      // The capture's limit starts only after the snapshot's real CDP reads.
+      await captureStarted.promise;
       await vi.advanceTimersByTimeAsync(5_000);
       await rejected;
       // Chromium still holds the first capture, so a retry fails without starting another.
@@ -432,14 +436,17 @@ describe("server browser snapshot", () => {
   it("fails a snapshot of a page that never answers, freeing the tab for the next request", async () => {
     vi.useFakeTimers();
     const never = () => new Promise<never>(() => {});
+    const mainFrame = {};
     // A page whose main thread is stuck: nothing it is asked ever settles.
     const page = {
+      frames: () => [mainFrame],
+      mainFrame: () => mainFrame,
       viewportSize: () => ({ width: 800, height: 600 }),
       evaluate: never,
       ariaSnapshot: never,
       on: () => {},
     } as unknown as Page;
-    // The compositor still draws, so the capture limit does not answer first.
+    // The compositor still draws, so only the snapshot deadline can answer.
     const cdp = {
       send: (method: string) =>
         method === "Page.captureScreenshot" ? Promise.resolve({ data: "" }) : never(),

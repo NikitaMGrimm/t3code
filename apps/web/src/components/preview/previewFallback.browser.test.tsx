@@ -54,13 +54,18 @@ function previewState() {
 }
 
 vi.mock("~/env", () => ({ isElectron: true }));
-vi.mock("@effect/atom-react", () => ({ useAtomValue: () => threadRef.environmentId }));
+// Browser ESM links named imports, so each mock keeps its module's other exports.
+vi.mock("@effect/atom-react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@effect/atom-react")>()),
+  useAtomValue: () => threadRef.environmentId,
+}));
 vi.mock("~/state/primaryEnvironment", () => ({ primaryEnvironmentIdAtom: {} }));
 vi.mock("~/state/entities", () => ({
   readEnvironmentSupportsServerBrowser: () => true,
   useEnvironmentSupportsServerBrowser: () => true,
 }));
-vi.mock("~/previewStateStore", () => ({
+vi.mock("~/previewStateStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/previewStateStore")>()),
   useThreadPreviewState: previewState,
   useActivePreviewSessions: () => ({ [scopedThreadKey(threadRef)]: previewState() }),
   isPreviewSupportedInRuntime: () => true,
@@ -94,7 +99,8 @@ vi.mock("~/browser/browserRecording", () => ({
   findActiveBrowserRecordingRuntimeTabId: () => null,
   useActiveBrowserRecordingTabIds: () => new Set(),
 }));
-vi.mock("~/browser/browserSurfaceStore", () => ({
+vi.mock("~/browser/browserSurfaceStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/browser/browserSurfaceStore")>()),
   useBrowserSurfaceStore: (select: (state: { byTabId: Record<string, never> }) => unknown) =>
     select({ byTabId: {} }),
 }));
@@ -145,7 +151,8 @@ vi.mock("~/state/device", () => ({
   useDeviceState: () => ({ state: { devices: [], hosts: [] } }),
 }));
 vi.mock("../device/DeviceStreamView", () => ({ DeviceStreamView: () => null }));
-vi.mock("~/components/ui/button", () => ({
+vi.mock("~/components/ui/button", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/components/ui/button")>()),
   Button: (props: ComponentProps<"button">) => createElement("button", props),
 }));
 vi.mock("~/components/ui/tooltip", () => ({
