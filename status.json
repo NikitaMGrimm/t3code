@@ -1,14 +1,16 @@
 {
   "schema": 1,
-  "phase": "ready",
+  "phase": "conflict",
   "upstreamTag": "v0.1.1-nightly.20261019.3373",
-  "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39316235492",
+  "conflicts": [
+    "apps/web/src/components/ChatMarkdown.browser.test.tsx",
+    "apps/web/src/components/chat/ThreadDetailsPrRows.browser.test.tsx"
+  ],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39324026506",
   "releasedVersion": "0.1.1-nightly.20261019.1792440272094",
-  "baseCommit": "d15ecf683b06b578d7d7e8bf51d9468d8b8cecee",
-  "sequence": 1792440272094,
-  "candidateCommit": "4b6d1a61da75682a3f4a9df1c04d27dc8bb4159e",
-  "candidateVersion": "0.1.1-nightly.20261019.1792440272094",
+  "baseCommit": "4b6d1a61da75682a3f4a9df1c04d27dc8bb4159e",
+  "sequence": 1792443638437,
+  "conflictPullRequest": 18308,
   "inputs": {
     "upstreamTag": "v0.1.1-nightly.20261019.3373",
     "pullRequests": [
@@ -39,7 +41,7 @@
       },
       {
         "number": 18308,
-        "headSha": "6ad2e0c045524bcfe3a7259a7debea5290e187a1",
+        "headSha": "1987ee2a01e6bea46aa0299ba24f859608c7bbeb",
         "baseRef": "main"
       },
       {
@@ -139,8 +141,8 @@
     {
       "number": 18308,
       "title": "fix(web): render completed Mermaid blocks while streaming",
-      "headSha": "6ad2e0c045524bcfe3a7259a7debea5290e187a1",
-      "baseSha": "da7c4f234db35096af2c16d5e24c60dbe9495583",
+      "headSha": "1987ee2a01e6bea46aa0299ba24f859608c7bbeb",
+      "baseSha": "284ce8fe2ff99076657707fd754e538403d88d76",
       "headRef": "resubmit/mermaid-streaming",
       "baseRef": "main",
       "author": "NikitaMGrimm",
