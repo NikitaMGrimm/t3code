@@ -467,15 +467,19 @@ describe("MessagesTimeline work rows", () => {
 
 describe("MessagesTimeline messages", () => {
   it.each([
-    { role: "assistant", selection: "across" },
-    { role: "user", selection: "across" },
-    { role: "assistant", selection: "inside" },
-    { role: "user", selection: "source" },
+    { role: "assistant", selection: "across", findExpanded: false },
+    { role: "assistant", selection: "across", findExpanded: true },
+    { role: "user", selection: "across", findExpanded: false },
+    { role: "assistant", selection: "inside", findExpanded: false },
+    { role: "user", selection: "source", findExpanded: false },
   ] as const)(
-    "copies Mermaid selection $selection in $role messages",
-    async ({ role, selection }) => {
-      const source = "```mermaid\nflowchart LR\n    A[Select message] --> B[Copy Markdown]\n```";
-      await renderTimeline([message(`Before diagram.\n\n${source}\n\nAfter diagram.`, { role })]);
+    "copies Mermaid selection $selection in $role messages (find expanded: $findExpanded)",
+    async ({ role, selection, findExpanded }) => {
+      const code = "flowchart LR\n    A[Select message] --> B[Copy Markdown]";
+      const source = `\`\`\`mermaid\n${code}\n\`\`\``;
+      await renderTimeline([message(`Before diagram.\n\n${source}\n\nAfter diagram.`, { role })], {
+        findExpanded,
+      });
       const diagram = await vi.waitFor(
         () => {
           const svg = container.querySelector('[aria-label="Expand diagram"] svg');
@@ -510,7 +514,12 @@ describe("MessagesTimeline messages", () => {
       }
 
       const clipboard = await copyRange(range);
-      expect(clipboard.getData("text/plain")).toBe(expected);
+      expect.soft(clipboard.getData("text/plain")).toBe(expected);
+      if (selection !== "source") {
+        const html = new DOMParser().parseFromString(clipboard.getData("text/html"), "text/html");
+        html.querySelectorAll("[hidden]").forEach((element) => element.remove());
+        expect(html.body.textContent).toContain(code);
+      }
     },
   );
 
@@ -526,7 +535,8 @@ describe("MessagesTimeline messages", () => {
       sizeBytes: 1,
     };
     const link = `[shot.png](t3-context://v1/image/${record.contextId})`;
-    const source = `\`\`\`mermaid\nflowchart LR\n    A --> B\n%% ${link}\n\`\`\``;
+    const code = `flowchart LR\n    A --> B\n%% ${link}`;
+    const source = `\`\`\`mermaid\n${code}\n\`\`\``;
     await renderTimeline([
       message(`Before\n\n${source}\n\nAfter\n\n${link}`, {
         context: { version: 1, records: [record] },
@@ -567,6 +577,8 @@ describe("MessagesTimeline messages", () => {
     expect(decodeComposerContextClipboardHtml(withChip.getData("text/html"))?.records).toEqual([
       record,
     ]);
+    const html = new DOMParser().parseFromString(withChip.getData("text/html"), "text/html");
+    expect(html.body.textContent).toContain(code);
   });
 
   it("preserves XML-like tags and comparisons in user messages as text", async () => {
