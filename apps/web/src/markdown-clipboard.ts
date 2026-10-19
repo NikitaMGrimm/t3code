@@ -346,7 +346,19 @@ export function serializeTableElementToCsv(table: Element): string {
   return lines.join("\n");
 }
 
+function mermaidSourceHtml(source: string) {
+  const pre = document.createElement("pre");
+  const code = document.createElement("code");
+  code.textContent = source.trim();
+  pre.appendChild(code);
+  return pre;
+}
+
 function sanitizedHtmlFrom(container: Element): string {
+  for (const diagram of container.querySelectorAll("[data-markdown-mermaid]")) {
+    const source = diagram.getAttribute("data-markdown-copy");
+    if (source !== null) diagram.replaceChildren(mermaidSourceHtml(source));
+  }
   for (const node of container.querySelectorAll(SANITIZED_HTML_SELECTOR)) {
     if (
       node.classList.contains("chat-markdown-file-link") ||
@@ -385,6 +397,7 @@ export function chatMarkdownClipboardPayload(
         : serializeRenderedMarkdownFragment(container));
     if (!text) continue;
     texts.push(text);
+    if (diagramSource != null) container.replaceChildren(mermaidSourceHtml(diagramSource));
     htmls.push(sanitizedHtmlFrom(container));
   }
   if (texts.length === 0) return null;
