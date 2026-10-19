@@ -109,11 +109,13 @@ import { parseComposerContextHref } from "@t3tools/shared/composerContextReferen
 import { parseThreadLinkHref } from "@t3tools/shared/threadLinks";
 import { AssistantCitationChip } from "./chat/AssistantCitationChip";
 import { MarkdownThreadLink } from "./chat/MarkdownThreadLink";
+import { mathKind, mayContainMath, remarkChatMath } from "../markdown-math";
 import {
   artifactTemplateFromHastProperties,
   renderCodexInlineDirectivesAsMarkdown,
 } from "@t3tools/shared/codexMarkdownDirectives";
 import { renderSkillInlineMarkdownChildren } from "./chat/SkillInlineText";
+import { MarkdownMath } from "./chat/MarkdownMath";
 import {
   resolveMarkdownMediaPreview,
   type ExpandedImagePreview,
@@ -394,6 +396,22 @@ function orderedListGutterStyle(
   const markerWidth = Math.max(String(firstNumber).length, String(lastNumber).length);
   if (markerWidth <= 1) return undefined;
   return { "--list-gutter": `${markerWidth + 2}ch` };
+}
+
+const CHAT_MARKDOWN_MATH_REMARK_PLUGINS = [remarkChatMath, ...CHAT_MARKDOWN_REMARK_PLUGINS];
+
+const CHAT_MARKDOWN_MATH_REMARK_PLUGINS_WITH_BREAKS = [
+  remarkChatMath,
+  ...CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS,
+];
+
+function chatMarkdownRemarkPlugins(lineBreaks: boolean, math: boolean) {
+  if (math) {
+    return lineBreaks
+      ? CHAT_MARKDOWN_MATH_REMARK_PLUGINS_WITH_BREAKS
+      : CHAT_MARKDOWN_MATH_REMARK_PLUGINS;
+  }
+  return lineBreaks ? CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS : CHAT_MARKDOWN_REMARK_PLUGINS;
 }
 
 const GITHUB_ALERT_PRESENTATIONS: Record<
@@ -3366,6 +3384,19 @@ const CHAT_MARKDOWN_COMPONENTS = {
   },
 } satisfies Components;
 
+const MarkdownCodeOrMath: NonNullable<Components["code"]> = (props) => {
+  const math = mathKind(props.className);
+  if (!math) return CHAT_MARKDOWN_COMPONENTS.code(props);
+  return <MarkdownMath tex={nodeToPlainText(props.children)} display={math === "display"} />;
+};
+
+// Only messages parsed with math enabled can typeset, so raw HTML carrying the
+// math classes stays an ordinary code element while the setting is off.
+const CHAT_MARKDOWN_MATH_COMPONENTS = {
+  ...CHAT_MARKDOWN_COMPONENTS,
+  code: MarkdownCodeOrMath,
+} satisfies Components;
+
 function ChatMarkdown({
   text,
   className,
@@ -3386,8 +3417,10 @@ function ChatMarkdown({
     props.isStreaming === true &&
     extraRemarkPlugins.length === 0 &&
     /(?:^|\n) {0,3}(?:`{3}|~{3})/.test(text);
+  const math =
+    useClientSettings((settings) => settings.mathRenderingEnabled) && mayContainMath(text);
   const remarkPlugins = [
-    ...(lineBreaks ? CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS : CHAT_MARKDOWN_REMARK_PLUGINS),
+    ...chatMarkdownRemarkPlugins(lineBreaks, math),
     ...extraRemarkPlugins,
     ...(incrementalParsing ? [createIncrementalMarkdownPlugin()] : []),
   ];
@@ -3412,7 +3445,7 @@ function ChatMarkdown({
                 : CHAT_MARKDOWN_LITERAL_HTML_REHYPE_PLUGINS
             }
             skipHtml={false}
-            components={CHAT_MARKDOWN_COMPONENTS}
+            components={math ? CHAT_MARKDOWN_MATH_COMPONENTS : CHAT_MARKDOWN_COMPONENTS}
             urlTransform={markdownUrlTransform}
           >
             {text}
