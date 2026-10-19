@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "phase": "failed",
+  "phase": "building",
   "upstreamTag": "v0.1.1-nightly.20261019.3373",
   "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39313648882",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39316235492",
   "releasedVersion": "0.1.1-nightly.20261019.1792372646843",
-  "baseCommit": "0e22500776aada999d949c2ce5e3ff1a6ecdf51e",
-  "sequence": 1792439143380,
-  "candidateCommit": "18cf2acc3eab27d54095fa6775b74f76855c7485",
-  "candidateVersion": "0.1.1-nightly.20261019.1792439143380",
+  "baseCommit": "d15ecf683b06b578d7d7e8bf51d9468d8b8cecee",
+  "sequence": 1792440272094,
+  "candidateCommit": "4b6d1a61da75682a3f4a9df1c04d27dc8bb4159e",
+  "candidateVersion": "0.1.1-nightly.20261019.1792440272094",
   "inputs": {
     "upstreamTag": "v0.1.1-nightly.20261019.3373",
     "pullRequests": [
@@ -65,6 +65,11 @@
       {
         "number": 21839,
         "headSha": "2febdb33aac90f9ad065a77be4b1c84cc3659c37",
+        "baseRef": "main"
+      },
+      {
+        "number": 21894,
+        "headSha": "d1bfc628a4fd10c9cca33ff6649d371341fea750",
         "baseRef": "main"
       }
     ],
@@ -200,6 +205,18 @@
       "baseRef": "main",
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/21839",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 21894,
+      "title": "fix(mobile): file preview videos keep their own aspect ratio",
+      "headSha": "d1bfc628a4fd10c9cca33ff6649d371341fea750",
+      "baseSha": "598298cc3c56ef6943301944d6986578f6b7d587",
+      "headRef": "fix/mobile-file-preview-video-aspect",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/21894",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     }
