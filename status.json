@@ -5,10 +5,10 @@
   "conflicts": [
     "pnpm-lock.yaml"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39298708452",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39300909826",
   "releasedVersion": "0.1.1-nightly.20261019.1792372646843",
   "baseCommit": "6a74bd25cd8183a8a916bcbb24d08a4730dddbe9",
-  "sequence": 1792432737447,
+  "sequence": 1792433700321,
   "conflictPullRequest": 14574,
   "inputs": {
     "upstreamTag": "v0.1.1-nightly.20261019.3360",
@@ -20,7 +20,7 @@
       },
       {
         "number": 16249,
-        "headSha": "da4b580bbdf61c721b6591ef33c4820c4a3f5e19",
+        "headSha": "aaf49a1695c8c8a548435ddba1d3c6ceb0ea1e16",
         "baseRef": "main"
       },
       {
@@ -87,8 +87,8 @@
     {
       "number": 16249,
       "title": "fix(web): preserve Mermaid source when copying selected text",
-      "headSha": "da4b580bbdf61c721b6591ef33c4820c4a3f5e19",
-      "baseSha": "da7c4f234db35096af2c16d5e24c60dbe9495583",
+      "headSha": "aaf49a1695c8c8a548435ddba1d3c6ceb0ea1e16",
+      "baseSha": "08b1cbebf2e8439a8481b58ec316fa09f23208c4",
       "headRef": "feat/mermaid-selection-copy",
       "baseRef": "main",
       "author": "NikitaMGrimm",
