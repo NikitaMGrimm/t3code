@@ -99,7 +99,10 @@ export function WorkspaceToolbar(props: {
                     : NATIVE_LIQUID_GLASS_SUPPORTED
                       ? "integratedButton"
                       : "stacked",
-                  allowToolbarIntegration: NATIVE_LIQUID_GLASS_SUPPORTED,
+                  // Folded, the tab bar owns the bottom of the vertical bar; refusing toolbar
+                  // integration also makes UIKit re-place a visible search in the navigation bar.
+                  allowToolbarIntegration:
+                    NATIVE_LIQUID_GLASS_SUPPORTED && deviceType !== "duo-folded",
                   placeholder:
                     selectedTab === "pullRequests" ? "Search pull requests" : "Search threads",
                   cancelButtonText: "✕",
