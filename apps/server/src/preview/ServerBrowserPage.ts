@@ -469,8 +469,13 @@ export const readPageMetrics = async (cdp: CDPSession) => {
   );
 };
 
-// Scaled captures repaint live screencasts, so callers pause them. Clips use document offsets.
-export const captureViewport = async (
+const CAPTURE_TIMEOUT_MS = 5_000;
+const NO_FRAME_MESSAGE =
+  "The page did not draw a frame within 5 seconds, so no screenshot was taken. Use preview_evaluate to read the page, or open the tab in the Browser panel and retry.";
+/** Each page's capture Chromium has not answered yet; a page only draws one at a time. */
+const pendingCaptures = new WeakMap<Page, object>();
+
+const captureFrame = async (
   page: Page,
   cdp: CDPSession,
   options: {
@@ -502,6 +507,46 @@ export const captureViewport = async (
     ...(clip ? { clip } : {}),
   });
   return data;
+};
+
+/**
+ * Scaled captures repaint live screencasts, so callers pause them. Clips use document offsets.
+ * A capture waits for the page's next frame. A desktop tab whose thread is not
+ * open draws none, so the capture gives up after a limit instead of holding
+ * the tab. A new capture is refused until Chromium answers the old one, which
+ * still owns the page's capture viewport.
+ */
+export const captureViewport = (
+  page: Page,
+  cdp: CDPSession,
+  options: Parameters<typeof captureFrame>[2],
+  /**
+   * Aborted when the caller retires `cdp`, which abandons the capture. Its caller then bounds
+   * the capture itself, instead of the frame limit.
+   */
+  retired?: AbortSignal,
+): Promise<string> => {
+  const noFrame = () =>
+    new ServerBrowserOperationError("PreviewAutomationExecutionError", NO_FRAME_MESSAGE);
+  if (pendingCaptures.has(page) || retired?.aborted) return Promise.reject(noFrame());
+  const token = {};
+  pendingCaptures.set(page, token);
+  // A late answer to an abandoned capture must not release a newer capture's guard.
+  const release = () => {
+    if (pendingCaptures.get(page) === token) pendingCaptures.delete(page);
+  };
+  retired?.addEventListener("abort", release, { once: true });
+  const capture = captureFrame(page, cdp, options).finally(() => {
+    retired?.removeEventListener("abort", release);
+    release();
+  });
+  void capture.catch(constVoid);
+  if (retired) return capture;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const limit = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(noFrame()), CAPTURE_TIMEOUT_MS);
+  });
+  return Promise.race([capture, limit]).finally(() => clearTimeout(timer));
 };
 
 type SnapshotInput = {
