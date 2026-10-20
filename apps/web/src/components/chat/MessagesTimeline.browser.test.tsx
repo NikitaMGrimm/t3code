@@ -24,7 +24,8 @@ import "~/index.css";
 import { serverEnvironment } from "../../state/server";
 import { PullRequestLinkPreview } from "../pullRequest/PullRequestLinkPreview";
 import { Tooltip, TooltipPopup, TooltipScrollDismissArea, TooltipTrigger } from "../ui/tooltip";
-import { MessagesTimeline } from "./MessagesTimeline";
+import { MessagesTimeline, remarkThoughtPreview } from "./MessagesTimeline";
+import { parseMarkdownWithMath } from "@t3tools/shared/markdownMath";
 import { readTimelinePosition } from "./timelineScrollAnchoring";
 import { useComposerFocusState } from "./useComposerFocusState";
 
@@ -79,6 +80,7 @@ function baseProps(): Omit<TimelineProps, "timelineEntries"> {
     onAnchorReady: () => {},
     onAnchorSizeChanged: () => {},
     contentInsetEndAdjustment: 0,
+    emptyPlaceholderInset: 0,
     liveFollowEnabled: true,
     onIsAtEndChange: () => {},
     onManualNavigation: () => {},
@@ -1616,5 +1618,24 @@ describe("MessagesTimeline send anchor", () => {
     });
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     expect(onAnchorReady).not.toHaveBeenCalled();
+  });
+});
+
+describe("compact reasoning math", () => {
+  it("keeps formulas while flattening compact reasoning previews", () => {
+    const tree = parseMarkdownWithMath("## Reasoning\n\nUse **norm** $|x|$ and \\[x^2\\]");
+    remarkThoughtPreview("Reasoning")(tree);
+    expect(tree.children.map((node) => node.type)).toEqual([
+      "text",
+      "inlineMath",
+      "text",
+      "inlineMath",
+    ]);
+    expect(tree.children.map((node) => ("value" in node ? node.value : null))).toEqual([
+      "Reasoning Use norm ",
+      "|x|",
+      " and ",
+      "x^2",
+    ]);
   });
 });

@@ -1,4 +1,4 @@
-import { SshDeviceHostConfigs } from "./device.ts";
+import { EasDeviceHostConfigs, SshDeviceHostConfigs } from "./device.ts";
 import {
   AuthOrchestrationOperateScope,
   AuthSettingsWriteScope,
@@ -819,6 +819,26 @@ export const SourceControlWritingStyleSettings = Schema.Struct({
 });
 export type SourceControlWritingStyleSettings = typeof SourceControlWritingStyleSettings.Type;
 
+const SourceControlWritingStyleSetting = Schema.Union([
+  TrimmedString,
+  SourceControlWritingStyleSettings,
+]).pipe(
+  Schema.decodeTo(
+    Schema.toType(SourceControlWritingStyleSettings),
+    SchemaTransformation.transform({
+      decode: (value) =>
+        typeof value === "string"
+          ? {
+              mode: value.length > 0 ? ("custom" as const) : ("repo_conventions" as const),
+              customInstructions: value,
+              followChangeRequestTemplates: true,
+            }
+          : value,
+      encode: (value) => value,
+    }),
+  ),
+);
+
 export const BranchNamingMode = Schema.Literals(["static", "semantic", "custom"]);
 export type BranchNamingMode = typeof BranchNamingMode.Type;
 
@@ -967,7 +987,7 @@ export const ProjectSettingsOverrides = Schema.Struct({
   sourceControlWriterModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   reviewGuideModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   reviewGuideInstructions: Schema.optionalKey(TrimmedString),
-  sourceControlWritingStyle: Schema.optionalKey(SourceControlWritingStyleSettings),
+  sourceControlWritingStyle: Schema.optionalKey(SourceControlWritingStyleSetting),
   removeAgentCreditsOnMerge: Schema.optionalKey(Schema.Boolean),
   branchNamingMode: Schema.optionalKey(BranchNamingMode),
   branchNamePrefix: Schema.optionalKey(TrimmedString),
@@ -1033,6 +1053,7 @@ export const StorageCleanupReportEntry = Schema.Struct({
   outcome: Schema.Literals(["removed", "kept", "failed"]),
   reason: Schema.String,
   path: Schema.NullOr(Schema.String),
+  projectPath: Schema.NullOr(Schema.String).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
   threadId: Schema.NullOr(ThreadId),
   threadTitle: Schema.NullOr(Schema.String),
   bytes: Schema.NullOr(Schema.Number).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
@@ -1134,9 +1155,11 @@ export const ServerSettings = Schema.Struct({
   enableDeviceSupport: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   deviceOnboardingCompleted: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   deviceHosts: SshDeviceHostConfigs.pipe(Schema.withDecodingDefault(Effect.succeed([]))),
+  easDeviceHosts: EasDeviceHostConfigs.pipe(Schema.withDecodingDefault(Effect.succeed([]))),
   sidebarAutoSettleAfterDays: Schema.NullOr(SidebarAutoSettleAfterDays).pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_AUTO_SETTLE_AFTER_DAYS)),
   ),
+  compactIdleThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   snoozeLimitedThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   autoResumeLimitedThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   sidebarAutoSettleKeepPullRequests: Schema.Boolean.pipe(
@@ -1207,7 +1230,7 @@ export const ServerSettings = Schema.Struct({
   branchNamePrefix: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed("t3"))),
   branchNameInstructions: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   removeAgentCreditsOnMerge: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  sourceControlWritingStyle: SourceControlWritingStyleSettings.pipe(
+  sourceControlWritingStyle: SourceControlWritingStyleSetting.pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
   sourceControlWriterModelSelection: Schema.NullOr(ModelSelection).pipe(
@@ -1435,13 +1458,23 @@ export const ServerSettingsPatch = Schema.Struct({
    * field existed cannot wipe it by editing another key.
    */
   projectSettingsOverrides: Schema.optionalKey(
-    Schema.Record(ProjectId, Schema.NullOr(ProjectSettingsOverrides)),
+    Schema.Record(
+      ProjectId,
+      Schema.NullOr(
+        Schema.Struct({
+          ...ProjectSettingsOverrides.fields,
+          sourceControlWritingStyle: Schema.optionalKey(SourceControlWritingStyleSettings),
+        }),
+      ),
+    ),
   ),
   enableAgentDeviceAccess: Schema.optionalKey(Schema.Boolean),
   enableDeviceSupport: Schema.optionalKey(Schema.Boolean),
   deviceOnboardingCompleted: Schema.optionalKey(Schema.Boolean),
   deviceHosts: Schema.optionalKey(SshDeviceHostConfigs),
+  easDeviceHosts: Schema.optionalKey(EasDeviceHostConfigs),
   sidebarAutoSettleAfterDays: Schema.optionalKey(Schema.NullOr(SidebarAutoSettleAfterDays)),
+  compactIdleThreads: Schema.optionalKey(Schema.Boolean),
   sidebarAutoSettleKeepPullRequests: Schema.optionalKey(Schema.Boolean),
   sidebarAutoSettleOnMerge: Schema.optionalKey(Schema.Boolean),
   autoResumeLimitedThreads: Schema.optionalKey(Schema.Boolean),
