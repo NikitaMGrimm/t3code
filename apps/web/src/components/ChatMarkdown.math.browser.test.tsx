@@ -89,7 +89,7 @@ describe("ChatMarkdown math", () => {
           }}
         />,
       );
-      expect(formulas(container)).toEqual(["$\\pi r^2$", "$$\nE = mc^2\n$$\n\n", "$x$"]);
+      expect(formulas(container)).toEqual(["\\(\\pi r^2\\)", "\\[\nE = mc^2\n\\]\n\n", "\\(x\\)"]);
       await act(async () =>
         container.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click(),
       );
@@ -105,6 +105,6 @@ describe("ChatMarkdown math", () => {
           />,
         ),
       ),
-    ).toEqual(["$$\nx^2\n$$\n\n"]);
+    ).toEqual(["\\[\nx^2\n\\]\n\n"]);
   });
 });
