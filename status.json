@@ -1,17 +1,14 @@
 {
   "schema": 1,
-  "phase": "conflict",
+  "phase": "building",
   "upstreamTag": "v0.1.1-nightly.20261020.3438",
-  "conflicts": [
-    "apps/web/src/components/chat/ComposerBannerStack.browser.test.tsx",
-    "apps/web/src/components/chat/ComposerPrimaryActions.browser.test.tsx"
-  ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39508629556",
+  "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39509679386",
   "releasedVersion": "0.1.1-nightly.20261020.1792525791496",
-  "baseCommit": "65820781c35505ed70003ad65192c294a7dafa01",
-  "sequence": 1792535442943,
-  "conflictPullRequest": 17892,
-  "conflictIdentity": "1d17b80d677fc198efe791a0aed7ec0bf1b197a00ca6c6c836c68a0db14b198e",
+  "baseCommit": "a2ee22cb737902100a3a22876201bc7917d4045f",
+  "sequence": 1792535967237,
+  "candidateCommit": "750b5a67f63f9fac808cb501b6f6756f921ada6c",
+  "candidateVersion": "0.1.1-nightly.20261020.1792535967237",
   "inputs": {
     "upstreamTag": "v0.1.1-nightly.20261020.3438",
     "pullRequests": [
@@ -56,7 +53,7 @@
         "baseRef": "main"
       }
     ],
-    "resolutions": "d4a6948e8f5e5db8977390f7a821fe40b634047100da5d515c67588c2bf9163d"
+    "resolutions": "3904ab26c0b2ac8333b0b5426aa02094e209651b7a480a76f8a48655ff39cf89"
   },
   "pullRequests": [
     {
