@@ -136,7 +136,11 @@ function convertItems(items: NativeStackHeaderItem[], prefix: string): HeaderIte
   });
 }
 
-export function V5StackHeader(props: { readonly options: Options; readonly canGoBack: boolean }) {
+export function V5StackHeader(props: {
+  readonly options: Options;
+  readonly canGoBack: boolean;
+  readonly primary?: boolean;
+}) {
   const { options } = props;
   const theme = useMobileNavigationTheme();
   const nativeMetrics = useNativeLayoutMetrics();
@@ -190,6 +194,16 @@ export function V5StackHeader(props: { readonly options: Options; readonly canGo
         icon: { type: "sfSymbol", name: mailSearch.composeSystemImageName ?? "square.and.pencil" },
         onPress: mailSearch.onComposePress,
       });
+  }
+  // A collapsed split's primary column reaches the vertical bar only through its
+  // navigation items. Its own toolbar items stay accessible but never draw.
+  if (
+    props.primary &&
+    nativeMetrics?.horizontalSizeClass === "compact" &&
+    nativeMetrics.verticalBarEdge !== "none"
+  ) {
+    trailing.push(...bottom);
+    bottom.length = 0;
   }
   const left = options.headerLeft?.(itemProps);
   const right = options.headerRight?.(itemProps);

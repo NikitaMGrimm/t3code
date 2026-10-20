@@ -104,7 +104,11 @@ function ColumnScreen(props: {
     >
       <NavigationContext value={descriptor.navigation}>
         <NavigationRouteContext value={descriptor.route}>
-          <V5StackHeader options={descriptor.options} canGoBack={!props.primary} />
+          <V5StackHeader
+            options={descriptor.options}
+            canGoBack={!props.primary}
+            primary={props.primary}
+          />
           <ColumnContent
             primary={props.primary}
             insetHorizontally={

@@ -2,7 +2,6 @@ import { Toolbar } from "../../components/ui/Toolbar";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { use, useCallback, useEffect, useRef } from "react";
 import { Platform } from "react-native";
-import { isDuoDevice } from "../../lib/device-type";
 import { useDeviceType, useNativeLayoutMetrics } from "../../native/native-layout-metrics";
 import type { SearchBarCommands } from "react-native-screens";
 
@@ -35,9 +34,6 @@ export function WorkspaceToolbar(props: {
     (deviceType === "pad" ||
       sidebarTabs !== null ||
       (metrics?.verticalBarEdge ?? "none") !== "none");
-  // Duo searches from the list's bottom group in every pose, leaving the sidebar's header clear.
-  const toolbarSearch =
-    NATIVE_LIQUID_GLASS_SUPPORTED && nativeToolbarCompose && isDuoDevice(deviceType);
   const { isTabActive } = workspace;
   const tabActive = use(NativeWorkspaceTabActivityContext)?.active ?? true;
   const { panes, togglePrimarySidebar } = useAdaptiveWorkspaceLayout();
@@ -158,7 +154,6 @@ export function WorkspaceToolbar(props: {
           />
         ) : null}
         {nativeToolbarCompose ? <Toolbar.Spacer flexible /> : null}
-        {toolbarSearch ? <Toolbar.SearchBarSlot /> : null}
         {nativeToolbarCompose ? (
           <Toolbar.Button
             identifier="workspace-compose"
