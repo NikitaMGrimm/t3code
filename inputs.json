@@ -1,20 +1,10 @@
 {
   "inputs": {
-    "upstreamTag": "v0.1.1-nightly.20261020.3386",
+    "upstreamTag": "v0.1.1-nightly.20261020.3399",
     "pullRequests": [
       {
         "number": 14574,
         "headSha": "2d2a16f4dfe38ec41810b5624eae6fc3c60bd57f",
-        "baseRef": "main"
-      },
-      {
-        "number": 16249,
-        "headSha": "d9c288306d0a17c575ec965ea0f540049a8c6d1a",
-        "baseRef": "main"
-      },
-      {
-        "number": 16941,
-        "headSha": "b392b5651e1e0d179489e48b41bb82da2499ca77",
         "baseRef": "main"
       },
       {
@@ -28,18 +18,8 @@
         "baseRef": "main"
       },
       {
-        "number": 18322,
-        "headSha": "703f36b9d88ab29a2a432aef5e0b9ec2ec8f4fe0",
-        "baseRef": "main"
-      },
-      {
         "number": 18873,
         "headSha": "b9fa58f765e44c374c2bfbffaa07f9d0f240b102",
-        "baseRef": "main"
-      },
-      {
-        "number": 19919,
-        "headSha": "5a16f179fb4f56aa8827763ea9c49698f6112bb6",
         "baseRef": "main"
       },
       {
@@ -55,5 +35,5 @@
     ],
     "resolutions": "3467868597b083887b0b801d594edaa0ddaec3e0f5c6d51166f9db45d89b399c"
   },
-  "observedAt": 1792474264.8939192
+  "observedAt": 1792484270.1940997
 }
