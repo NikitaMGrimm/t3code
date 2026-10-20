@@ -124,7 +124,7 @@ jobs:
         run: node apps/web/node_modules/playwright/cli.js install --with-deps --only-shell chromium
       - name: Verify the personal browser boundaries
         working-directory: apps/web
-        run: vp test run --project browser src/components/PersonalUpdateStatus.browser.test.tsx src/components/TimeInput.browser.test.tsx src/components/ChatMarkdown.browser.test.tsx src/components/ChatMarkdown.math.browser.test.tsx src/components/chat/MermaidDiagram.browser.test.tsx src/components/chat/MessagesTimeline.browser.test.tsx src/components/chat/ThreadDetailsControl.browser.test.tsx src/markdown-clipboard.mermaid.browser.test.ts src/markdown-clipboard.math.browser.test.ts src/markdown-clipboard.math-source.browser.test.ts
+        run: vp test run --project browser src/browser/ServerBrowserSurface.browser.test.tsx src/components/PersonalUpdateStatus.browser.test.tsx src/components/TimeInput.browser.test.tsx src/components/ChatMarkdown.browser.test.tsx src/components/ChatMarkdown.math.browser.test.tsx src/components/chat/MermaidDiagram.browser.test.tsx src/components/chat/MessagesTimeline.browser.test.tsx src/components/chat/ThreadDetailsControl.browser.test.tsx src/markdown-clipboard.mermaid.browser.test.ts src/markdown-clipboard.math.browser.test.ts src/markdown-clipboard.math-source.browser.test.ts
       - run: node scripts/update-release-package-versions.ts '${{ needs.prepare.outputs.version }}'
       - run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev pkg-config
       - run: vp run build:desktop
