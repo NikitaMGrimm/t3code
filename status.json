@@ -1,20 +1,16 @@
 {
   "schema": 1,
-  "phase": "ready",
+  "phase": "conflict",
   "upstreamTag": "v0.1.1-nightly.20261019.3373",
-  "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39339473649",
+  "conflicts": [
+    "apps/web/src/components/chat/ComposerPrimaryActions.browser.test.tsx"
+  ],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39354772135",
   "releasedVersion": "0.1.1-nightly.20261019.1792440272094",
   "baseCommit": "b6938a664dc5e93792a8a5a967b26528e761cf26",
-  "sequence": 1792451198915,
-  "waiting": {
-    "pullRequest": 18308,
-    "baseCommit": "284ce8fe2ff99076657707fd754e538403d88d76",
-    "paths": [
-      "apps/web/src/components/ChatMarkdown.browser.test.tsx",
-      "apps/web/src/components/chat/ThreadDetailsPrRows.browser.test.tsx"
-    ]
-  },
+  "sequence": 1792460454949,
+  "conflictPullRequest": 17892,
+  "conflictIdentity": "fc996ba2d0210fe5e79f960279cbee6d697deb6c314429123761f4461b7833ab",
   "inputs": {
     "upstreamTag": "v0.1.1-nightly.20261019.3373",
     "pullRequests": [
@@ -40,7 +36,7 @@
       },
       {
         "number": 17892,
-        "headSha": "10f8e487dc595a706a282233bff2e9072af15bd8",
+        "headSha": "eb419e02495e4ccfe90be3a0a7542d65558e0764",
         "baseRef": "main"
       },
       {
@@ -133,8 +129,8 @@
     {
       "number": 17892,
       "title": "fix(web): attach button no longer shifts when the Compact chip toggles",
-      "headSha": "10f8e487dc595a706a282233bff2e9072af15bd8",
-      "baseSha": "92a6b4307fc6a29096a2e6a83a7a526caed4fa61",
+      "headSha": "eb419e02495e4ccfe90be3a0a7542d65558e0764",
+      "baseSha": "fb990765a49414a5bfbdc73365455fc8b5fbe691",
       "headRef": "fix/composer-compact-chip-order",
       "baseRef": "main",
       "author": "NikitaMGrimm",
