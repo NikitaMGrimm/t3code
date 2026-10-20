@@ -11,10 +11,10 @@
     "docs/user/appearance.md",
     "pnpm-lock.yaml"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39411149388",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39418838389",
   "releasedVersion": "0.1.1-nightly.20261019.1792440272094",
-  "baseCommit": "b6938a664dc5e93792a8a5a967b26528e761cf26",
-  "sequence": 1792493639041,
+  "baseCommit": "2589a3334c596237a61ca52dd2bcb019e2812af1",
+  "sequence": 1792497543049,
   "conflictPullRequest": 14574,
   "conflictIdentity": "330b381fa662ddc1cae09324ef7e3f15f8cada787e3162f052d004ef41cbfc54",
   "inputs": {
