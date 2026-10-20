@@ -1,6 +1,6 @@
 {
   "inputs": {
-    "upstreamTag": "v0.1.1-nightly.20261019.3373",
+    "upstreamTag": "v0.1.1-nightly.20261020.3386",
     "pullRequests": [
       {
         "number": 14574,
@@ -25,16 +25,6 @@
       {
         "number": 17892,
         "headSha": "eb419e02495e4ccfe90be3a0a7542d65558e0764",
-        "baseRef": "main"
-      },
-      {
-        "number": 18308,
-        "headSha": "1987ee2a01e6bea46aa0299ba24f859608c7bbeb",
-        "baseRef": "main"
-      },
-      {
-        "number": 18310,
-        "headSha": "0475aa6e4321734c6511771d35c5f491a05ca99f",
         "baseRef": "main"
       },
       {
@@ -65,5 +55,5 @@
     ],
     "resolutions": "3467868597b083887b0b801d594edaa0ddaec3e0f5c6d51166f9db45d89b399c"
   },
-  "observedAt": 1792460496.8085988
+  "observedAt": 1792461465.0070853
 }
