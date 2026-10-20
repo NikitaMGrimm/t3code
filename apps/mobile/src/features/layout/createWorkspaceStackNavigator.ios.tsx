@@ -264,8 +264,11 @@ function WorkspaceColumns(
             />
             <ColumnContent>
               <WorkspaceEmptyDetail
-                onStartNewTask={() =>
-                  props.navigation.navigate("NewTaskSheet", { screen: "NewTask" })
+                onStartNewTask={
+                  // A visible sidebar carries compose in its own toolbar.
+                  panes.primarySidebarVisible
+                    ? undefined
+                    : () => props.navigation.navigate("NewTaskSheet", { screen: "NewTask" })
                 }
               />
             </ColumnContent>
