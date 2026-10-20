@@ -34,22 +34,25 @@ jobs:
       MOBILE_VERSION_POLICY: appVersion
       NODE_OPTIONS: --max-old-space-size=8192
     steps:
-      - uses: actions/checkout@v6
-        with:
-          path: tooling
-          persist-credentials: false
       - name: Validate source identity
         shell: bash
         run: |
           [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$SOURCE_REPOSITORY" == pingdotgg/t3code || "$SOURCE_REPOSITORY" == NikitaMGrimm/t3code ]]
           xcodebuild -version
-      - uses: actions/checkout@v6
-        with:
-          repository: ${{ inputs.source_repository }}
-          ref: ${{ inputs.source_sha }}
-          path: source
-          persist-credentials: false
+      - name: Fetch public source and build tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tooling/scripts source
+          curl --fail --location --retry 2 \
+            "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/build-ios-lab.sh" \
+            --output tooling/scripts/build-ios-lab.sh
+          git -C source init
+          git -C source remote add origin "https://github.com/$SOURCE_REPOSITORY.git"
+          git -C source fetch --depth=1 origin "$SOURCE_SHA"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$SOURCE_SHA"
       - uses: voidzero-dev/setup-vp@v1
         with:
           node-version: '24'
