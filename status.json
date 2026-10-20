@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.1-nightly.20261020.3386",
+  "upstreamTag": "v0.1.1-nightly.20261020.3401",
   "conflicts": [
     "apps/web/src/components/ChatMarkdown.tsx",
     "apps/web/src/components/chat/MarkdownMath.tsx",
@@ -11,28 +11,18 @@
     "docs/user/appearance.md",
     "pnpm-lock.yaml"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39394871222",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39398153621",
   "releasedVersion": "0.1.1-nightly.20261019.1792440272094",
   "baseCommit": "b6938a664dc5e93792a8a5a967b26528e761cf26",
-  "sequence": 1792485523863,
+  "sequence": 1792487145657,
   "conflictPullRequest": 14574,
-  "conflictIdentity": "5f8eef87c0d88d11e9035b8725158a657985037a2994e0f57296d76419d68ce6",
+  "conflictIdentity": "aac08f66b89829d7e48901cf68e2508f6b8b845d946ce123a30ff9103a947119",
   "inputs": {
-    "upstreamTag": "v0.1.1-nightly.20261020.3386",
+    "upstreamTag": "v0.1.1-nightly.20261020.3401",
     "pullRequests": [
       {
         "number": 14574,
         "headSha": "2d2a16f4dfe38ec41810b5624eae6fc3c60bd57f",
-        "baseRef": "main"
-      },
-      {
-        "number": 16249,
-        "headSha": "d9c288306d0a17c575ec965ea0f540049a8c6d1a",
-        "baseRef": "main"
-      },
-      {
-        "number": 16941,
-        "headSha": "b392b5651e1e0d179489e48b41bb82da2499ca77",
         "baseRef": "main"
       },
       {
@@ -46,18 +36,8 @@
         "baseRef": "main"
       },
       {
-        "number": 18322,
-        "headSha": "703f36b9d88ab29a2a432aef5e0b9ec2ec8f4fe0",
-        "baseRef": "main"
-      },
-      {
         "number": 18873,
         "headSha": "b9fa58f765e44c374c2bfbffaa07f9d0f240b102",
-        "baseRef": "main"
-      },
-      {
-        "number": 19919,
-        "headSha": "5a16f179fb4f56aa8827763ea9c49698f6112bb6",
         "baseRef": "main"
       },
       {
@@ -87,30 +67,6 @@
       "baseRepository": "pingdotgg/t3code"
     },
     {
-      "number": 16249,
-      "title": "fix(web): preserve Mermaid source when copying selected text",
-      "headSha": "d9c288306d0a17c575ec965ea0f540049a8c6d1a",
-      "baseSha": "fd8dd51654f855dbf4e23c457701f5088c59b689",
-      "headRef": "feat/mermaid-selection-copy",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/16249",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 16941,
-      "title": "fix(server): queued preview actions no longer start after their deadline, except recording stop",
-      "headSha": "b392b5651e1e0d179489e48b41bb82da2499ca77",
-      "baseSha": "86d130af6c02a126515488ed6038b68906c35bf7",
-      "headRef": "fix/preview-timeout-isolation-16921",
-      "baseRef": "main",
-      "author": "hogeheer499-commits",
-      "url": "https://github.com/pingdotgg/t3code/pull/16941",
-      "headRepository": "hogeheer499-commits/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
       "number": 17871,
       "title": "fix(preview): keep browser sessions available after action timeouts",
       "headSha": "3bd2412b0c3910e38df27c9f84ff992acd89d129",
@@ -135,18 +91,6 @@
       "baseRepository": "pingdotgg/t3code"
     },
     {
-      "number": 18322,
-      "title": "fix(mobile): don't send or paste attached threads a machine can't read",
-      "headSha": "703f36b9d88ab29a2a432aef5e0b9ec2ec8f4fe0",
-      "baseSha": "4af66184ef832c4939f331725585dc70f0c8a3c4",
-      "headRef": "resubmit/reference-machine-selection-mobile",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/18322",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
       "number": 18873,
       "title": "fix(preview): keep one browser page across thread switches",
       "headSha": "b9fa58f765e44c374c2bfbffaa07f9d0f240b102",
@@ -156,18 +100,6 @@
       "author": "t3dotgg",
       "url": "https://github.com/pingdotgg/t3code/pull/18873",
       "headRepository": "pingdotgg/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 19919,
-      "title": "fix(web): agent tabs in background threads open in the desktop browser",
-      "headSha": "5a16f179fb4f56aa8827763ea9c49698f6112bb6",
-      "baseSha": "fd8dd51654f855dbf4e23c457701f5088c59b689",
-      "headRef": "fix/bg-thread-preview-webview",
-      "baseRef": "main",
-      "author": "MahirAbbas",
-      "url": "https://github.com/pingdotgg/t3code/pull/19919",
-      "headRepository": "MahirAbbas/t3code",
       "baseRepository": "pingdotgg/t3code"
     },
     {
