@@ -1,15 +1,14 @@
 {
   "schema": 1,
-  "phase": "conflict",
+  "phase": "building",
   "upstreamTag": "v0.1.1-nightly.20261020.3411",
-  "conflicts": [
-    "apps/web/src/components/chat/ThreadAutomationsPanel.tsx"
-  ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39478152416",
+  "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39478744777",
   "releasedVersion": "0.1.1-nightly.20261019.1792440272094",
   "baseCommit": "5170289675b432964c4526724f4aa3312864fc37",
-  "sequence": 1792522195963,
-  "conflictIdentity": "15a02f6f3d0b5ed334d3be180056137a5a8eec8ed25bf41cb188370cf4487543",
+  "sequence": 1792522436706,
+  "candidateCommit": "49b6cfd077c3be51131fa92fd556540dcf223444",
+  "candidateVersion": "0.1.1-nightly.20261020.1792522436706",
   "inputs": {
     "upstreamTag": "v0.1.1-nightly.20261020.3411",
     "pullRequests": [
@@ -44,7 +43,7 @@
         "baseRef": "main"
       }
     ],
-    "resolutions": "4f4f30676b083f97ba67c2575eee9139a1bd903d6377c0ede8fce808224bf9de"
+    "resolutions": "d4a6948e8f5e5db8977390f7a821fe40b634047100da5d515c67588c2bf9163d"
   },
   "pullRequests": [
     {
