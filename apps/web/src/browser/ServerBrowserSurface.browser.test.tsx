@@ -1,5 +1,8 @@
 import { EnvironmentId, ThreadId } from "@t3tools/contracts";
-import type { PreviewStreamInput } from "@t3tools/client-runtime/preview/server-browser-stream";
+import type {
+  PreviewStreamEvents,
+  PreviewStreamInput,
+} from "@t3tools/client-runtime/preview/server-browser-stream";
 
 import "~/index.css";
 import { describe, expect, it, vi } from "vite-plus/test";
@@ -9,12 +12,18 @@ import { render } from "../../test/render";
 const mocks = vi.hoisted(() => ({
   send: vi.fn<(input: PreviewStreamInput) => void>(),
   connect: vi.fn(),
+  events: null as PreviewStreamEvents | null,
+  painted: null as (() => void) | null,
 }));
 
 vi.mock(import("@t3tools/client-runtime/preview/server-browser-stream"), async (original) => ({
   ...(await original()),
-  createPreviewFramePainter: () => ({ paint: () => undefined, stop: () => undefined }),
-  createPreviewStreamClient: () => {
+  createPreviewFramePainter: (_canvas, onPainted) => {
+    mocks.painted = onPainted;
+    return { paint: () => undefined, stop: () => undefined };
+  },
+  createPreviewStreamClient: (_options, events) => {
+    mocks.events = events;
     mocks.connect();
     return { send: mocks.send, stop: () => undefined } as never;
   },
@@ -76,5 +85,39 @@ describe("ServerBrowserSurface", () => {
 
     expect(mouseUp(canvas, 0).defaultPrevented).toBe(false);
     expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it("does not forward thumb-button presses to the page", async () => {
+    await using surface = await renderSurface();
+    const { canvas } = surface;
+    canvas.width = 400;
+    canvas.height = 300;
+    // Synthetic pointers have no active pointer id to capture.
+    canvas.setPointerCapture = () => undefined;
+    mocks.painted?.();
+    mocks.events?.onViewport({ width: 400, height: 300 });
+    mocks.events?.onControl?.({ canOperate: true, controller: "you", generation: 1, dialog: null });
+    const { left, top } = canvas.getBoundingClientRect();
+    const press = (type: "pointerdown" | "pointerup", button: number) =>
+      canvas.dispatchEvent(
+        new PointerEvent(type, {
+          button,
+          buttons: type === "pointerdown" ? 1 << button : 0,
+          clientX: left + 10,
+          clientY: top + 10,
+          pointerType: "mouse",
+          bubbles: true,
+        }),
+      );
+    const mouseInputs = () => mocks.send.mock.calls.filter(([input]) => input.type === "mouse");
+
+    for (const button of [3, 4]) {
+      press("pointerdown", button);
+      press("pointerup", button);
+    }
+    expect(mouseInputs()).toEqual([]);
+
+    press("pointerdown", 0);
+    expect(mouseInputs()).not.toEqual([]);
   });
 });
