@@ -136,39 +136,28 @@ function convertItems(items: NativeStackHeaderItem[], prefix: string): HeaderIte
   });
 }
 
-export function V5StackHeader(props: {
-  readonly options: Options;
-  readonly canGoBack: boolean;
-  readonly primary?: boolean;
-  readonly sidebarFilter?: NativeStackHeaderItemMenu;
-}) {
+export function V5StackHeader(props: { readonly options: Options; readonly canGoBack: boolean }) {
   const { options } = props;
   const theme = useMobileNavigationTheme();
   const nativeMetrics = useNativeLayoutMetrics();
   const deviceType = useDeviceType();
   const searchRef = useRef<SearchBarCommands>(null);
-  const usesDuoToolbarRail =
-    deviceType === "duo-unfolded" && (nativeMetrics?.verticalBarEdge ?? "none") !== "none";
   const itemProps = { tintColor: options.headerTintColor, canGoBack: props.canGoBack };
   const leading = convertItems(options.unstable_headerLeftItems?.(itemProps) ?? [], "leading");
-  const trailingItems = [
-    ...(options.unstable_headerCenterItems?.() ?? []),
-    ...(options.unstable_headerRightItems?.(itemProps) ?? []),
-  ];
-  // Keep the sidebar's filter actions when UIKit moves the menu to the detail rail.
-  if (usesDuoToolbarRail && !props.primary && props.sidebarFilter) {
-    trailingItems.push({
-      ...props.sidebarFilter,
-      identifier: "home-filter",
-      axisBehavior: "verticalPreferred",
-    });
-  }
-  const trailing = convertItems(trailingItems, "trailing");
+  const trailing = convertItems(
+    [
+      ...(options.unstable_headerCenterItems?.() ?? []),
+      ...(options.unstable_headerRightItems?.(itemProps) ?? []),
+    ],
+    "trailing",
+  );
   const toolbar = options.unstable_headerToolbarItems?.() ?? [];
   const mailSearch = toolbar.find(
     (item): item is HeaderBarButtonMailSearchToolbarItem => item.type === "mailSearchToolbar",
   );
   const bottomSearch = Boolean(mailSearch) && deviceType !== "pad";
+  // A vertical bar keeps fixed spaces at full length and separates items itself.
+  const spacesSearch = bottomSearch && (nativeMetrics?.verticalBarEdge ?? "none") === "none";
   const bottom = toolbar.flatMap<HeaderItem>((item, index) => {
     if (item.type === "mailSearchToolbar") return [];
     if (item.type === "searchBarPlacement")
@@ -180,7 +169,6 @@ export function V5StackHeader(props: {
       bottom.push({
         type: "item",
         id: mailSearch.filterButtonId ?? "filter",
-        axisBehavior: bottomSearch ? "horizontalOnly" : undefined,
         icon: {
           type: "sfSymbol",
           name: mailSearch.filterSystemImageName ?? "line.3.horizontal.decrease",
@@ -188,36 +176,20 @@ export function V5StackHeader(props: {
         menu: convertMenu(mailSearch.filterMenu, "filter-menu"),
       });
     if (bottomSearch) {
-      if (bottom.length)
+      if (spacesSearch && bottom.length)
         bottom.push({ type: "spacer", id: "before-search", sizing: "fixed", width: 8 });
-      bottom.push({
-        type: "item",
-        id: "home-search",
-        axisBehavior: "horizontalOnly",
-        searchBarPlacement: true,
-      });
-      if (mailSearch.onComposePress)
+      bottom.push({ type: "item", id: "home-search", searchBarPlacement: true });
+      if (spacesSearch && mailSearch.onComposePress)
         bottom.push({ type: "spacer", id: "after-search", sizing: "fixed", width: 8 });
     }
     if (mailSearch.onComposePress)
       bottom.push({
         type: "item",
         id: mailSearch.composeButtonId ?? "compose",
-        axisBehavior: bottomSearch ? "horizontalOnly" : undefined,
         identifier: "workspace-trailing-action",
         icon: { type: "sfSymbol", name: mailSearch.composeSystemImageName ?? "square.and.pencil" },
         onPress: mailSearch.onComposePress,
       });
-  }
-  // Duo keeps compose at the bottom of a visible sidebar. On a single panel,
-  // the primary column owns the rail too; its separate UIToolbar is inaccessible.
-  if (
-    nativeMetrics &&
-    nativeMetrics.verticalBarEdge !== "none" &&
-    (!props.primary || nativeMetrics.horizontalSizeClass === "compact")
-  ) {
-    trailing.push(...bottom);
-    bottom.length = 0;
   }
   const left = options.headerLeft?.(itemProps);
   const right = options.headerRight?.(itemProps);

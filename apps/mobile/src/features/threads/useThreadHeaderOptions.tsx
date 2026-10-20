@@ -103,18 +103,23 @@ export function useThreadHeaderOptions(props: {
   const duoRightHeaderItems = useMemo<NativeHeaderItems>(
     () => [
       ...threadCenterHeaderItems,
-      { type: "spacing", spacing: 8 },
-      withNativeGlassHeaderItem({
-        type: "button" as const,
-        axisBehavior: "verticalPreferred",
-        identifier: "thread-right-new-task",
-        label: "New task",
-        accessibilityLabel: "New task",
-        icon: { name: "square.and.pencil", type: "sfSymbol" as const },
-        onPress: () => navigation.navigate("NewTaskSheet", { screen: "NewTask" }),
-      }),
+      // A visible sidebar carries compose in its own toolbar.
+      ...(panes.primarySidebarVisible
+        ? []
+        : [
+            { type: "spacing", spacing: 8 },
+            withNativeGlassHeaderItem({
+              type: "button" as const,
+              axisBehavior: "verticalPreferred",
+              identifier: "thread-right-new-task",
+              label: "New task",
+              accessibilityLabel: "New task",
+              icon: { name: "square.and.pencil", type: "sfSymbol" as const },
+              onPress: () => navigation.navigate("NewTaskSheet", { screen: "NewTask" }),
+            }),
+          ]),
     ],
-    [navigation, threadCenterHeaderItems],
+    [navigation, panes.primarySidebarVisible, threadCenterHeaderItems],
   );
 
   const options: AppNativeStackNavigationOptions = {

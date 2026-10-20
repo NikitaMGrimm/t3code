@@ -14,7 +14,6 @@ import {
 } from "@react-navigation/native";
 import {
   NativeStackView,
-  type NativeStackHeaderItemMenu,
   type NativeStackNavigationEventMap,
   type NativeStackNavigationOptions,
   type NativeStackNavigatorProps,
@@ -65,7 +64,6 @@ function ColumnScreen(props: {
   readonly primary?: boolean;
   readonly selectedThreadKey?: string | null;
   readonly selectedPullRequestKey?: string | null;
-  readonly sidebarFilter?: NativeStackHeaderItemMenu;
   readonly onDismiss: (routeKey: string) => void;
   readonly onAppearance: (type: "willAppear" | "didAppear" | "willDisappear", key: string) => void;
   readonly navigation: ViewProps["navigation"];
@@ -106,12 +104,7 @@ function ColumnScreen(props: {
     >
       <NavigationContext value={descriptor.navigation}>
         <NavigationRouteContext value={descriptor.route}>
-          <V5StackHeader
-            options={descriptor.options}
-            canGoBack={!props.primary}
-            primary={props.primary}
-            sidebarFilter={props.sidebarFilter}
-          />
+          <V5StackHeader options={descriptor.options} canGoBack={!props.primary} />
           <ColumnContent
             primary={props.primary}
             insetHorizontally={
@@ -199,7 +192,6 @@ function WorkspaceColumns(
 
   const primary = props.descriptors[props.primary.key];
   if (!primary) return null;
-  const sidebarFilter = (primary.options as AppNativeStackNavigationOptions).nativeSidebarFilter;
   return (
     <Split.Host
       ref={hostRef}
@@ -264,7 +256,6 @@ function WorkspaceColumns(
                 ],
               }}
               canGoBack={false}
-              sidebarFilter={sidebarFilter}
             />
             <ColumnContent>
               <WorkspaceEmptyDetail
@@ -283,7 +274,6 @@ function WorkspaceColumns(
                 onDismiss={handleNativeDismiss}
                 onAppearance={followCollapsedSplit}
                 navigation={props.navigation}
-                sidebarFilter={sidebarFilter}
               />
             ) : null;
           })}
