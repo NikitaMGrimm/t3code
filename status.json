@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.1-nightly.20261020.3401",
+  "upstreamTag": "v0.1.1-nightly.20261020.3411",
   "conflicts": [
     "apps/web/src/components/ChatMarkdown.tsx",
     "apps/web/src/components/chat/MarkdownMath.tsx",
@@ -11,14 +11,14 @@
     "docs/user/appearance.md",
     "pnpm-lock.yaml"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39398153621",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39411149388",
   "releasedVersion": "0.1.1-nightly.20261019.1792440272094",
   "baseCommit": "b6938a664dc5e93792a8a5a967b26528e761cf26",
-  "sequence": 1792487145657,
+  "sequence": 1792493639041,
   "conflictPullRequest": 14574,
-  "conflictIdentity": "aac08f66b89829d7e48901cf68e2508f6b8b845d946ce123a30ff9103a947119",
+  "conflictIdentity": "330b381fa662ddc1cae09324ef7e3f15f8cada787e3162f052d004ef41cbfc54",
   "inputs": {
-    "upstreamTag": "v0.1.1-nightly.20261020.3401",
+    "upstreamTag": "v0.1.1-nightly.20261020.3411",
     "pullRequests": [
       {
         "number": 14574,
