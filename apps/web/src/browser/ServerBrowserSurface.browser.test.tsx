@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock(import("@t3tools/client-runtime/preview/server-browser-stream"), async (original) => ({
   ...(await original()),
   createPreviewFramePainter: (_canvas, onPainted) => {
-    mocks.painted = onPainted;
+    mocks.painted = onPainted ?? null;
     return { paint: () => undefined, stop: () => undefined };
   },
   createPreviewStreamClient: (_options, events) => {
