@@ -374,182 +374,184 @@ export function ThreadArrangementSheet(props: { onClose: () => void }) {
       <GestureHandlerRootView style={{ flex: 1 }}>
         {/* A Modal is its own native hierarchy, so measure its own safe area, including side
             insets for the camera, instead of the presenting screen's. */}
-        <SafeAreaProvider>
-          <SafeAreaView className="flex-1 bg-screen">
-            <SheetHeader
-              presentation="inline"
-              title="Arrange threads"
-              onClose={props.onClose}
-              accessibilityLabel="Close arrange threads"
-            />
-            <Text className="px-5 pb-3 text-sm text-foreground-muted">
-              Drag to reorder, pin, or settle. Changes save when you drop.
-            </Text>
-            <View
-              onLayout={(event) => {
-                geometry.current.height = event.nativeEvent.layout.height;
-              }}
-              className="flex-1"
-              style={{ overflow: "hidden" }}
-            >
-              <FlatList
-                ref={list}
-                data={rows}
-                keyExtractor={(row) => row.key}
-                scrollEnabled={visiblePreview === null}
-                removeClippedSubviews={false}
-                onScroll={(event) => {
-                  geometry.current.offset = event.nativeEvent.contentOffset.y;
-                }}
-                scrollEventThrottle={16}
-                getItemLayout={(_, index) => ({
-                  length: rows[index]!.height,
-                  offset: rows[index]!.offset,
-                  index,
-                })}
-                renderItem={({ item }) => {
-                  const thread = item.thread;
-                  const planner =
-                    item.section === "pinned" || item.section === "active"
-                      ? planners[item.section]
-                      : null;
-                  const capabilities =
-                    thread && configs.get(thread.environmentId)?.environment.capabilities;
-                  const sectionActions = thread
-                    ? (["pinned", "active", "settled"] as const).flatMap<{
-                        name: "pinned" | "active" | "settled";
-                        label: string;
-                      }>((section) => {
-                        if (section === item.section) return [];
-                        const label = threadDragAction(item.section, section);
-                        if (!label) return [];
-                        if (section === "settled")
-                          return capabilities?.threadSettlement ? [{ name: section, label }] : [];
-                        if (
-                          ((section === "pinned" || thread.pinnedAt != null) &&
-                            !capabilities?.threadPinning) ||
-                          (section === "active" &&
-                            item.section === "settled" &&
-                            !capabilities?.threadSettlement) ||
-                          (section === "active" &&
-                            item.section === "snoozed" &&
-                            !capabilities?.threadSnooze)
-                        )
-                          return [];
-                        return planners[section](item.key, {
-                          section,
-                          targetId: null,
-                          placement: "before",
-                        })
-                          ? [{ name: section, label }]
-                          : [];
-                      })
-                    : [];
-                  return (
-                    <ArrangementRow
-                      height={item.height}
-                      dragging={visiblePreview !== null}
-                      lifted={item.key === sourceRow?.key}
-                      offset={
-                        sourceRow && insertionOffset !== undefined
-                          ? threadDragGapOffset(
-                              item.offset,
-                              sourceRow.offset,
-                              sourceRow.height,
-                              insertionOffset,
-                            )
-                          : 0
-                      }
-                    >
-                      {thread ? (
-                        <>
-                          <Text numberOfLines={2} className="flex-1 text-base">
-                            {thread.title}
-                          </Text>
-                          <DragHandle
-                            title={thread.title}
-                            disabled={
-                              dropBusy ||
-                              pendingOrder !== null ||
-                              !(
-                                configs.get(thread.environmentId)?.environment.capabilities
-                                  .threadPinReorder ||
-                                configs.get(thread.environmentId)?.environment.capabilities
-                                  .threadActiveReorder
-                              )
-                            }
-                            sectionActions={sectionActions}
-                            onSectionMove={(section) => {
-                              void moveThread(thread, {
-                                section,
-                                targetId: null,
-                                placement: "before",
-                              });
-                            }}
-                            canMoveUp={planner?.(item.key, "up") != null}
-                            canMoveDown={planner?.(item.key, "down") != null}
-                            onStep={(direction) => {
-                              void moveThread(thread, direction);
-                            }}
-                            onStart={() => start(item)}
-                            onMove={update}
-                            onEnd={(cancelled) => {
-                              const current = drag.current;
-                              if (cancelled || !current?.destination) {
-                                stop();
-                                return;
-                              }
-                              if (frame.current !== null) cancelAnimationFrame(frame.current);
-                              frame.current = null;
-                              drag.current = null;
-                              void moveThread(current.thread, current.destination).finally(stop);
-                            }}
-                          />
-                        </>
-                      ) : (
-                        <Pressable
-                          disabled={item.section === "pinned" || item.section === "active"}
-                          className="flex-1 justify-center self-stretch"
-                          onPress={() => {
-                            const section = item.section;
-                            if (section === "snoozed" || section === "settled")
-                              setExpanded((value) => ({ ...value, [section]: !value[section] }));
-                          }}
-                        >
-                          <Text className="text-sm font-t3-semibold text-foreground-muted">
-                            {item.section[0]!.toUpperCase() + item.section.slice(1)} (
-                            {sections[item.section].length})
-                          </Text>
-                        </Pressable>
-                      )}
-                    </ArrangementRow>
-                  );
-                }}
+        <SafeAreaProvider style={{ flex: 1 }}>
+          <View className="flex-1 bg-screen">
+            <SafeAreaView style={{ flex: 1 }}>
+              <SheetHeader
+                presentation="inline"
+                title="Arrange threads"
+                onClose={props.onClose}
+                accessibilityLabel="Close arrange threads"
               />
-              {visiblePreview ? (
-                <Animated.View
-                  pointerEvents="none"
-                  className="absolute left-5 right-5 justify-center rounded-xl border border-border bg-screen px-4"
-                  style={{ top: 0, height: ROW_HEIGHT, transform: [{ translateY }] }}
-                >
-                  <Text
-                    numberOfLines={visiblePreview.destination?.section ? 1 : 2}
-                    className="text-base font-t3-medium"
+              <Text className="px-5 pb-3 text-sm text-foreground-muted">
+                Drag to reorder, pin, or settle. Changes save when you drop.
+              </Text>
+              <View
+                onLayout={(event) => {
+                  geometry.current.height = event.nativeEvent.layout.height;
+                }}
+                className="flex-1"
+                style={{ overflow: "hidden" }}
+              >
+                <FlatList
+                  ref={list}
+                  data={rows}
+                  keyExtractor={(row) => row.key}
+                  scrollEnabled={visiblePreview === null}
+                  removeClippedSubviews={false}
+                  onScroll={(event) => {
+                    geometry.current.offset = event.nativeEvent.contentOffset.y;
+                  }}
+                  scrollEventThrottle={16}
+                  getItemLayout={(_, index) => ({
+                    length: rows[index]!.height,
+                    offset: rows[index]!.offset,
+                    index,
+                  })}
+                  renderItem={({ item }) => {
+                    const thread = item.thread;
+                    const planner =
+                      item.section === "pinned" || item.section === "active"
+                        ? planners[item.section]
+                        : null;
+                    const capabilities =
+                      thread && configs.get(thread.environmentId)?.environment.capabilities;
+                    const sectionActions = thread
+                      ? (["pinned", "active", "settled"] as const).flatMap<{
+                          name: "pinned" | "active" | "settled";
+                          label: string;
+                        }>((section) => {
+                          if (section === item.section) return [];
+                          const label = threadDragAction(item.section, section);
+                          if (!label) return [];
+                          if (section === "settled")
+                            return capabilities?.threadSettlement ? [{ name: section, label }] : [];
+                          if (
+                            ((section === "pinned" || thread.pinnedAt != null) &&
+                              !capabilities?.threadPinning) ||
+                            (section === "active" &&
+                              item.section === "settled" &&
+                              !capabilities?.threadSettlement) ||
+                            (section === "active" &&
+                              item.section === "snoozed" &&
+                              !capabilities?.threadSnooze)
+                          )
+                            return [];
+                          return planners[section](item.key, {
+                            section,
+                            targetId: null,
+                            placement: "before",
+                          })
+                            ? [{ name: section, label }]
+                            : [];
+                        })
+                      : [];
+                    return (
+                      <ArrangementRow
+                        height={item.height}
+                        dragging={visiblePreview !== null}
+                        lifted={item.key === sourceRow?.key}
+                        offset={
+                          sourceRow && insertionOffset !== undefined
+                            ? threadDragGapOffset(
+                                item.offset,
+                                sourceRow.offset,
+                                sourceRow.height,
+                                insertionOffset,
+                              )
+                            : 0
+                        }
+                      >
+                        {thread ? (
+                          <>
+                            <Text numberOfLines={2} className="flex-1 text-base">
+                              {thread.title}
+                            </Text>
+                            <DragHandle
+                              title={thread.title}
+                              disabled={
+                                dropBusy ||
+                                pendingOrder !== null ||
+                                !(
+                                  configs.get(thread.environmentId)?.environment.capabilities
+                                    .threadPinReorder ||
+                                  configs.get(thread.environmentId)?.environment.capabilities
+                                    .threadActiveReorder
+                                )
+                              }
+                              sectionActions={sectionActions}
+                              onSectionMove={(section) => {
+                                void moveThread(thread, {
+                                  section,
+                                  targetId: null,
+                                  placement: "before",
+                                });
+                              }}
+                              canMoveUp={planner?.(item.key, "up") != null}
+                              canMoveDown={planner?.(item.key, "down") != null}
+                              onStep={(direction) => {
+                                void moveThread(thread, direction);
+                              }}
+                              onStart={() => start(item)}
+                              onMove={update}
+                              onEnd={(cancelled) => {
+                                const current = drag.current;
+                                if (cancelled || !current?.destination) {
+                                  stop();
+                                  return;
+                                }
+                                if (frame.current !== null) cancelAnimationFrame(frame.current);
+                                frame.current = null;
+                                drag.current = null;
+                                void moveThread(current.thread, current.destination).finally(stop);
+                              }}
+                            />
+                          </>
+                        ) : (
+                          <Pressable
+                            disabled={item.section === "pinned" || item.section === "active"}
+                            className="flex-1 justify-center self-stretch"
+                            onPress={() => {
+                              const section = item.section;
+                              if (section === "snoozed" || section === "settled")
+                                setExpanded((value) => ({ ...value, [section]: !value[section] }));
+                            }}
+                          >
+                            <Text className="text-sm font-t3-semibold text-foreground-muted">
+                              {item.section[0]!.toUpperCase() + item.section.slice(1)} (
+                              {sections[item.section].length})
+                            </Text>
+                          </Pressable>
+                        )}
+                      </ArrangementRow>
+                    );
+                  }}
+                />
+                {visiblePreview ? (
+                  <Animated.View
+                    pointerEvents="none"
+                    className="absolute left-5 right-5 justify-center rounded-xl border border-border bg-screen px-4"
+                    style={{ top: 0, height: ROW_HEIGHT, transform: [{ translateY }] }}
                   >
-                    {visiblePreview.thread.title}
-                  </Text>
-                  {visiblePreview.destination?.section ? (
-                    <Text className="text-xs text-foreground-muted">
-                      {threadDragAction(
-                        visiblePreview.sourceSection,
-                        visiblePreview.destination.section,
-                      )}
+                    <Text
+                      numberOfLines={visiblePreview.destination?.section ? 1 : 2}
+                      className="text-base font-t3-medium"
+                    >
+                      {visiblePreview.thread.title}
                     </Text>
-                  ) : null}
-                </Animated.View>
-              ) : null}
-            </View>
-          </SafeAreaView>
+                    {visiblePreview.destination?.section ? (
+                      <Text className="text-xs text-foreground-muted">
+                        {threadDragAction(
+                          visiblePreview.sourceSection,
+                          visiblePreview.destination.section,
+                        )}
+                      </Text>
+                    ) : null}
+                  </Animated.View>
+                ) : null}
+              </View>
+            </SafeAreaView>
+          </View>
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </Modal>
