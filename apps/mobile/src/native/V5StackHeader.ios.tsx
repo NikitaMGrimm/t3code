@@ -139,7 +139,8 @@ function convertItems(items: NativeStackHeaderItem[], prefix: string): HeaderIte
 export function V5StackHeader(props: {
   readonly options: Options;
   readonly canGoBack: boolean;
-  readonly primary?: boolean;
+  /** Workspace split columns share the vertical bar with the workspace tab bar. */
+  readonly column?: "primary" | "detail";
 }) {
   const { options } = props;
   const theme = useMobileNavigationTheme();
@@ -195,13 +196,17 @@ export function V5StackHeader(props: {
         onPress: mailSearch.onComposePress,
       });
   }
-  // A collapsed split's primary column reaches the vertical bar only through its
-  // navigation items. Its own toolbar items stay accessible but never draw.
+  // UIKit doesn't stack a column's toolbar against the workspace tab bar, which owns the
+  // bottom of the vertical bar and draws over it. Those columns keep the group in their
+  // navigation items. An expanded sidebar's toolbar stays horizontal, outside the bar.
   if (
-    props.primary &&
-    nativeMetrics?.horizontalSizeClass === "compact" &&
-    nativeMetrics.verticalBarEdge !== "none"
+    props.column &&
+    nativeMetrics &&
+    nativeMetrics.verticalBarEdge !== "none" &&
+    (props.column === "detail" || nativeMetrics.horizontalSizeClass === "compact")
   ) {
+    if (trailing.length && bottom.length)
+      trailing.push({ type: "spacer", id: "toolbar-group", sizing: "fixed", width: 8 });
     trailing.push(...bottom);
     bottom.length = 0;
   }

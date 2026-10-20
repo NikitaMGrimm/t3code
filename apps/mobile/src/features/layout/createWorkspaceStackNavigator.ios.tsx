@@ -107,7 +107,7 @@ function ColumnScreen(props: {
           <V5StackHeader
             options={descriptor.options}
             canGoBack={!props.primary}
-            primary={props.primary}
+            column={props.primary ? "primary" : "detail"}
           />
           <ColumnContent
             primary={props.primary}
@@ -260,6 +260,7 @@ function WorkspaceColumns(
                 ],
               }}
               canGoBack={false}
+              column="detail"
             />
             <ColumnContent>
               <WorkspaceEmptyDetail
