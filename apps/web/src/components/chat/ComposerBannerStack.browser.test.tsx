@@ -1,70 +1,56 @@
 import "../../index.css";
 
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
+import { expect, it } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
+import { act, render } from "../../../test/render";
 import { ComposerBannerStack } from "./ComposerBannerStack";
 
-let root: Root;
-let container: HTMLDivElement;
-
-// The Playwright pointer keeps its page position across the test files that share
-// a browser session, and Chrome re-hit-tests under a stationary pointer after
-// layout. A pointer left near the top of the page by an earlier file would hover
-// the stack the moment it mounts and expand it before the first assertion runs.
+// Keep a pointer retained from another test from expanding the stack as it mounts.
 async function parkPointerAway() {
   const parking = document.createElement("div");
   parking.style.cssText = "position:fixed;right:0;bottom:0;width:4px;height:4px";
   document.body.append(parking);
-  await userEvent.hover(parking);
-  parking.remove();
+  try {
+    await userEvent.hover(parking);
+  } finally {
+    parking.remove();
+  }
 }
 
-beforeEach(async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-  await parkPointerAway();
-});
-
-afterEach(async () => {
-  await act(async () => root.unmount());
-  container.remove();
-  vi.unstubAllGlobals();
-});
+function sized(width: number) {
+  const container = document.createElement("div");
+  container.style.width = `${width}px`;
+  return container;
+}
 
 const nextFrame = () =>
   act(() => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0))));
 
-async function render(width: number, description: string) {
-  container.style.width = `${width}px`;
-  await act(async () =>
-    root.render(
-      <ComposerBannerStack
-        items={[{ id: "usage", variant: "info", icon: null, title: "Usage limits", description }]}
-      />,
-    ),
-  );
-  await nextFrame();
-}
-
-const hasDetails = () => container.querySelector('[aria-label="Show notice details"]') !== null;
+const usage = (description: string) => (
+  <ComposerBannerStack
+    items={[{ id: "usage", variant: "info", icon: null, title: "Usage limits", description }]}
+  />
+);
 
 it("only offers notice details when the description cannot fit", async () => {
-  await render(700, "OpenCode");
+  await parkPointerAway();
+  await using screen = await render(usage("OpenCode"), { container: sized(700) });
+  const { container } = screen;
+  const hasDetails = () => container.querySelector('[aria-label="Show notice details"]') !== null;
+  await nextFrame();
   expect(hasDetails()).toBe(false);
 
-  await render(700, "OpenCode ".repeat(40));
+  await screen.rerender(usage("OpenCode ".repeat(40)));
+  await nextFrame();
   expect(hasDetails()).toBe(true);
 
   container.style.width = "4000px";
   await nextFrame();
   expect(hasDetails()).toBe(false);
 
-  await render(4000, "OpenCode");
+  await screen.rerender(usage("OpenCode"));
+  await nextFrame();
   expect(hasDetails()).toBe(false);
 
   // A narrow composer hides the description entirely, so details are the only way to read it.
@@ -74,29 +60,29 @@ it("only offers notice details when the description cannot fit", async () => {
 });
 
 it("keeps only the usage limit attached while an active goal waits in the collapsible stack", async () => {
-  await act(async () =>
-    root.render(
-      <ComposerBannerStack
-        items={[
-          {
-            id: "goal",
-            variant: "default",
-            priority: "activity",
-            icon: null,
-            title: "Goal active",
-            description: "Finish the banner fix",
-          },
-          {
-            id: "limit",
-            variant: "default",
-            priority: "urgent",
-            icon: null,
-            title: "Usage limit reached",
-          },
-        ]}
-      />,
-    ),
+  await parkPointerAway();
+  await using screen = await render(
+    <ComposerBannerStack
+      items={[
+        {
+          id: "goal",
+          variant: "default",
+          priority: "activity",
+          icon: null,
+          title: "Goal active",
+          description: "Finish the banner fix",
+        },
+        {
+          id: "limit",
+          variant: "default",
+          priority: "urgent",
+          icon: null,
+          title: "Usage limit reached",
+        },
+      ]}
+    />,
   );
+  const { container } = screen;
 
   const visibleBanners = () =>
     Array.from(container.querySelectorAll('[data-slot="composer-banner"]')).filter((banner) =>
@@ -105,42 +91,49 @@ it("keeps only the usage limit attached while an active goal waits in the collap
   const limit = page.getByText("Usage limit reached", { exact: true });
   const goal = page.getByText("Goal active", { exact: true });
 
-  expect(visibleBanners()).toHaveLength(1);
+  await expect.poll(visibleBanners).toHaveLength(1);
   await expect.element(limit).toBeVisible();
   await expect.element(goal).not.toBeVisible();
   expect(container.querySelector('[data-slot="composer-banner-attachment"]')?.textContent).toBe(
     "Usage limit reached",
   );
 
-  await act(async () => page.getByRole("button", { name: "Show other notices" }).click());
+  const peek = page.getByRole("button", { name: "Show other notices" });
+  // Hover opens the stack and hides the peek before a pointer click can finish.
+  await act(() => peek.element().focus());
+  await userEvent.keyboard("{Enter}");
   await expect.element(goal).toBeVisible();
   await expect.element(limit).toBeVisible();
   await expect.poll(visibleBanners).toHaveLength(2);
 
-  await act(async () => userEvent.keyboard("{Escape}"));
+  await userEvent.keyboard("{Escape}");
   await expect.element(goal).not.toBeVisible();
   await expect.element(limit).toBeVisible();
   expect(visibleBanners()).toHaveLength(1);
+
+  await userEvent.hover(peek);
+  await expect.element(goal).toBeVisible();
+  await expect.element(limit).toBeVisible();
+  await expect.poll(visibleBanners).toHaveLength(2);
 });
 
 it("reveals the full running command only while its title is clipped", async () => {
+  await parkPointerAway();
   const command =
     "Running: /usr/bin/zsh -lc 'sleep 600 > /tmp/t3-background-command-with-a-long-log-filename-for-truncation.log 2>&1'";
-  container.style.width = "240px";
-  await act(async () =>
-    root.render(
-      <ComposerBannerStack
-        items={[
-          {
-            id: "background-work",
-            variant: "default",
-            priority: "activity",
-            icon: null,
-            title: command,
-          },
-        ]}
-      />,
-    ),
+  await using screen = await render(
+    <ComposerBannerStack
+      items={[
+        {
+          id: "background-work",
+          variant: "default",
+          priority: "activity",
+          icon: null,
+          title: command,
+        },
+      ]}
+    />,
+    { container: sized(240) },
   );
 
   const details = page.getByRole("button", { name: "Show title details", exact: true });
@@ -150,7 +143,7 @@ it("reveals the full running command only while its title is clipped", async () 
   await expect.element(popup).toBeVisible();
   await expect.element(popup).toHaveTextContent(command);
 
-  container.style.width = "4000px";
+  screen.container.style.width = "4000px";
   await expect.element(details).not.toBeInTheDocument();
   await expect.element(popup).not.toBeInTheDocument();
 });
