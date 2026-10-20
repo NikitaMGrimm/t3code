@@ -11,10 +11,10 @@
     "docs/user/appearance.md",
     "pnpm-lock.yaml"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39371899977",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39375241052",
   "releasedVersion": "0.1.1-nightly.20261019.1792440272094",
   "baseCommit": "b6938a664dc5e93792a8a5a967b26528e761cf26",
-  "sequence": 1792471976560,
+  "sequence": 1792474224503,
   "conflictPullRequest": 14574,
   "conflictIdentity": "5f8eef87c0d88d11e9035b8725158a657985037a2994e0f57296d76419d68ce6",
   "inputs": {
@@ -47,7 +47,7 @@
       },
       {
         "number": 18322,
-        "headSha": "1ecea4f87290930f89a8e906504c9524158fb30f",
+        "headSha": "703f36b9d88ab29a2a432aef5e0b9ec2ec8f4fe0",
         "baseRef": "main"
       },
       {
@@ -137,8 +137,8 @@
     {
       "number": 18322,
       "title": "fix(mobile): don't send or paste attached threads a machine can't read",
-      "headSha": "1ecea4f87290930f89a8e906504c9524158fb30f",
-      "baseSha": "1451e7cb23034d29774338608368a15d8845df36",
+      "headSha": "703f36b9d88ab29a2a432aef5e0b9ec2ec8f4fe0",
+      "baseSha": "4af66184ef832c4939f331725585dc70f0c8a3c4",
       "headRef": "resubmit/reference-machine-selection-mobile",
       "baseRef": "main",
       "author": "NikitaMGrimm",
