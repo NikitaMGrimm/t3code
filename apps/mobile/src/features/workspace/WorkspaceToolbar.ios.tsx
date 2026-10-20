@@ -34,10 +34,12 @@ export function WorkspaceToolbar(props: {
     (deviceType === "pad" ||
       sidebarTabs !== null ||
       (metrics?.verticalBarEdge ?? "none") !== "none");
-  // The expanded Duo sidebar searches from its bottom toolbar. Folded, the workspace tab bar
-  // owns the bottom of the vertical bar, so search keeps UIKit's own placement.
+  // The expanded Duo sidebar keeps a full search field in its bottom toolbar. UIKit holds the
+  // integrated field there, but moves the button form into the detail column's vertical bar.
+  // Folded, the workspace tab bar owns the bottom of the vertical bar, so search keeps UIKit's
+  // own placement.
   const toolbarSearch =
-    NATIVE_LIQUID_GLASS_SUPPORTED && nativeToolbarCompose && deviceType === "duo-unfolded";
+    NATIVE_LIQUID_GLASS_SUPPORTED && deviceType === "duo-unfolded" && props.sidebar === true;
   const { isTabActive } = workspace;
   const tabActive = use(NativeWorkspaceTabActivityContext)?.active ?? true;
   const { panes, togglePrimarySidebar } = useAdaptiveWorkspaceLayout();
@@ -91,7 +93,11 @@ export function WorkspaceToolbar(props: {
                   hideNavigationBar: false,
                   hideWhenScrolling: false,
                   obscureBackground: false,
-                  placement: NATIVE_LIQUID_GLASS_SUPPORTED ? "integratedButton" : "stacked",
+                  placement: toolbarSearch
+                    ? "integrated"
+                    : NATIVE_LIQUID_GLASS_SUPPORTED
+                      ? "integratedButton"
+                      : "stacked",
                   allowToolbarIntegration: NATIVE_LIQUID_GLASS_SUPPORTED,
                   placeholder:
                     selectedTab === "pullRequests" ? "Search pull requests" : "Search threads",
@@ -159,8 +165,6 @@ export function WorkspaceToolbar(props: {
         ) : null}
         {nativeToolbarCompose ? <Toolbar.Spacer flexible /> : null}
         {toolbarSearch ? <Toolbar.SearchBarSlot /> : null}
-        {/* A fixed space keeps search out of compose's shared glass group. */}
-        {toolbarSearch ? <Toolbar.Spacer width={8} /> : null}
         {nativeToolbarCompose ? (
           <Toolbar.Button
             identifier="workspace-compose"

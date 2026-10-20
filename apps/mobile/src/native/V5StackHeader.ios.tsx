@@ -166,16 +166,7 @@ export function V5StackHeader(props: {
   const bottom = toolbar.flatMap<HeaderItem>((item, index) => {
     if (item.type === "mailSearchToolbar") return [];
     if (item.type === "searchBarPlacement")
-      return [
-        {
-          type: "item",
-          id: `toolbar-search:${index}`,
-          searchBarPlacement: true,
-          // Only the detail column joins the vertical bar, yet UIKit moves a primary column's
-          // toolbar search into it unless the search is held to horizontal bars.
-          axisBehavior: props.column === "primary" ? "horizontalOnly" : undefined,
-        },
-      ];
+      return [{ type: "item", id: `toolbar-search:${index}`, searchBarPlacement: true }];
     return convertItems([item], `toolbar:${index}`);
   });
   if (mailSearch) {
