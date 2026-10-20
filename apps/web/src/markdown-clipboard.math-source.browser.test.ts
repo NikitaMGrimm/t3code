@@ -12,7 +12,7 @@ function formula(tex: string, display = false) {
   const source = display ? `$$\n${tex}\n$$` : `$${tex}$`;
   const wrapper = document.createElement("span");
   if (display) wrapper.className = "chat-markdown-math-display";
-  wrapper.setAttribute("data-markdown-math", "");
+  wrapper.setAttribute("data-markdown-math", display ? "display" : "inline");
   wrapper.setAttribute("data-markdown-copy", display ? `${source}\n\n` : source);
   wrapper.innerHTML = katex.renderToString(tex, { displayMode: display });
   return wrapper;
