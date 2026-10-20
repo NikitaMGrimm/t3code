@@ -799,6 +799,16 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
     const runningCalls = (thread: ThreadState): ReadonlyArray<SubagentCall> =>
       sessionsOf(thread).flatMap((state) => [...state.calls.values()]);
 
+    /**
+     * The calls a subagent session answers for: the one that launched it and
+     * the ones that joined it while it ran.
+     */
+    const callsAttachedTo = (child: ThreadState): ReadonlyArray<SubagentCall> => {
+      const parent = child.subagent?.call.state;
+      if (parent === undefined) return [];
+      return [...parent.calls.values()].filter((candidate) => candidate.child === child);
+    };
+
     const callsAbove = (sessionId: string) => {
       const calls: Array<SubagentCall> = [];
       let current = threads.get(sessionId);
@@ -1557,6 +1567,17 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
         if (!call.background && terminal.status !== "completed") {
           yield* settleCall(call, terminal.status);
         }
+        if (terminal.status === "failed") {
+          // A background call is settled by the report its parent reads, and a
+          // child that failed has no report to read: every call attached to it
+          // has to end with the failure, or the background ones keep the thread
+          // showing work that is gone. Which of them joined the child last
+          // does not matter: a foreground call is one until it is marked
+          // background, and the earlier background call outlives that window.
+          for (const attached of callsAttachedTo(state)) {
+            yield* settleCall(attached, terminal.status, terminal.failure.message);
+          }
+        }
         return;
       }
       state.providerThread = {
@@ -2080,7 +2101,11 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
             failure: makeProviderFailure({
               message: event.data.error.message,
               code: event.data.error.type,
-              class: "provider_error",
+              class:
+                event.data.error.type === "provider.quota" ||
+                event.data.error.type === "provider.rate-limit"
+                  ? "usage_limit"
+                  : "provider_error",
             }),
           });
         default:

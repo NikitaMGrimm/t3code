@@ -1,7 +1,9 @@
+import "~/index.css";
+
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { userEvent } from "vite-plus/test/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 
 vi.mock("~/hooks/useSettings", () => ({
   useEnvironmentIdentificationMode: () => "none",
@@ -114,5 +116,29 @@ describe("ComposerPrimaryActions", () => {
       await render(props);
       expect(await tabOrder()).toEqual(expected);
     }
+  });
+
+  it("opens implementation actions with a mouse while the composer is resting", async () => {
+    const onImplementPlanInNewThread = vi.fn();
+
+    await render({
+      ...sendProps,
+      compact: false,
+      showPlanFollowUpPrompt: true,
+      promptHasText: false,
+      hasSendableContent: false,
+      preserveComposerFocusOnPointerDown: true,
+      onImplementPlanInNewThread,
+    });
+
+    await act(async () => {
+      await userEvent.click(page.getByRole("button", { name: "Implementation actions" }));
+    });
+    const item = page.getByRole("menuitem", { name: "Implement in a new thread" });
+    await expect.element(item).toBeVisible();
+    await act(async () => {
+      await userEvent.click(item);
+    });
+    expect(onImplementPlanInNewThread).toHaveBeenCalledTimes(1);
   });
 });
