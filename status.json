@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "phase": "failed",
+  "phase": "building",
   "upstreamTag": "v0.1.1-nightly.20261020.3411",
   "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39423769201",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39432052043",
   "releasedVersion": "0.1.1-nightly.20261019.1792440272094",
   "baseCommit": "e24b36f426fb09ac4034c3da9c760a6ed4d05fcf",
-  "sequence": 1792499886422,
-  "candidateCommit": "adb5c066191f1db2be4111a234313e788f5e2b4a",
-  "candidateVersion": "0.1.1-nightly.20261020.1792499886422",
+  "sequence": 1792503475114,
+  "candidateCommit": "937d7d5d38f349569c8b9f639355132716224aef",
+  "candidateVersion": "0.1.1-nightly.20261020.1792503475114",
   "inputs": {
     "upstreamTag": "v0.1.1-nightly.20261020.3411",
     "pullRequests": [
@@ -35,6 +35,11 @@
       {
         "number": 21894,
         "headSha": "d1bfc628a4fd10c9cca33ff6649d371341fea750",
+        "baseRef": "main"
+      },
+      {
+        "number": 22322,
+        "headSha": "64dc17fe2eb4126bd69752c5a1c77eae35ec6ebe",
         "baseRef": "main"
       }
     ],
@@ -98,6 +103,18 @@
       "baseRef": "main",
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/21894",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 22322,
+      "title": "fix(mobile): a pasted pairing link's code replaces the old Code field",
+      "headSha": "64dc17fe2eb4126bd69752c5a1c77eae35ec6ebe",
+      "baseSha": "67c0fc0cdaf963b103518862dd7b68a9c758ecf2",
+      "headRef": "fix/mobile-pairing-link-code",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/22322",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     }
