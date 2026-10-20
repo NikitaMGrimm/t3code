@@ -10,7 +10,7 @@ on:
       source_sha:
         description: Exact source commit (40 hex characters)
         required: true
-        default: d36b7da2485bc889b320a285deea181f637d760a
+        default: 67c0fc0cdaf963b103518862dd7b68a9c758ecf2
 permissions:
   contents: read
 concurrency:
@@ -32,6 +32,10 @@ jobs:
       T3CODE_IOS_PERSONAL_TEAM_BUNDLE_ID: dev.nikita.t3.lab
       T3CODE_MOBILE_UPDATES_ENABLED: '0'
       MOBILE_VERSION_POLICY: appVersion
+      # Public production identifiers from upstream .env.example.
+      T3CODE_CLERK_PUBLISHABLE_KEY: pk_live_Y2xlcmsudDMuY29kZXMk
+      T3CODE_CLERK_JWT_TEMPLATE: t3-relay
+      T3CODE_RELAY_URL: https://relay.t3.codes
       NODE_OPTIONS: --max-old-space-size=8192
     steps:
       - name: Validate source identity
