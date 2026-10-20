@@ -24,9 +24,10 @@ import { View } from "react-native";
 import { Split, type SplitHostCommands } from "react-native-screens";
 import { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { scopedThreadKey } from "../../lib/scopedEntities";
-import { WorkspaceTabsProvider } from "../workspace/WorkspaceTabsContext";
+import { WorkspaceTabsProvider, useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
 import { WorkspaceNativeTabs } from "../workspace/WorkspaceNativeTabs.ios";
-import { useNativeLayoutMetrics } from "../../native/native-layout-metrics";
+import { isDuoDevice } from "../../lib/device-type";
+import { useDeviceType, useNativeLayoutMetrics } from "../../native/native-layout-metrics";
 
 import { useAdaptiveWorkspaceLayout } from "./AdaptiveWorkspaceLayout";
 import { WorkspaceEmptyDetail } from "./WorkspaceEmptyDetail";
@@ -66,6 +67,7 @@ function ColumnScreen(props: {
   readonly selectedPullRequestKey?: string | null;
   readonly onDismiss: (routeKey: string) => void;
   readonly onAppearance: (type: "willAppear" | "didAppear" | "willDisappear", key: string) => void;
+  readonly onCompose?: () => void;
   readonly navigation: ViewProps["navigation"];
 }) {
   const { descriptor } = props;
@@ -108,6 +110,7 @@ function ColumnScreen(props: {
             options={descriptor.options}
             canGoBack={!props.primary}
             column={props.primary ? "primary" : "detail"}
+            onCompose={props.onCompose}
           />
           <ColumnContent
             primary={props.primary}
@@ -129,6 +132,14 @@ function WorkspaceColumns(
   props: ViewProps & { readonly primary: Route; readonly detail: Route[] },
 ) {
   const { layout, panes, togglePrimarySidebar, toggleAuxiliaryPane } = useAdaptiveWorkspaceLayout();
+  const deviceType = useDeviceType();
+  const selectedTab = useWorkspaceTabs()?.state.selectedTab;
+  const openNewTask = () => props.navigation.navigate("NewTaskSheet", { screen: "NewTask" });
+  // The Duo keeps compose in the detail column's bar, which is its vertical bar in landscape
+  // and folded, so it sits with the column's other actions whichever screen is shown. Pull
+  // requests leave it out; their bar is already full of review actions.
+  const detailCompose =
+    isDuoDevice(deviceType) && selectedTab !== "pullRequests" ? openNewTask : undefined;
   const inspector = use(NativeWorkspaceInspectorContext);
   const hostRef = useRef<SplitHostCommands>(null);
   const activeDetailKey = props.detail.at(-1)?.key;
@@ -261,14 +272,13 @@ function WorkspaceColumns(
               }}
               canGoBack={false}
               column="detail"
+              onCompose={detailCompose}
             />
             <ColumnContent>
               <WorkspaceEmptyDetail
                 onStartNewTask={
-                  // A visible sidebar carries compose in its own toolbar.
-                  panes.primarySidebarVisible
-                    ? undefined
-                    : () => props.navigation.navigate("NewTaskSheet", { screen: "NewTask" })
+                  // The detail bar or a visible sidebar already carries compose.
+                  detailCompose || panes.primarySidebarVisible ? undefined : openNewTask
                 }
               />
             </ColumnContent>
@@ -281,6 +291,7 @@ function WorkspaceColumns(
                 descriptor={descriptor}
                 onDismiss={handleNativeDismiss}
                 onAppearance={followCollapsedSplit}
+                onCompose={detailCompose}
                 navigation={props.navigation}
               />
             ) : null;

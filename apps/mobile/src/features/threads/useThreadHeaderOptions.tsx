@@ -100,28 +100,6 @@ export function useThreadHeaderOptions(props: {
     [navigation],
   );
 
-  const duoRightHeaderItems = useMemo<NativeHeaderItems>(
-    () => [
-      ...threadCenterHeaderItems,
-      // A visible sidebar carries compose in its own toolbar.
-      ...(panes.primarySidebarVisible
-        ? []
-        : [
-            { type: "spacing", spacing: 8 },
-            withNativeGlassHeaderItem({
-              type: "button" as const,
-              axisBehavior: "verticalPreferred",
-              identifier: "thread-right-new-task",
-              label: "New task",
-              accessibilityLabel: "New task",
-              icon: { name: "square.and.pencil", type: "sfSymbol" as const },
-              onPress: () => navigation.navigate("NewTaskSheet", { screen: "NewTask" }),
-            }),
-          ]),
-    ],
-    [navigation, panes.primarySidebarVisible, threadCenterHeaderItems],
-  );
-
   const options: AppNativeStackNavigationOptions = {
     headerShown: true,
     headerTitle: props.title,
@@ -138,12 +116,9 @@ export function useThreadHeaderOptions(props: {
       : canGoBack
         ? undefined
         : () => compactHomeHeaderItems,
+    // The workspace navigator adds compose to the Duo detail column's bar.
     unstable_headerRightItems: () =>
-      usesDuoHeader
-        ? duoRightHeaderItems
-        : layout.usesSplitView
-          ? threadCenterHeaderItems
-          : compactRightHeaderItems,
+      usesDuoHeader || layout.usesSplitView ? threadCenterHeaderItems : compactRightHeaderItems,
     unstable_headerToolbarItems: () => [],
     unstable_headerSubtitle: props.usesNativeHeaderGlass ? props.subtitle : undefined,
     contentStyle: undefined,
@@ -159,7 +134,6 @@ export function useThreadHeaderOptions(props: {
       splitLeftHeaderItems,
       threadCenterHeaderItems,
       compactRightHeaderItems,
-      duoRightHeaderItems,
       usesDuoHeader,
       environmentId,
       threadId,

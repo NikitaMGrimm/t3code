@@ -141,6 +141,8 @@ export function V5StackHeader(props: {
   readonly canGoBack: boolean;
   /** Workspace split columns share the vertical bar with the workspace tab bar. */
   readonly column?: "primary" | "detail";
+  /** The workspace's compose action, shown as its own group in this column's bar. */
+  readonly onCompose?: () => void;
 }) {
   const { options } = props;
   const theme = useMobileNavigationTheme();
@@ -209,6 +211,17 @@ export function V5StackHeader(props: {
       trailing.push({ type: "spacer", id: "toolbar-group", sizing: "fixed", width: 8 });
     trailing.push(...bottom);
     bottom.length = 0;
+  }
+  if (props.onCompose) {
+    if (trailing.length)
+      trailing.push({ type: "spacer", id: "compose-group", sizing: "fixed", width: 8 });
+    trailing.push({
+      type: "item",
+      id: "workspace-compose",
+      title: "New task",
+      icon: { type: "sfSymbol", name: "square.and.pencil" },
+      onPress: props.onCompose,
+    });
   }
   const left = options.headerLeft?.(itemProps);
   const right = options.headerRight?.(itemProps);

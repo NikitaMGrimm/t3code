@@ -2,7 +2,8 @@ import { Toolbar } from "../../components/ui/Toolbar";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { use, useCallback, useEffect, useRef } from "react";
 import { Platform } from "react-native";
-import { useDeviceType, useNativeLayoutMetrics } from "../../native/native-layout-metrics";
+import { isDuoDevice } from "../../lib/device-type";
+import { useDeviceType } from "../../native/native-layout-metrics";
 import type { SearchBarCommands } from "react-native-screens";
 
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";
@@ -24,16 +25,16 @@ export function WorkspaceToolbar(props: {
 }) {
   const workspace = useWorkspaceTabs()!;
   const navigation = useNavigation();
-  const metrics = useNativeLayoutMetrics();
   const deviceType = useDeviceType();
   const sidebarTabs = useSidebarWorkspaceTabs();
   const selectTab = useSelectWorkspaceTab();
   const selectedTint = useMobileNavigationTheme().colors.primary;
+  // On the Duo, compose belongs to the threads tab, in the detail column's bar when unfolded.
   const nativeToolbarCompose =
     Platform.OS === "ios" &&
-    (deviceType === "pad" ||
-      sidebarTabs !== null ||
-      (metrics?.verticalBarEdge ?? "none") !== "none");
+    (isDuoDevice(deviceType)
+      ? deviceType === "duo-folded" && workspace.state.selectedTab === "threads"
+      : deviceType === "pad");
   // The expanded Duo sidebar keeps a full search field in its bottom toolbar. UIKit holds the
   // integrated field there, but moves the button form into the detail column's vertical bar.
   // Folded, the workspace tab bar owns the bottom of the vertical bar, so search keeps UIKit's
