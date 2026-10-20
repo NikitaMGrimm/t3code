@@ -1,18 +1,24 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.1-nightly.20261019.3373",
+  "upstreamTag": "v0.1.1-nightly.20261020.3386",
   "conflicts": [
-    "apps/web/src/components/chat/ComposerPrimaryActions.browser.test.tsx"
+    "apps/web/src/components/ChatMarkdown.tsx",
+    "apps/web/src/components/chat/MarkdownMath.tsx",
+    "apps/web/src/components/settings/SettingsPanels.tsx",
+    "apps/web/src/index.css",
+    "apps/web/src/markdown-clipboard.ts",
+    "docs/user/appearance.md",
+    "pnpm-lock.yaml"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39354772135",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39356222472",
   "releasedVersion": "0.1.1-nightly.20261019.1792440272094",
   "baseCommit": "b6938a664dc5e93792a8a5a967b26528e761cf26",
-  "sequence": 1792460454949,
-  "conflictPullRequest": 17892,
-  "conflictIdentity": "fc996ba2d0210fe5e79f960279cbee6d697deb6c314429123761f4461b7833ab",
+  "sequence": 1792461418467,
+  "conflictPullRequest": 14574,
+  "conflictIdentity": "5f8eef87c0d88d11e9035b8725158a657985037a2994e0f57296d76419d68ce6",
   "inputs": {
-    "upstreamTag": "v0.1.1-nightly.20261019.3373",
+    "upstreamTag": "v0.1.1-nightly.20261020.3386",
     "pullRequests": [
       {
         "number": 14574,
@@ -37,16 +43,6 @@
       {
         "number": 17892,
         "headSha": "eb419e02495e4ccfe90be3a0a7542d65558e0764",
-        "baseRef": "main"
-      },
-      {
-        "number": 18308,
-        "headSha": "1987ee2a01e6bea46aa0299ba24f859608c7bbeb",
-        "baseRef": "main"
-      },
-      {
-        "number": 18310,
-        "headSha": "0475aa6e4321734c6511771d35c5f491a05ca99f",
         "baseRef": "main"
       },
       {
@@ -135,30 +131,6 @@
       "baseRef": "main",
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/17892",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 18308,
-      "title": "fix(web): render completed Mermaid blocks while streaming",
-      "headSha": "1987ee2a01e6bea46aa0299ba24f859608c7bbeb",
-      "baseSha": "284ce8fe2ff99076657707fd754e538403d88d76",
-      "headRef": "resubmit/mermaid-streaming",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/18308",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 18310,
-      "title": "fix(composer): don't send attached threads to a machine that can't read them",
-      "headSha": "0475aa6e4321734c6511771d35c5f491a05ca99f",
-      "baseSha": "f0fb0e8525fca72f0259c7b44a2b15aafde52a31",
-      "headRef": "resubmit/reference-machine-selection",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/18310",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     },
