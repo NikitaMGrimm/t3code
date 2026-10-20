@@ -1,14 +1,15 @@
 {
   "schema": 1,
-  "phase": "failed",
+  "phase": "conflict",
   "upstreamTag": "v0.1.1-nightly.20261020.3411",
-  "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39438467229",
+  "conflicts": [
+    "apps/web/src/components/chat/ThreadAutomationsPanel.tsx"
+  ],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39478152416",
   "releasedVersion": "0.1.1-nightly.20261019.1792440272094",
-  "baseCommit": "2f653bba6aa7e9a4d94a8b4ac4584c278a772705",
-  "sequence": 1792506090438,
-  "candidateCommit": "cbbbe290a8d5e29215394ba56ba41dbea10378f1",
-  "candidateVersion": "0.1.1-nightly.20261020.1792506090438",
+  "baseCommit": "5170289675b432964c4526724f4aa3312864fc37",
+  "sequence": 1792522195963,
+  "conflictIdentity": "15a02f6f3d0b5ed334d3be180056137a5a8eec8ed25bf41cb188370cf4487543",
   "inputs": {
     "upstreamTag": "v0.1.1-nightly.20261020.3411",
     "pullRequests": [
