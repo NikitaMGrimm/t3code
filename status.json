@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "phase": "ready",
+  "phase": "building",
   "upstreamTag": "v0.1.1-nightly.20261020.3411",
   "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39486759623",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39506859151",
   "releasedVersion": "0.1.1-nightly.20261020.1792525791496",
-  "baseCommit": "49b6cfd077c3be51131fa92fd556540dcf223444",
-  "sequence": 1792525791496,
-  "candidateCommit": "90f4cfa350f31b0fc4799acb8fd83fea9706c251",
-  "candidateVersion": "0.1.1-nightly.20261020.1792525791496",
+  "baseCommit": "90f4cfa350f31b0fc4799acb8fd83fea9706c251",
+  "sequence": 1792534581689,
+  "candidateCommit": "00f3fd086a509e44b1489c662f7bc5cf656bcac5",
+  "candidateVersion": "0.1.1-nightly.20261020.1792534581689",
   "inputs": {
     "upstreamTag": "v0.1.1-nightly.20261020.3411",
     "pullRequests": [
@@ -45,6 +45,11 @@
       {
         "number": 22322,
         "headSha": "64dc17fe2eb4126bd69752c5a1c77eae35ec6ebe",
+        "baseRef": "main"
+      },
+      {
+        "number": 22522,
+        "headSha": "6498810463c4704e2858790db80283227ce7756f",
         "baseRef": "main"
       }
     ],
@@ -132,6 +137,18 @@
       "baseRef": "main",
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/22322",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 22522,
+      "title": "fix(web): mouse Back/Forward over a streamed preview navigate the preview",
+      "headSha": "6498810463c4704e2858790db80283227ce7756f",
+      "baseSha": "ca140c435f38612656dd655fc42e2f78efbfb4c9",
+      "headRef": "fix/streamed-preview-thumb-buttons",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/22522",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     }
