@@ -34,6 +34,10 @@ export function WorkspaceToolbar(props: {
     (deviceType === "pad" ||
       sidebarTabs !== null ||
       (metrics?.verticalBarEdge ?? "none") !== "none");
+  // The expanded Duo sidebar searches from its bottom toolbar. Folded, the workspace tab bar
+  // owns the bottom of the vertical bar, so search keeps UIKit's own placement.
+  const toolbarSearch =
+    NATIVE_LIQUID_GLASS_SUPPORTED && nativeToolbarCompose && deviceType === "duo-unfolded";
   const { isTabActive } = workspace;
   const tabActive = use(NativeWorkspaceTabActivityContext)?.active ?? true;
   const { panes, togglePrimarySidebar } = useAdaptiveWorkspaceLayout();
@@ -154,6 +158,9 @@ export function WorkspaceToolbar(props: {
           />
         ) : null}
         {nativeToolbarCompose ? <Toolbar.Spacer flexible /> : null}
+        {toolbarSearch ? <Toolbar.SearchBarSlot /> : null}
+        {/* A fixed space keeps search out of compose's shared glass group. */}
+        {toolbarSearch ? <Toolbar.Spacer width={8} /> : null}
         {nativeToolbarCompose ? (
           <Toolbar.Button
             identifier="workspace-compose"
