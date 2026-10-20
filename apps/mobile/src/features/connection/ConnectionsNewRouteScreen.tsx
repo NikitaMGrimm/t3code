@@ -14,12 +14,13 @@ import {
 import type { EnvironmentId } from "@t3tools/contracts";
 import { AsyncResult } from "effect/reactivity";
 import { useEffect, useRef, useState } from "react";
-import { Linking, Pressable, StyleSheet, View } from "react-native";
+import { Linking, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import Svg, { Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { cn } from "../../lib/cn";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
+import { useScaledTextRole } from "../settings/appearance/useScaledTextRole";
 import { SettingsScreen } from "../settings/components/SettingsScreen";
 import { AppText as Text, AppTextInput, type AppTextInputProps } from "../../components/ui/AppText";
 import { FrostedCutout } from "../../components/ui/FrostedCutout";
@@ -408,12 +409,19 @@ function PairingInputRow({
 }: Omit<AppTextInputProps, "accessibilityLabel" | "className"> & {
   readonly label: string;
 }) {
+  const { fontSize } = useScaledTextRole("body");
+  const { fontScale } = useWindowDimensions();
+  const stacked = fontScale >= 1.5;
   return (
-    <View collapsable={false} className="h-13 flex-row items-center gap-3 px-4">
+    <View
+      collapsable={false}
+      className={cn("min-h-13 px-4 py-3", stacked ? "gap-2" : "flex-row items-center gap-3")}
+    >
       <Text
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
-        className="w-20 text-base leading-[23px] text-foreground-muted"
+        className="shrink-0 text-base text-foreground-muted"
+        style={stacked ? undefined : { width: Math.max(80, fontSize * fontScale * 5) }}
       >
         {label}
       </Text>
@@ -422,7 +430,10 @@ function PairingInputRow({
         accessibilityLabel={label}
         autoCapitalize="none"
         autoCorrect={false}
-        className="min-h-0 flex-1 rounded-none border-0 bg-transparent p-0 text-base leading-[23px]"
+        className={cn(
+          "min-h-0 min-w-0 rounded-none border-0 bg-transparent p-0 text-base",
+          !stacked && "flex-1",
+        )}
       />
     </View>
   );
