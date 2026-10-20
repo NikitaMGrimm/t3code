@@ -39,11 +39,11 @@
       },
       {
         "number": 22522,
-        "headSha": "ea6493c79c65e4b9bcc20cdf1f4413b3cc874e5f",
+        "headSha": "6498810463c4704e2858790db80283227ce7756f",
         "baseRef": "main"
       }
     ],
     "resolutions": "d4a6948e8f5e5db8977390f7a821fe40b634047100da5d515c67588c2bf9163d"
   },
-  "observedAt": 1792533982.7470305
+  "observedAt": 1792534630.3118966
 }
