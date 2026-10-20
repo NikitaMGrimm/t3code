@@ -41,6 +41,18 @@
       "baseRepository": "pingdotgg/t3code"
     },
     {
+      "number": 21378,
+      "title": "fix(web): video full-screen buttons work in HTML renders",
+      "headSha": "c9d3749e3285197804e46d303ee9f6c9214c397b",
+      "baseSha": "952921f39acd7793187e2b14650f1cbc447f483d",
+      "headRef": "fix/html-render-video-fullscreen",
+      "baseRef": "main",
+      "author": "punkhop",
+      "url": "https://github.com/pingdotgg/t3code/pull/21378",
+      "headRepository": "punkhop/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
       "number": 21839,
       "title": "fix(web): file preview videos keep their own aspect ratio",
       "headSha": "2febdb33aac90f9ad065a77be4b1c84cc3659c37",
@@ -77,5 +89,5 @@
       "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "182c8c06ce42cbc397c789cc99472ae8f53583b7"
+  "prBaseline": "60686b8b1d3ca5685e17374994e8b13936d34bc1"
 }
