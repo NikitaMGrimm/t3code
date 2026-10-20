@@ -1,6 +1,9 @@
 import * as NodeEvents from "node:events";
+// @effect-diagnostics-next-line nodeBuiltinImport:off - Playwright download mocks perform real file operations outside the Effect runtime.
+import * as NodeFSP from "node:fs/promises";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 import { it } from "@effect/vitest";
 import {
   EnvironmentId,
@@ -17,6 +20,7 @@ import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Path from "effect/Path";
 import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Scope from "effect/Scope";
@@ -94,6 +98,14 @@ function makeFrame() {
   return frame;
 }
 
+const PNG_HEADER = (() => {
+  const header = Buffer.alloc(24);
+  header.write("IHDR", 12);
+  header.writeUInt32BE(1280, 16);
+  header.writeUInt32BE(800, 20);
+  return header.toString("base64");
+})();
+
 function makeSession(frame?: ReturnType<typeof makeFrame>) {
   const events = new NodeEvents.EventEmitter();
   return {
@@ -103,7 +115,10 @@ function makeSession(frame?: ReturnType<typeof makeFrame>) {
     send: vi.fn(async (method: string, input?: unknown): Promise<Record<string, unknown>> => {
       if (method === "Page.getNavigationHistory") return { currentIndex: 0, entries: [{}] };
       if (method === "Page.getLayoutMetrics") return { cssVisualViewport: { pageX: 0, pageY: 0 } };
-      if (method === "Page.captureScreenshot") return { data: "ZnJhbWU=" };
+      if (method === "Page.captureScreenshot") {
+        // A snapshot sizes its screenshot from the PNG header; viewers get JPEG frames as-is.
+        return { data: (input as { format: string }).format === "png" ? PNG_HEADER : "ZnJhbWU=" };
+      }
       if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "main" } } };
       // Snapshots read password fields from their own isolated world in each frame.
       if (method === "Page.createIsolatedWorld") {
@@ -225,7 +240,6 @@ function makeContext(onClose?: (context: BrowserContext) => void) {
 
 const contexts: ReturnType<typeof makeContext>[] = [];
 const scratchPages: ReturnType<typeof makeContext>["page"][] = [];
-/** The profile and isolation each headless tab asked its context for. */
 const contextRequests: Array<{ profileId: string; isolated: boolean }> = [];
 let contextGate: PromiseWithResolvers<void> | null = null;
 let pageCopy = "";
@@ -244,7 +258,6 @@ let desktopAttachGate: PromiseWithResolvers<boolean> | null = null;
 let desktopAttachStarted: PromiseWithResolvers<void> | null = null;
 let desktopDetachConsumed: PromiseWithResolvers<void> | null = null;
 const desktopAttachRequests: string[] = [];
-/** Pages the fake desktop takes back or returns; the channel's streams emit them. */
 const desktopDetaches = new NodeEvents.EventEmitter();
 const desktopTabs = new Set<string>();
 const desktopRenders = (tabId: string) => {
@@ -289,7 +302,6 @@ const dependencies = Layer.mergeAll(
     installed: Effect.die("mock Chromium does not need an executable"),
   }),
   Layer.succeed(DesktopChannel.DesktopBrowserChannel, {
-    // Standalone tests have no desktop; native tests explicitly enable it.
     get available() {
       return desktopAvailable || desktopRendersNext || desktopTabs.size > 0;
     },
@@ -1350,6 +1362,15 @@ it.live("a tab opened to a file the browser cannot show reports the file to down
       const written = Promise.withResolvers<void>();
       page.emit("download", {
         failure: async () => null,
+        delete: async () => {
+          // A new navigation during cleanup must not erase the settled download status.
+          page.emit("request", {
+            url: () => "https://example.com/next",
+            method: () => "GET",
+            isNavigationRequest: () => true,
+            frame: () => page,
+          });
+        },
         saveAs: (path: string) => {
           Queue.offerUnsafe(saved, path);
           return written.promise;
@@ -1360,9 +1381,23 @@ it.live("a tab opened to a file the browser cannot show reports the file to down
       const fs = yield* FileSystem.FileSystem;
       yield* fs.writeFileString(yield* Queue.take(saved), "%PDF");
       written.resolve();
-      let status = yield* PubSub.take(events);
-      while (status.type !== "failed") status = yield* PubSub.take(events);
-      expect(status).toMatchObject({ url: pdf, download: { fileName: "paper.pdf" } });
+      const received = [];
+      let status;
+      do {
+        status = yield* PubSub.take(events);
+        received.push(status);
+      } while (
+        status.type !== "navigated" ||
+        status.snapshot.navStatus._tag !== "Loading" ||
+        status.snapshot.navStatus.url !== "https://example.com/next"
+      );
+      expect(received).toContainEqual(
+        expect.objectContaining({
+          type: "failed",
+          url: pdf,
+          download: { id: expect.any(String), fileName: "paper.pdf" },
+        }),
+      );
       expect((yield* Queue.clear(viewer.output)).some((item) => item._tag === "download")).toBe(
         false,
       );
@@ -1394,6 +1429,7 @@ it.live("a file a blank tab opened is offered to download if the tab moves on wh
       const written = Promise.withResolvers<void>();
       page.emit("download", {
         failure: async () => null,
+        delete: async () => {},
         saveAs: (path: string) => {
           Queue.offerUnsafe(saved, path);
           return written.promise;
@@ -1436,6 +1472,7 @@ it.live("a download from a superseded navigation leaves the newer navigation loa
       const written = Promise.withResolvers<void>();
       page.emit("download", {
         failure: async () => null,
+        delete: async () => {},
         saveAs: (path: string) => {
           Queue.offerUnsafe(saved, path);
           return written.promise;
@@ -1691,58 +1728,128 @@ it.live("copy keys reach the viewer from a frame in its own process", () =>
   ).pipe(Effect.provide(layer)),
 );
 
-it.live("a page download is saved, offered to the controller, and listed for the agent", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const { browser, broker, tabId } = yield* ready;
-      const page = contexts[0]!.page;
-      const viewer = yield* browser.attachViewer(viewerInput(tabId, true));
-      yield* viewer.input({ type: "takeControl" });
-      yield* Queue.clear(viewer.output);
-      const saved = yield* Queue.unbounded<string>();
-      const written = Promise.withResolvers<void>();
-      page.emit("download", {
-        failure: async () => null,
-        saveAs: (path: string) => {
-          Queue.offerUnsafe(saved, path);
-          return written.promise;
-        },
-        suggestedFilename: () => "report.csv",
-        url: () => "blob:http://localhost:5173/1",
-      });
-      const fs = yield* FileSystem.FileSystem;
-      const path = yield* Queue.take(saved);
-      yield* fs.writeFileString(path, "a,b");
-      written.resolve();
-      let offered = yield* Queue.take(viewer.output);
-      while (offered._tag !== "download") offered = yield* Queue.take(viewer.output);
-      expect(offered).toMatchObject({ _tag: "download", fileName: "report.csv", sizeBytes: 3 });
-      const file = yield* browser.openDownload({
-        threadId: scope.thread.threadId,
-        tabId,
-        downloadId: offered.id,
-      });
-      expect(Option.isSome(file) && file.value.fileName).toBe("report.csv");
-      const status = yield* broker.invoke<PreviewAutomationStatus>({
-        scope,
-        tabId,
-        operation: "status",
-        input: {},
-      });
-      expect(status.downloads).toEqual([
-        expect.objectContaining({ fileName: "report.csv", sizeBytes: 3 }),
-      ]);
-      expect(
-        Option.isNone(
-          yield* browser.openDownload({
-            threadId: scope.thread.threadId,
-            tabId,
-            downloadId: "guess",
+it.live.each([false, true])(
+  "a page download is saved, offered to the controller, and listed for the agent (delete fails: %s)",
+  (deleteFails) =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const { browser, broker, tabId } = yield* ready;
+        const page = contexts[0]!.page;
+        const viewer = yield* browser.attachViewer(viewerInput(tabId, true));
+        yield* viewer.input({ type: "takeControl" });
+        yield* Queue.clear(viewer.output);
+        const fs = yield* FileSystem.FileSystem;
+        const original = `${yield* fs.makeTempDirectoryScoped()}/chromium-download`;
+        yield* fs.writeFileString(original, "a,b");
+        const released = Promise.withResolvers<void>();
+        page.emit("download", {
+          failure: async () => null,
+          delete: async () => {
+            try {
+              if (deleteFails) throw new Error("context closed");
+              await NodeFSP.rm(original);
+            } finally {
+              released.resolve();
+            }
+          },
+          saveAs: (path: string) => NodeFSP.copyFile(original, path),
+          suggestedFilename: () => "report.csv",
+          url: () => 'data:text/csv;charset="a,b",a b\'c',
+        });
+        let offered = yield* Queue.take(viewer.output);
+        while (offered._tag !== "download") offered = yield* Queue.take(viewer.output);
+        expect(offered).toMatchObject({ _tag: "download", fileName: "report.csv", sizeBytes: 3 });
+        yield* Effect.promise(() => released.promise);
+        expect(yield* fs.exists(original)).toBe(deleteFails);
+        const file = yield* browser.openDownload({
+          threadId: scope.thread.threadId,
+          tabId,
+          downloadId: offered.id,
+        });
+        expect(Option.isSome(file) && file.value.fileName).toBe("report.csv");
+        expect(yield* fs.readFileString(Option.getOrThrow(file).path)).toBe("a,b");
+        if ((yield* HostProcess.Platform) !== "win32") {
+          expect((yield* fs.stat(Option.getOrThrow(file).path)).mode & 0o777).toBe(0o600);
+        }
+        const status = yield* broker.invoke<PreviewAutomationStatus>({
+          scope,
+          tabId,
+          operation: "status",
+          input: {},
+        });
+        expect(status.downloads).toEqual([
+          expect.objectContaining({
+            fileName: "report.csv",
+            sizeBytes: 3,
+            url: "data:text/csv,…",
           }),
-        ),
-      ).toBe(true);
-    }),
-  ).pipe(Effect.provide(layer)),
+        ]);
+        expect(
+          Option.isNone(
+            yield* browser.openDownload({
+              threadId: scope.thread.threadId,
+              tabId,
+              downloadId: "guess",
+            }),
+          ),
+        ).toBe(true);
+        if ((yield* HostProcess.Platform) !== "win32") {
+          const folder = (yield* Path.Path).dirname(Option.getOrThrow(file).path);
+          yield* fs.chmod(folder, 0o755);
+          page.emit("download", {
+            failure: async () => null,
+            delete: async () => {},
+            saveAs: (path: string) => NodeFSP.writeFile(path, "c"),
+            suggestedFilename: () => "again.csv",
+            url: () => "https://example.test/again.csv",
+          });
+          let again = yield* Queue.take(viewer.output);
+          while (again._tag !== "download") again = yield* Queue.take(viewer.output);
+          expect((yield* fs.stat(folder)).mode & 0o777).toBe(0o700);
+        }
+      }),
+    ).pipe(Effect.provide(layer)),
+);
+
+it.live.each(["save failed", "oversized"])(
+  "a rejected download releases the original and keeps no saved copy (%s)",
+  (outcome) =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const { broker, tabId } = yield* ready;
+        const fs = yield* FileSystem.FileSystem;
+        const original = `${yield* fs.makeTempDirectoryScoped()}/chromium-download`;
+        yield* fs.writeFileString(original, "a,b");
+        let savedPath: string | undefined;
+        const released = Promise.withResolvers<void>();
+        contexts[0]!.page.emit("download", {
+          failure: async () => null,
+          delete: async () => {
+            await NodeFSP.rm(original);
+            released.resolve();
+          },
+          saveAs: async (path: string) => {
+            savedPath = path;
+            await NodeFSP.copyFile(original, path);
+            if (outcome === "save failed") throw new Error("save interrupted");
+            // A sparse file exercises the size limit without writing a GiB of data.
+            await NodeFSP.truncate(path, 1024 ** 3 + 1);
+          },
+          suggestedFilename: () => "report.csv",
+          url: () => "blob:http://localhost:5173/1",
+        });
+        yield* Effect.promise(() => released.promise);
+        expect(yield* fs.exists(original)).toBe(false);
+        if (savedPath !== undefined) expect(yield* fs.exists(savedPath)).toBe(false);
+        const status = yield* broker.invoke<PreviewAutomationStatus>({
+          scope,
+          tabId,
+          operation: "status",
+          input: {},
+        });
+        expect(status.downloads).toEqual([]);
+      }),
+    ).pipe(Effect.provide(layer)),
 );
 
 it.live("a page's file picker goes to the controller and takes its uploaded files", () =>
@@ -2900,6 +3007,106 @@ it.live("a desktop page that comes back reconnects without waiting for a viewer"
   ).pipe(Effect.provide(layer)),
 );
 
+// Chromium sizes a capture by the clip, its scale, and the display ratio net of page zoom.
+it.live.each([
+  {
+    name: "desktop at display ratio 1.5",
+    desktop: true,
+    page: { ratio: 1.5, width: 1280, height: 800, zoom: 1 },
+    scrollY: 0,
+    size: { width: 1280, height: 800 },
+    clipY: 0,
+  },
+  {
+    name: "desktop resized to a phone",
+    desktop: true,
+    page: { ratio: 1, width: 390, height: 844, zoom: 1 },
+    scrollY: 0,
+    size: { width: 390, height: 844 },
+    clipY: undefined,
+  },
+  {
+    name: "desktop zoom changes during a scrolled snapshot",
+    desktop: true,
+    page: { ratio: 3, width: 640, height: 400, zoom: 2 },
+    scrollY: 100,
+    size: { width: 1280, height: 800 },
+    clipY: 200,
+  },
+  {
+    name: "headless",
+    desktop: false,
+    page: { ratio: 2, width: 1280, height: 800, zoom: 1 },
+    scrollY: 0,
+    size: { width: 640, height: 400 },
+    clipY: 0,
+  },
+])("snapshot captures the page's own viewport: $name", ({ desktop, page, scrollY, size, clipY }) =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      desktopRendersNext = desktop;
+      const { browser, broker, tabId } = yield* ready;
+      yield* browser.attachViewer(viewerInput(tabId, false));
+      const context = desktop ? desktopConnections[0]!.context : contexts[0]!;
+      const display = desktop ? page.ratio / page.zoom : 1;
+      let zoom = 1;
+      const clips: Array<{ y: number } | undefined> = [];
+      let metricsReads = 0;
+      for (const session of context.sessions) {
+        const send = session.send.getMockImplementation()!;
+        session.send.mockImplementation(async (method, input) => {
+          if (
+            method === "Runtime.evaluate" &&
+            String((input as { expression?: string })?.expression).includes("devicePixelRatio")
+          ) {
+            metricsReads += 1;
+            const value = {
+              ratio: page.ratio * (zoom / page.zoom),
+              width: page.width * (page.zoom / zoom),
+              height: page.height * (page.zoom / zoom),
+            };
+            // Desktop zoom applies after this renderer read, before the next layout reply.
+            zoom = page.zoom;
+            return { result: { value } };
+          }
+          if (method === "Page.getLayoutMetrics") {
+            return { cssVisualViewport: { pageX: 0, pageY: scrollY, zoom } };
+          }
+          if (method === "Page.captureScreenshot") {
+            const clip = (
+              input as { clip?: { y: number; width: number; height: number; scale: number } }
+            )?.clip;
+            clips.push(clip);
+            const header = Buffer.alloc(24);
+            header.write("IHDR", 12);
+            header.writeUInt32BE(
+              Math.round((clip ? clip.width * clip.scale : page.width * page.zoom) * display),
+              16,
+            );
+            header.writeUInt32BE(
+              Math.round((clip ? clip.height * clip.scale : page.height * page.zoom) * display),
+              20,
+            );
+            return { data: header.toString("base64") };
+          }
+          return send(method, input);
+        });
+      }
+      const result = yield* broker.invoke<PreviewAutomationSnapshot>({
+        scope,
+        tabId,
+        operation: "snapshot",
+        input: {},
+      });
+      const png = Buffer.from(result.screenshot.data, "base64");
+      expect(result.screenshot).toMatchObject(size);
+      expect({ width: png.readUInt32BE(16), height: png.readUInt32BE(20) }).toEqual(size);
+      expect(clips.map((clip) => clip?.y)).toEqual([clipY]);
+      if (!desktop) expect(metricsReads).toBe(0);
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
 it.live.each(["wait", "pause", "capture", "resume"] as const)(
   "a stalled snapshot %s releases the tab queue and capture lock without leaking a paused viewer",
   (stage) =>
@@ -3032,7 +3239,7 @@ it.live.each(["wait", "pause", "capture", "resume"] as const)(
         yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
         expect.soft(recovered.pollUnsafe()).toMatchObject({
           _tag: "Success",
-          value: { visibleText: "delete", screenshot: { data: "ZnJhbWU=" } },
+          value: { visibleText: "delete", screenshot: { data: PNG_HEADER } },
         });
         // A failed CDP session may be retired, but cannot remain attached and paused.
         expect.soft(streaming || session.detach.mock.calls.length > 0).toBe(true);
@@ -3187,6 +3394,7 @@ it.live("late desktop attachment keeps downloads and an active headless recordin
       const saved = Promise.withResolvers<string>();
       const written = Promise.withResolvers<void>();
       page.emit("download", {
+        delete: async () => {},
         failure: async () => null,
         saveAs: (path: string) => {
           saved.resolve(path);

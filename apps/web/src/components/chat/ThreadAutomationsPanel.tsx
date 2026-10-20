@@ -21,6 +21,7 @@ import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useClientSettings } from "../../hooks/useSettings";
+import type { TimestampFormat } from "@t3tools/contracts/settings";
 
 import { readEnvironmentScope } from "../../state/session";
 import { Switch } from "../ui/switch";
@@ -37,6 +38,24 @@ const STATUS_DOT_CLASS: Record<ScheduledTask["lastRunStatus"], string> = {
   succeeded: "bg-emerald-500",
   failed: "bg-destructive",
 };
+
+function taskScheduleLine(task: ScheduledTask, timestampFormat: TimestampFormat) {
+  return (
+    <>
+      {scheduleLabel(task.schedule, timestampFormat)}
+      {task.enabled && task.nextRunAt !== null ? (
+        <>
+          {" · next "}
+          <ScheduledRelativeLabel value={task.nextRunAt} />
+        </>
+      ) : task.enabled ? (
+        ""
+      ) : (
+        " · paused"
+      )}
+    </>
+  );
+}
 
 export function ThreadAutomationsPanel(props: {
   readonly environmentId: EnvironmentId;
@@ -164,24 +183,18 @@ export function ThreadAutomationsPanel(props: {
                 aria-hidden
               />
             </span>
-            <div className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium text-foreground/80">
-                {task.title}
-              </span>
-              <p className="truncate text-2xs text-muted-foreground">
-                {scheduleLabel(task.schedule, timestampFormat)}
-                {task.enabled && task.nextRunAt !== null ? (
-                  <>
-                    {" · next "}
-                    <ScheduledRelativeLabel value={task.nextRunAt} />
-                  </>
-                ) : task.enabled ? (
-                  ""
-                ) : (
-                  " · paused"
-                )}
-              </p>
-            </div>
+            <Tooltip>
+              <TooltipTrigger render={<div className="min-w-0 flex-1" />}>
+                <span className="block truncate text-sm font-medium text-foreground/80">
+                  {task.title}
+                </span>
+                <p className="truncate text-2xs text-muted-foreground">{taskScheduleLine(task, timestampFormat)}</p>
+              </TooltipTrigger>
+              <TooltipPopup side="left">
+                <p className="font-medium">{task.title}</p>
+                <p className="text-muted-foreground">{taskScheduleLine(task, timestampFormat)}</p>
+              </TooltipPopup>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger
                 render={

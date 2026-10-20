@@ -375,11 +375,10 @@ function mermaidSourceHtml(source: string) {
   return pre;
 }
 
-/** A formula's TeX as code, so pasted rich text never carries KaTeX's unstyled glyph markup. */
 function mathSourceElement(wrapper: Element): Element {
   const code = document.createElement("code");
   code.textContent = wrapper.getAttribute("data-markdown-copy")?.trim() ?? "";
-  if (!wrapper.classList.contains("chat-markdown-math-display")) return code;
+  if (wrapper.getAttribute("data-markdown-math") !== "display") return code;
   const pre = document.createElement("pre");
   pre.append(code);
   return pre;
@@ -421,26 +420,35 @@ export function chatMarkdownClipboardPayload(
     const ancestor = range.commonAncestorContainer;
     const ancestorElement =
       ancestor.nodeType === Node.ELEMENT_NODE ? (ancestor as Element) : ancestor.parentElement;
-    // A selection inside one rendered formula copies its whole TeX source.
-    const math = mathWrapperOf(ancestorElement);
-    const formula = math?.getAttribute("data-markdown-copy");
-    if (math && formula) {
-      texts.push(formula.trim());
-      // The cloned range holds only KaTeX's glyphs, not the wrapper holding the TeX.
-      htmls.push(`<meta charset="utf-8">${mathSourceElement(math).outerHTML}`);
-      continue;
-    }
     const diagramSource = ancestorElement
       ?.closest("[data-markdown-mermaid]")
       ?.getAttribute("data-markdown-copy");
-    const text =
-      diagramSource?.trim() ??
-      (ancestorElement?.closest("pre")
-        ? range.toString()
-        : serializeRenderedMarkdownFragment(container));
+    if (diagramSource != null) {
+      const text = diagramSource.trim();
+      if (!text) continue;
+      texts.push(text);
+      container.replaceChildren(mermaidSourceHtml(diagramSource));
+      htmls.push(sanitizedHtmlFrom(container));
+      continue;
+    }
+    // A range inside a formula would clone only KaTeX's glyphs, not the wrapper holding the TeX.
+    const math = mathWrapperOf(ancestorElement);
+    if (math) {
+      texts.push(math.getAttribute("data-markdown-copy")?.trim() ?? "");
+      htmls.push(`<meta charset="utf-8">${mathSourceElement(math).outerHTML}`);
+      continue;
+    }
+    if (ancestorElement?.closest("pre")) {
+      const text = range.toString();
+      if (text) {
+        texts.push(text);
+        htmls.push(sanitizedHtmlFrom(container));
+      }
+      continue;
+    }
+    const text = serializeRenderedMarkdownFragment(container);
     if (!text) continue;
     texts.push(text);
-    if (diagramSource != null) container.replaceChildren(mermaidSourceHtml(diagramSource));
     htmls.push(sanitizedHtmlFrom(container));
   }
   if (texts.length === 0) return null;
