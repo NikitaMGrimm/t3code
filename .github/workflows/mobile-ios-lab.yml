@@ -1,0 +1,71 @@
+name: Build iPhone lab IPA
+on:
+  workflow_dispatch:
+    inputs:
+      source_repository:
+        description: Source repository
+        type: choice
+        options: [pingdotgg/t3code, NikitaMGrimm/t3code]
+        default: pingdotgg/t3code
+      source_sha:
+        description: Exact source commit (40 hex characters)
+        required: true
+        default: d36b7da2485bc889b320a285deea181f637d760a
+permissions:
+  contents: read
+concurrency:
+  group: t3-iphone-lab-build
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 45
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      SOURCE_REPOSITORY: ${{ inputs.source_repository }}
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+      CI: '1'
+      EXPO_NO_GIT_STATUS: '1'
+      EXPO_NO_DOTENV: '1'
+      APP_VARIANT: development
+      T3CODE_IOS_PERSONAL_TEAM: '1'
+      T3CODE_IOS_PERSONAL_TEAM_BUNDLE_ID: dev.nikita.t3.lab
+      T3CODE_MOBILE_UPDATES_ENABLED: '0'
+      MOBILE_VERSION_POLICY: appVersion
+      NODE_OPTIONS: --max-old-space-size=8192
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: tooling
+          persist-credentials: false
+      - name: Validate source identity
+        shell: bash
+        run: |
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$SOURCE_REPOSITORY" == pingdotgg/t3code || "$SOURCE_REPOSITORY" == NikitaMGrimm/t3code ]]
+          xcodebuild -version
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.source_repository }}
+          ref: ${{ inputs.source_sha }}
+          path: source
+          persist-credentials: false
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: '24'
+          cache: true
+          working-directory: source
+          run-install: |
+            args:
+              - --frozen-lockfile
+              - --filter=@t3tools/mobile...
+              - --filter=@t3tools/scripts...
+      - name: Build unsigned device IPA
+        run: bash tooling/scripts/build-ios-lab.sh "$GITHUB_WORKSPACE/source" "$GITHUB_WORKSPACE/output"
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: t3-iphone-unsigned-${{ inputs.source_sha }}
+          path: output/
+          if-no-files-found: error
+          retention-days: 7
