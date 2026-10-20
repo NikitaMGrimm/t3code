@@ -2,44 +2,8 @@
   "repository": "NikitaMGrimm/t3code",
   "branch": "personal-nightly",
   "upstreamRepository": "pingdotgg/t3code",
-  "upstreamTag": "v0.1.1-nightly.20261019.3373",
+  "upstreamTag": "v0.1.1-nightly.20261020.3411",
   "pullRequests": [
-    {
-      "number": 14574,
-      "title": "feat(web): opt-in LaTeX math rendering in chat",
-      "headSha": "2d2a16f4dfe38ec41810b5624eae6fc3c60bd57f",
-      "baseSha": "4b6d9a09f80c4e782bdcf27ed1ef5c4f8fdd98db",
-      "headRef": "feat/chat-math-opt-in",
-      "baseRef": "main",
-      "author": "hkarlsen06",
-      "url": "https://github.com/pingdotgg/t3code/pull/14574",
-      "headRepository": "hkarlsen06/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 16249,
-      "title": "fix(web): preserve Mermaid source when copying selected text",
-      "headSha": "aaf49a1695c8c8a548435ddba1d3c6ceb0ea1e16",
-      "baseSha": "08b1cbebf2e8439a8481b58ec316fa09f23208c4",
-      "headRef": "feat/mermaid-selection-copy",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/16249",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 16941,
-      "title": "fix(server): queued preview actions no longer start after their deadline, except recording stop",
-      "headSha": "e7bc457af8bb799b28ceec39f127fbf6f930120b",
-      "baseSha": "5569a42bff98f06b297115542b25c942f8607c16",
-      "headRef": "fix/preview-timeout-isolation-16921",
-      "baseRef": "main",
-      "author": "hogeheer499-commits",
-      "url": "https://github.com/pingdotgg/t3code/pull/16941",
-      "headRepository": "hogeheer499-commits/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
     {
       "number": 17871,
       "title": "fix(preview): keep browser sessions available after action timeouts",
@@ -55,48 +19,12 @@
     {
       "number": 17892,
       "title": "fix(web): attach button no longer shifts when the Compact chip toggles",
-      "headSha": "ea4a7d0527e627f9f7f1c72aaf48f244084e1998",
-      "baseSha": "b827ca48d728484cd2090d6da6f6477e5ca35386",
+      "headSha": "263670f2239d6118a60b4413c571fe8446d48627",
+      "baseSha": "fb990765a49414a5bfbdc73365455fc8b5fbe691",
       "headRef": "fix/composer-compact-chip-order",
       "baseRef": "main",
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/17892",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 18308,
-      "title": "fix(web): render completed Mermaid blocks while streaming",
-      "headSha": "6ad2e0c045524bcfe3a7259a7debea5290e187a1",
-      "baseSha": "da7c4f234db35096af2c16d5e24c60dbe9495583",
-      "headRef": "resubmit/mermaid-streaming",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/18308",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 18310,
-      "title": "fix(composer): don't send attached threads to a machine that can't read them",
-      "headSha": "12a189e2ad392e4203308dd313395081078256d0",
-      "baseSha": "ab6be13d438abeace7617e8d789d59cf2e880f42",
-      "headRef": "resubmit/reference-machine-selection",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/18310",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 18322,
-      "title": "fix(mobile): don't send or paste attached threads a machine can't read",
-      "headSha": "1ecea4f87290930f89a8e906504c9524158fb30f",
-      "baseSha": "1451e7cb23034d29774338608368a15d8845df36",
-      "headRef": "resubmit/reference-machine-selection-mobile",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/18322",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     },
@@ -110,18 +38,6 @@
       "author": "t3dotgg",
       "url": "https://github.com/pingdotgg/t3code/pull/18873",
       "headRepository": "pingdotgg/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 19919,
-      "title": "fix(web): agent tabs in background threads open in the desktop browser",
-      "headSha": "68c1401c7658857110ef8660cc904778c37d2895",
-      "baseSha": "ab6be13d438abeace7617e8d789d59cf2e880f42",
-      "headRef": "fix/bg-thread-preview-webview",
-      "baseRef": "main",
-      "author": "MahirAbbas",
-      "url": "https://github.com/pingdotgg/t3code/pull/19919",
-      "headRepository": "MahirAbbas/t3code",
       "baseRepository": "pingdotgg/t3code"
     },
     {
@@ -147,7 +63,19 @@
       "url": "https://github.com/pingdotgg/t3code/pull/21894",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 22322,
+      "title": "fix(mobile): a pasted pairing link's code replaces the old Code field",
+      "headSha": "64dc17fe2eb4126bd69752c5a1c77eae35ec6ebe",
+      "baseSha": "67c0fc0cdaf963b103518862dd7b68a9c758ecf2",
+      "headRef": "fix/mobile-pairing-link-code",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/22322",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "6858e33949e80a89a45c3d8f2d813a87e10626ab"
+  "prBaseline": "189f6885ac8cde9d3b8de3295263f32af61bd9dd"
 }
