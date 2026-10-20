@@ -6,6 +6,18 @@ import { page, userEvent } from "vite-plus/test/browser";
 import { act, render } from "../../../test/render";
 import { ComposerBannerStack } from "./ComposerBannerStack";
 
+// Keep a pointer retained from another test from expanding the stack as it mounts.
+async function parkPointerAway() {
+  const parking = document.createElement("div");
+  parking.style.cssText = "position:fixed;right:0;bottom:0;width:4px;height:4px";
+  document.body.append(parking);
+  try {
+    await userEvent.hover(parking);
+  } finally {
+    parking.remove();
+  }
+}
+
 function sized(width: number) {
   const container = document.createElement("div");
   container.style.width = `${width}px`;
@@ -22,6 +34,7 @@ const usage = (description: string) => (
 );
 
 it("only offers notice details when the description cannot fit", async () => {
+  await parkPointerAway();
   await using screen = await render(usage("OpenCode"), { container: sized(700) });
   const { container } = screen;
   const hasDetails = () => container.querySelector('[aria-label="Show notice details"]') !== null;
@@ -47,6 +60,7 @@ it("only offers notice details when the description cannot fit", async () => {
 });
 
 it("keeps only the usage limit attached while an active goal waits in the collapsible stack", async () => {
+  await parkPointerAway();
   await using screen = await render(
     <ComposerBannerStack
       items={[
@@ -77,8 +91,6 @@ it("keeps only the usage limit attached while an active goal waits in the collap
   const limit = page.getByText("Usage limit reached", { exact: true });
   const goal = page.getByText("Goal active", { exact: true });
 
-  // A retained pointer can expand the stack as it mounts; start outside the hover target.
-  await userEvent.hover(limit);
   await expect.poll(visibleBanners).toHaveLength(1);
   await expect.element(limit).toBeVisible();
   await expect.element(goal).not.toBeVisible();
@@ -106,6 +118,7 @@ it("keeps only the usage limit attached while an active goal waits in the collap
 });
 
 it("reveals the full running command only while its title is clipped", async () => {
+  await parkPointerAway();
   const command =
     "Running: /usr/bin/zsh -lc 'sleep 600 > /tmp/t3-background-command-with-a-long-log-filename-for-truncation.log 2>&1'";
   await using screen = await render(
