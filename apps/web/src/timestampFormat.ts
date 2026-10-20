@@ -78,17 +78,18 @@ const timestampFormatterCache = new Map<string, Intl.DateTimeFormat>();
 function getTimestampFormatter(
   timestampFormat: TimestampFormat,
   includeSeconds: boolean,
+  includeDate = false,
 ): Intl.DateTimeFormat {
-  const cacheKey = `${timestampFormat}:${includeSeconds ? "seconds" : "minutes"}`;
+  const cacheKey = `${timestampFormat}:${includeSeconds ? "seconds" : "minutes"}:${includeDate ? "date" : "time"}`;
   const cachedFormatter = timestampFormatterCache.get(cacheKey);
   if (cachedFormatter) {
     return cachedFormatter;
   }
 
-  const formatter = new Intl.DateTimeFormat(
-    timestampLocale,
-    getTimestampFormatOptions(timestampFormat, includeSeconds),
-  );
+  const formatter = new Intl.DateTimeFormat(timestampLocale, {
+    ...(includeDate ? { year: "numeric", month: "short", day: "numeric" } : {}),
+    ...getTimestampFormatOptions(timestampFormat, includeSeconds),
+  });
   timestampFormatterCache.set(cacheKey, formatter);
   return formatter;
 }
@@ -106,6 +107,17 @@ export function formatTimestamp(isoDate: string, timestampFormat: TimestampForma
   const date = parseTimestampDate(isoDate);
   if (!date) return "";
   return getTimestampFormatter(timestampFormat, true).format(date);
+}
+
+/** Local date and time for details that must stay unambiguous across days and years. */
+export function formatFullTimestamp(
+  isoDate: string,
+  timestampFormat: TimestampFormat,
+  includeSeconds = true,
+): string {
+  const date = parseTimestampDate(isoDate);
+  if (!date) return "";
+  return getTimestampFormatter(timestampFormat, includeSeconds, true).format(date);
 }
 
 // Deliberately not the host locale: the tooltip's ordinal suffix and
@@ -145,6 +157,18 @@ export function formatShortTimestamp(isoDate: string, timestampFormat: Timestamp
   const date = parseTimestampDate(isoDate);
   if (!date) return "";
   return getTimestampFormatter(timestampFormat, false).format(date);
+}
+
+// Same pattern as the scheduled-task `TimeOfDay` contract.
+const TIME_OF_DAY_PATTERN = /^([01]?\d|2[0-3]):([0-5]\d)$/;
+
+/** Formats a 24-hour `HH:MM` wall-clock string, returning it unchanged when malformed. */
+export function formatTimeOfDay(timeOfDay: string, timestampFormat: TimestampFormat): string {
+  const match = TIME_OF_DAY_PATTERN.exec(timeOfDay.trim());
+  if (!match) return timeOfDay;
+  // A fixed local date anchors the wall-clock time; only the time is rendered.
+  const date = new Date(2000, 0, 1, Number(match[1]), Number(match[2]));
+  return formatShortTimestamp(date.toISOString(), timestampFormat);
 }
 
 const numericDateFormatter = new Intl.DateTimeFormat(timestampLocale, {

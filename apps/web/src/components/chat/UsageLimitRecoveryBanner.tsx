@@ -5,6 +5,8 @@ import {
 } from "@t3tools/contracts";
 import { GaugeIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import type { TimestampFormat } from "@t3tools/contracts/settings";
+import { formatFullTimestamp } from "../../timestampFormat";
 import { Button } from "../ui/button";
 import { toastManager } from "../ui/toast";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
@@ -18,7 +20,9 @@ type RecoveryProps = {
   onChange: (recovery: OrchestrationV2LimitRecoveryUpdate) => Promise<void>;
 };
 
-export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBannerStackItem {
+export function usageLimitRecoveryBannerItem(
+  props: RecoveryProps & { timestampFormat: TimestampFormat },
+): ComposerBannerStackItem {
   const { runId, resetAt, stoppedAt } = props;
   const canSchedule = resetAt !== null && Date.parse(resetAt) > Date.parse(stoppedAt);
   return {
@@ -28,7 +32,7 @@ export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBann
     icon: <GaugeIcon />,
     title: "Usage limit reached",
     description: resetAt
-      ? `Resets ${new Date(resetAt).toLocaleString()}`
+      ? `Resets ${formatFullTimestamp(resetAt, props.timestampFormat) || "Invalid Date"}`
       : "Reset time unavailable; retry manually",
     actions: canSchedule ? <RecoveryActions key={`${runId}:${resetAt}`} {...props} /> : null,
   };

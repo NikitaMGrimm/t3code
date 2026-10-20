@@ -11,7 +11,7 @@ import { CalendarIcon } from "lucide-react";
 import { Calendar } from "./ui/calendar";
 import { weekStartsOn } from "../timestampFormat";
 import { Popover, PopoverTrigger, PopoverPopup } from "./ui/popover";
-import { Input } from "./ui/input";
+import { TimeInput } from "./TimeInput";
 import { Label } from "./ui/label";
 import { Toggle, ToggleGroup } from "./ui/toggle-group";
 import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from "./ui/select";
@@ -149,11 +149,9 @@ function CustomSnoozeDialog() {
                     </div>
                     <Label className="flex min-w-0 flex-col items-stretch" htmlFor={`${id}-time`}>
                       Time
-                      <Input
-                        nativeInput
+                      <TimeInput
                         id={`${id}-time`}
                         className="h-9 sm:h-8"
-                        type="time"
                         required
                         value={time}
                         onChange={(event) => {

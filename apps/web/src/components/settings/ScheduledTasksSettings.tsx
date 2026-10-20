@@ -38,8 +38,10 @@ import {
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
 
-import { formatRelativeTime } from "../../timestampFormat";
-import { useEnvironmentSettings } from "../../hooks/useSettings";
+import { formatRelativeTime, formatTimeOfDay } from "../../timestampFormat";
+import { useClientSettings, useEnvironmentSettings } from "../../hooks/useSettings";
+import type { TimestampFormat } from "@t3tools/contracts/settings";
+import { TimeInput } from "../TimeInput";
 import { getCustomModelOptionsByInstance } from "../../modelSelection";
 import {
   applyProviderInstanceSettings,
@@ -179,7 +181,10 @@ function splitModelKey(value: string): ModelSelection | null {
   };
 }
 
-export function scheduleLabel(schedule: ScheduledTaskSchedule): string {
+export function scheduleLabel(
+  schedule: ScheduledTaskSchedule,
+  timestampFormat: TimestampFormat,
+): string {
   if (schedule.type === "webhook") return "On webhook";
   if (schedule.type === "interval") {
     const minutes = schedule.everyMs / 60_000;
@@ -194,7 +199,7 @@ export function scheduleLabel(schedule: ScheduledTaskSchedule): string {
       : weekdays.length === 5 && weekdays.every((day) => day >= 1 && day <= 5)
         ? "Weekdays"
         : weekdays.map((day) => WEEKDAY_LABELS[day]).join(", ");
-  return `${days} at ${schedule.timeOfDay}`;
+  return `${days} at ${formatTimeOfDay(schedule.timeOfDay, timestampFormat)}`;
 }
 
 /**
@@ -569,6 +574,7 @@ function ScheduledTaskRow({
   readonly task: ScheduledTask;
   readonly onEdit: () => void;
 }) {
+  const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
   const canOperate = useAtomValue(
     serverEnvironment.upsertScheduledTask.permissionAtom(environmentId),
   );
@@ -611,7 +617,7 @@ function ScheduledTaskRow({
       status={
         <div className="flex flex-wrap items-center gap-2">
           <span>
-            {scheduleLabel(task.schedule)} ·{" "}
+            {scheduleLabel(task.schedule, timestampFormat)} ·{" "}
             {!task.enabled ? (
               "Paused"
             ) : isWebhook ? (
@@ -1067,6 +1073,13 @@ function ScheduledTaskEditorForm({
       return;
     }
     if (
+      schedule.type === "fixed_time" &&
+      !/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(draft.timeOfDay)
+    ) {
+      reportFailure("Invalid time", "Enter a time from 00:00 to 23:59 (HH:MM).");
+      return;
+    }
+    if (
       schedule.type === "webhook" &&
       schedule.signature &&
       (!schedule.signature.header ||
@@ -1491,10 +1504,8 @@ function ScheduledTaskEditorForm({
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
                   <Label htmlFor="scheduled-task-time">Run at</Label>
-                  <Input
-                    type="time"
+                  <TimeInput
                     id="scheduled-task-time"
-                    nativeInput
                     className="w-32"
                     value={draft.timeOfDay}
                     onChange={(event) =>

@@ -71,6 +71,13 @@ describe("mobile client presentation", () => {
       "iOS · T3 Code 1.2.3",
     );
     expect(mobileClientPlatformLabel(device({ appVersion: null }))).toBe("iOS 18");
-    expect(mobileClientUpdatedAtLabel("not-a-date")).toBe("Update time unavailable");
+    expect(mobileClientUpdatedAtLabel("not-a-date", "24-hour")).toBe("Update time unavailable");
+  });
+
+  it("labels the update time with its date in the chosen clock format", () => {
+    const updatedAt = new Date(2025, 3, 7, 15, 44, 9).toISOString();
+    const label = mobileClientUpdatedAtLabel(updatedAt, "24-hour");
+    expect(label).toMatch(/^Updated .*2025.*15:44$/);
+    expect(mobileClientUpdatedAtLabel(updatedAt, "12-hour")).toMatch(/3:44\s[ap]m$/i);
   });
 });

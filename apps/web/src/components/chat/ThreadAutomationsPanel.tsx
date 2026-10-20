@@ -20,6 +20,7 @@ import { ScheduledRelativeLabel, scheduleLabel } from "../settings/ScheduledTask
 import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { useClientSettings } from "../../hooks/useSettings";
 
 import { readEnvironmentScope } from "../../state/session";
 import { Switch } from "../ui/switch";
@@ -41,6 +42,7 @@ export function ThreadAutomationsPanel(props: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
 }) {
+  const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
   const canOperate = useAtomValue(
     serverEnvironment.runScheduledTaskNow.permissionAtom(props.environmentId),
   );
@@ -167,7 +169,7 @@ export function ThreadAutomationsPanel(props: {
                 {task.title}
               </span>
               <p className="truncate text-2xs text-muted-foreground">
-                {scheduleLabel(task.schedule)}
+                {scheduleLabel(task.schedule, timestampFormat)}
                 {task.enabled && task.nextRunAt !== null ? (
                   <>
                     {" · next "}
