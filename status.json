@@ -11,10 +11,10 @@
     "docs/user/appearance.md",
     "pnpm-lock.yaml"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39356222472",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39359635799",
   "releasedVersion": "0.1.1-nightly.20261019.1792440272094",
   "baseCommit": "b6938a664dc5e93792a8a5a967b26528e761cf26",
-  "sequence": 1792461418467,
+  "sequence": 1792463661674,
   "conflictPullRequest": 14574,
   "conflictIdentity": "5f8eef87c0d88d11e9035b8725158a657985037a2994e0f57296d76419d68ce6",
   "inputs": {
@@ -42,7 +42,7 @@
       },
       {
         "number": 17892,
-        "headSha": "eb419e02495e4ccfe90be3a0a7542d65558e0764",
+        "headSha": "263670f2239d6118a60b4413c571fe8446d48627",
         "baseRef": "main"
       },
       {
@@ -125,7 +125,7 @@
     {
       "number": 17892,
       "title": "fix(web): attach button no longer shifts when the Compact chip toggles",
-      "headSha": "eb419e02495e4ccfe90be3a0a7542d65558e0764",
+      "headSha": "263670f2239d6118a60b4413c571fe8446d48627",
       "baseSha": "fb990765a49414a5bfbdc73365455fc8b5fbe691",
       "headRef": "fix/composer-compact-chip-order",
       "baseRef": "main",
