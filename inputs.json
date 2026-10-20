@@ -36,9 +36,14 @@
         "number": 22322,
         "headSha": "64dc17fe2eb4126bd69752c5a1c77eae35ec6ebe",
         "baseRef": "main"
+      },
+      {
+        "number": 22522,
+        "headSha": "ea6493c79c65e4b9bcc20cdf1f4413b3cc874e5f",
+        "baseRef": "main"
       }
     ],
     "resolutions": "d4a6948e8f5e5db8977390f7a821fe40b634047100da5d515c67588c2bf9163d"
   },
-  "observedAt": 1792525836.83768
+  "observedAt": 1792533982.7470305
 }
