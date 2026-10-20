@@ -129,13 +129,6 @@ type TextChunk = { node: Text | Element; start: number; end: number };
 
 const isText = (node: Node): node is Text => node.nodeType === 3;
 
-/**
- * Uses DOM text order, with a line break between HTML blocks and at <br>.
- * Inline markup, including code and links, contributes its displayed text.
- * Controls and subtrees marked hidden/aria-hidden do not contribute. A rendered
- * formula contributes its TeX as one unit. No layout reads, CSS-generated
- * content, or soft-wrap line breaks enter the stream, so reflow cannot move it.
- */
 function readAssistantText(root: HTMLElement) {
   const parts: string[] = [];
   const chunks: TextChunk[] = [];
@@ -195,7 +188,7 @@ function isUsableRange(root: HTMLElement, range: Range): boolean {
 }
 
 function isUnselectable(text: Text): boolean {
-  const element = text.parentElement;
+  const element = mathWrapperOf(text.parentElement) ?? text.parentElement;
   const view = element?.ownerDocument?.defaultView;
   return !!element && !!view && view.getComputedStyle(element).userSelect === "none";
 }
