@@ -11,10 +11,10 @@
     "docs/user/appearance.md",
     "pnpm-lock.yaml"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39359635799",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39371899977",
   "releasedVersion": "0.1.1-nightly.20261019.1792440272094",
   "baseCommit": "b6938a664dc5e93792a8a5a967b26528e761cf26",
-  "sequence": 1792463661674,
+  "sequence": 1792471976560,
   "conflictPullRequest": 14574,
   "conflictIdentity": "5f8eef87c0d88d11e9035b8725158a657985037a2994e0f57296d76419d68ce6",
   "inputs": {
@@ -27,12 +27,12 @@
       },
       {
         "number": 16249,
-        "headSha": "aaf49a1695c8c8a548435ddba1d3c6ceb0ea1e16",
+        "headSha": "d9c288306d0a17c575ec965ea0f540049a8c6d1a",
         "baseRef": "main"
       },
       {
         "number": 16941,
-        "headSha": "e7bc457af8bb799b28ceec39f127fbf6f930120b",
+        "headSha": "b392b5651e1e0d179489e48b41bb82da2499ca77",
         "baseRef": "main"
       },
       {
@@ -57,7 +57,7 @@
       },
       {
         "number": 19919,
-        "headSha": "68c1401c7658857110ef8660cc904778c37d2895",
+        "headSha": "5a16f179fb4f56aa8827763ea9c49698f6112bb6",
         "baseRef": "main"
       },
       {
@@ -89,8 +89,8 @@
     {
       "number": 16249,
       "title": "fix(web): preserve Mermaid source when copying selected text",
-      "headSha": "aaf49a1695c8c8a548435ddba1d3c6ceb0ea1e16",
-      "baseSha": "08b1cbebf2e8439a8481b58ec316fa09f23208c4",
+      "headSha": "d9c288306d0a17c575ec965ea0f540049a8c6d1a",
+      "baseSha": "fd8dd51654f855dbf4e23c457701f5088c59b689",
       "headRef": "feat/mermaid-selection-copy",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -101,8 +101,8 @@
     {
       "number": 16941,
       "title": "fix(server): queued preview actions no longer start after their deadline, except recording stop",
-      "headSha": "e7bc457af8bb799b28ceec39f127fbf6f930120b",
-      "baseSha": "5569a42bff98f06b297115542b25c942f8607c16",
+      "headSha": "b392b5651e1e0d179489e48b41bb82da2499ca77",
+      "baseSha": "86d130af6c02a126515488ed6038b68906c35bf7",
       "headRef": "fix/preview-timeout-isolation-16921",
       "baseRef": "main",
       "author": "hogeheer499-commits",
@@ -161,8 +161,8 @@
     {
       "number": 19919,
       "title": "fix(web): agent tabs in background threads open in the desktop browser",
-      "headSha": "68c1401c7658857110ef8660cc904778c37d2895",
-      "baseSha": "ab6be13d438abeace7617e8d789d59cf2e880f42",
+      "headSha": "5a16f179fb4f56aa8827763ea9c49698f6112bb6",
+      "baseSha": "fd8dd51654f855dbf4e23c457701f5088c59b689",
       "headRef": "fix/bg-thread-preview-webview",
       "baseRef": "main",
       "author": "MahirAbbas",
