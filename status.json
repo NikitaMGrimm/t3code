@@ -1,30 +1,17 @@
 {
   "schema": 1,
-  "phase": "conflict",
+  "phase": "building",
   "upstreamTag": "v0.1.1-nightly.20261020.3411",
-  "conflicts": [
-    "apps/web/src/components/ChatMarkdown.tsx",
-    "apps/web/src/components/chat/MarkdownMath.tsx",
-    "apps/web/src/components/settings/SettingsPanels.tsx",
-    "apps/web/src/index.css",
-    "apps/web/src/markdown-clipboard.ts",
-    "docs/user/appearance.md",
-    "pnpm-lock.yaml"
-  ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39418838389",
+  "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39423769201",
   "releasedVersion": "0.1.1-nightly.20261019.1792440272094",
-  "baseCommit": "2589a3334c596237a61ca52dd2bcb019e2812af1",
-  "sequence": 1792497543049,
-  "conflictPullRequest": 14574,
-  "conflictIdentity": "330b381fa662ddc1cae09324ef7e3f15f8cada787e3162f052d004ef41cbfc54",
+  "baseCommit": "e24b36f426fb09ac4034c3da9c760a6ed4d05fcf",
+  "sequence": 1792499886422,
+  "candidateCommit": "adb5c066191f1db2be4111a234313e788f5e2b4a",
+  "candidateVersion": "0.1.1-nightly.20261020.1792499886422",
   "inputs": {
     "upstreamTag": "v0.1.1-nightly.20261020.3411",
     "pullRequests": [
-      {
-        "number": 14574,
-        "headSha": "2d2a16f4dfe38ec41810b5624eae6fc3c60bd57f",
-        "baseRef": "main"
-      },
       {
         "number": 17871,
         "headSha": "3bd2412b0c3910e38df27c9f84ff992acd89d129",
@@ -51,21 +38,9 @@
         "baseRef": "main"
       }
     ],
-    "resolutions": "3467868597b083887b0b801d594edaa0ddaec3e0f5c6d51166f9db45d89b399c"
+    "resolutions": "4f4f30676b083f97ba67c2575eee9139a1bd903d6377c0ede8fce808224bf9de"
   },
   "pullRequests": [
-    {
-      "number": 14574,
-      "title": "feat(web): opt-in LaTeX math rendering in chat",
-      "headSha": "2d2a16f4dfe38ec41810b5624eae6fc3c60bd57f",
-      "baseSha": "4b6d9a09f80c4e782bdcf27ed1ef5c4f8fdd98db",
-      "headRef": "feat/chat-math-opt-in",
-      "baseRef": "main",
-      "author": "hkarlsen06",
-      "url": "https://github.com/pingdotgg/t3code/pull/14574",
-      "headRepository": "hkarlsen06/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
     {
       "number": 17871,
       "title": "fix(preview): keep browser sessions available after action timeouts",
