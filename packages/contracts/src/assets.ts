@@ -71,6 +71,7 @@ export type AssetImageDimensions = typeof AssetImageDimensions.Type;
 export const AssetCreateUrlResult = Schema.Struct({
   relativeUrl: TrimmedNonEmptyString.check(Schema.isMaxLength(4096)),
   expiresAt: Schema.Number,
+  fileRevision: Schema.optional(TrimmedNonEmptyString.check(Schema.isMaxLength(256))),
   sourcePath: Schema.optional(
     TrimmedNonEmptyString.check(Schema.isMaxLength(ASSET_PATH_MAX_LENGTH)),
   ),

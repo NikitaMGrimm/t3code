@@ -8,6 +8,7 @@ import { prepareVideoFirstFrame } from "../../lib/videoFirstFrame";
 import { Button } from "../ui/button";
 import { OpenMediaLink } from "./OpenMediaLink";
 import { MediaActions, type MediaActionSource } from "./MediaActions";
+import { selectPinnedMediaSource, type PinnedMediaSource } from "./pinnedMediaSource";
 
 interface MediaVideoPlayerProps {
   readonly src: string | null;
@@ -46,10 +47,7 @@ export function MediaVideoPlayer({
 }: MediaVideoPlayerProps) {
   // State, not a ref: the element remounts on retry and failure, and effects must rebind to it.
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
-  const [playbackSource, setPlaybackSource] = useState<{
-    src: string;
-    revision: string | null;
-  } | null>(null);
+  const [playbackSource, setPlaybackSource] = useState<PinnedMediaSource | null>(null);
   const [playingVideo, setPlayingVideo] = useState<HTMLVideoElement | null>(null);
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
@@ -60,14 +58,15 @@ export function MediaVideoPlayer({
   const failed = src !== null ? failedSrc === src : sourceFailed;
   const preloaded = preloadedSrc === src || typeof IntersectionObserver === "undefined";
 
-  // Re-signing must not reset the playhead. Changed files refresh once playback pauses.
-  if (
-    playbackSource !== null &&
-    playbackSource.revision !== revision &&
-    (video === null || playingVideo !== video)
-  ) {
-    setPlaybackSource(null);
-  }
+  const nextSource = selectPinnedMediaSource(
+    playbackSource,
+    latestSrc,
+    revision,
+    video !== null && playingVideo === video,
+    sourceFailed,
+    failedSrc,
+  );
+  if (nextSource !== playbackSource) setPlaybackSource(nextSource);
 
   useEffect(() => {
     if (!video || preload === "metadata" || preloaded) return;

@@ -378,6 +378,7 @@ const finalizeAbsoluteMediaFileAsset = Effect.fn("AssetAccess.finalizeAbsoluteMe
                 : Effect.succeed(null),
               (dimensions) => ({
                 identity: { device: file.info.dev.toString(), inode: file.info.ino.toString() },
+                fileRevision: `${file.info.dev}:${file.info.ino}:${file.info.size}:${file.info.mtimeNs}:${file.info.ctimeNs}`,
                 dimensions,
               }),
             ),
@@ -402,6 +403,7 @@ const finalizeAbsoluteMediaFileAsset = Effect.fn("AssetAccess.finalizeAbsoluteMe
         expiresAt: input.expiresAt,
       },
       fileName: path.basename(canonicalFile),
+      fileRevision: opened.fileRevision,
       imageDimensions: opened.dimensions,
     };
   },
@@ -503,6 +505,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
   let claims: AssetClaims;
   let fileName: string;
   let sourcePath: string | undefined;
+  let fileRevision: string | undefined;
   let imageDimensions: ImageDimensions | null = null;
 
   switch (input.resource._tag) {
@@ -529,6 +532,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
       });
       claims = finalized.claims;
       fileName = finalized.fileName;
+      fileRevision = finalized.fileRevision;
       imageDimensions = finalized.imageDimensions;
       break;
     }
@@ -571,6 +575,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
         });
         claims = finalized.claims;
         fileName = finalized.fileName;
+        fileRevision = finalized.fileRevision;
         imageDimensions = finalized.imageDimensions;
         break;
       }
@@ -825,6 +830,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
   return {
     relativeUrl: `${ASSET_ROUTE_PREFIX}/${token}/${encodeURIComponent(fileName)}`,
     expiresAt,
+    ...(fileRevision !== undefined ? { fileRevision } : {}),
     ...(sourcePath !== undefined ? { sourcePath } : {}),
     ...(imageDimensions !== null ? { imageDimensions } : {}),
   };

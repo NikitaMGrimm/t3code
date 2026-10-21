@@ -78,6 +78,7 @@ export type AssetUrlState =
       readonly _tag: "Success";
       readonly url: string;
       readonly expiresAt: number;
+      readonly fileRevision?: string;
       readonly sourcePath?: string;
       readonly imageDimensions?: AssetImageDimensions;
     };
@@ -120,6 +121,7 @@ export function assetUrlStateFromResult(
     _tag: "Success",
     url,
     expiresAt: result.value.expiresAt,
+    ...(result.value.fileRevision !== undefined ? { fileRevision: result.value.fileRevision } : {}),
     ...(result.value.sourcePath !== undefined ? { sourcePath: result.value.sourcePath } : {}),
     ...(result.value.imageDimensions !== undefined
       ? { imageDimensions: result.value.imageDimensions }
