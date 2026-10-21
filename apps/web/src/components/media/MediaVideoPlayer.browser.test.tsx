@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { act, render, stubGlobal } from "../../../test/render";
+import { act, render, stubGlobal, type Screen } from "../../../test/render";
 import { MediaVideoPlayer } from "./MediaVideoPlayer";
 
 // The observer never reports the video as visible, so it keeps preload="none" and never
@@ -10,13 +10,13 @@ class HiddenIntersectionObserver {
   disconnect() {}
 }
 
-function videoSrc(container: HTMLElement): string | undefined {
-  return container.querySelector("video")?.getAttribute("src") ?? undefined;
+function expectVideoSrc(screen: Screen, src: string) {
+  return expect.element(screen.getByLabelText("clip")).toHaveAttribute("src", src);
 }
 
-async function loadMetadata(container: HTMLElement) {
+async function loadMetadata(screen: Screen) {
   await act(() => {
-    container.querySelector("video")?.dispatchEvent(new Event("loadedmetadata"));
+    screen.getByLabelText("clip").element().dispatchEvent(new Event("loadedmetadata"));
   });
 }
 
@@ -26,23 +26,23 @@ describe("MediaVideoPlayer", () => {
     await using screen = await render(
       <MediaVideoPlayer src="/asset/first/clip.mp4" label="clip" revision="file-1" />,
     );
-    await loadMetadata(screen.container);
+    await loadMetadata(screen);
 
     await screen.rerender(
       <MediaVideoPlayer src="/asset/renewed/clip.mp4" label="clip" revision="file-1" />,
     );
-    expect(videoSrc(screen.container)).toBe("/asset/first/clip.mp4");
+    await expectVideoSrc(screen, "/asset/first/clip.mp4");
 
     await screen.rerender(
       <MediaVideoPlayer src="/asset/changed/clip.mp4" label="clip" revision="file-2" />,
     );
-    expect(videoSrc(screen.container)).toBe("/asset/changed/clip.mp4");
+    await expectVideoSrc(screen, "/asset/changed/clip.mp4");
 
     // A second re-sign while the changed file is still loading must not restart that load.
     await screen.rerender(
       <MediaVideoPlayer src="/asset/changed-renewed/clip.mp4" label="clip" revision="file-2" />,
     );
-    expect(videoSrc(screen.container)).toBe("/asset/changed/clip.mp4");
+    await expectVideoSrc(screen, "/asset/changed/clip.mp4");
   });
 
   it("keeps a loaded paused video while its URL is briefly unavailable", async () => {
@@ -50,9 +50,9 @@ describe("MediaVideoPlayer", () => {
     await using screen = await render(
       <MediaVideoPlayer src="/asset/first/clip.mp4" label="clip" revision="file-1" />,
     );
-    await loadMetadata(screen.container);
+    await loadMetadata(screen);
 
     await screen.rerender(<MediaVideoPlayer src={null} label="clip" revision="mutation-2" />);
-    expect(videoSrc(screen.container)).toBe("/asset/first/clip.mp4");
+    await expectVideoSrc(screen, "/asset/first/clip.mp4");
   });
 });
