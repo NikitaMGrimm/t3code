@@ -1,4 +1,5 @@
 import {
+  OrchestrationV2AppThread,
   OrchestrationV2TurnItem,
   type OrchestrationV2ThreadProjection,
   type ScopedThreadRef,
@@ -32,6 +33,7 @@ const EMPTY_VISIBLE_TURN_ITEMS: OrchestrationV2ThreadProjection["visibleTurnItem
 const EMPTY_CHECKPOINT_SUMMARIES: ReadonlyArray<ThreadCheckpointSummary> = Object.freeze([]);
 
 const sameTurnItem = Schema.toEquivalence(OrchestrationV2TurnItem);
+const sameAppThread = Schema.toEquivalence(OrchestrationV2AppThread);
 
 function sameApartFromStreamedText(
   previous: OrchestrationV2TurnItem,
@@ -49,18 +51,40 @@ function sameApartFromStreamedText(
 }
 
 /**
- * Whether `next` differs from `previous` only by text streamed into existing
- * assistant and reasoning items: the same items exist, with the same status,
- * and every other projection field is unchanged.
+ * Whether `next` has the structure of `previous`: it differs only by text
+ * streamed into existing assistant and reasoning items or by a visit mark. The
+ * same items exist, with the same status, and every other field is unchanged.
  */
-export function onlyStreamedTextChanged(
+export function sameThreadStructure(
   previous: OrchestrationV2ThreadProjection,
   next: OrchestrationV2ThreadProjection,
 ): boolean {
   if (previous === next) return true;
   for (const key of Object.keys(next) as Array<keyof OrchestrationV2ThreadProjection>) {
-    if (key === "turnItems" || key === "visibleTurnItems" || key === "updatedAt") continue;
+    if (
+      key === "thread" ||
+      key === "turnItems" ||
+      key === "visibleTurnItems" ||
+      key === "updatedAt"
+    ) {
+      continue;
+    }
     if (previous[key] !== next[key]) return false;
+  }
+  // The open thread is marked visited several times while a reply streams.
+  // Visit state is read from the shell, so a mark is not structure.
+  if (
+    previous.thread !== next.thread &&
+    !sameAppThread(
+      {
+        ...previous.thread,
+        updatedAt: next.thread.updatedAt,
+        lastVisitedAt: next.thread.lastVisitedAt,
+      },
+      next.thread,
+    )
+  ) {
+    return false;
   }
   if (
     previous.turnItems.length !== next.turnItems.length ||
@@ -122,7 +146,8 @@ export function createEnvironmentThreadDetailAtoms<E>(
   // Streamed assistant and reasoning text replaces an item several times a
   // second. Readers of the thread's structure (runs, requests, which items
   // exist and their status) keep the previous value through those updates;
-  // whatever shows the text reads threadAtom or visibleTurnItemsAtom.
+  // whatever shows the text reads threadAtom or visibleTurnItemsAtom. See
+  // sameThreadStructure.
   const quietThreadAtomFamily = Atom.family((key: string) => {
     let previous: EnvironmentThread | null = null;
     return Atom.make((get) => {
@@ -130,7 +155,7 @@ export function createEnvironmentThreadDetailAtoms<E>(
       if (
         previous !== null &&
         next !== null &&
-        onlyStreamedTextChanged(previous.projection, next.projection)
+        sameThreadStructure(previous.projection, next.projection)
       ) {
         return previous;
       }

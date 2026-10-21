@@ -3,7 +3,7 @@ import { describe, expect, it } from "@effect/vitest";
 import * as DateTime from "effect/DateTime";
 
 import { v2Now, v2Projection, v2ThreadId } from "./orchestrationV2TestFixtures.ts";
-import { onlyStreamedTextChanged } from "./threadDetail.ts";
+import { sameThreadStructure } from "./threadDetail.ts";
 
 const later = DateTime.makeUnsafe("2026-06-20T00:00:01.000Z");
 
@@ -45,30 +45,40 @@ function withItem(item: OrchestrationV2TurnItem, updatedAt = v2Now) {
   };
 }
 
-describe("onlyStreamedTextChanged", () => {
+describe("sameThreadStructure", () => {
   const before = withItem(assistant);
 
   it("holds through streamed text", () => {
     const next = withItem({ ...assistant, text: "Hello", updatedAt: later }, later);
-    expect(onlyStreamedTextChanged(before, next)).toBe(true);
+    expect(sameThreadStructure(before, next)).toBe(true);
   });
 
   it("sees the item finish streaming", () => {
     const next = withItem({ ...assistant, text: "Hello", streaming: false, status: "completed" });
-    expect(onlyStreamedTextChanged(before, next)).toBe(false);
+    expect(sameThreadStructure(before, next)).toBe(false);
   });
 
   it("sees a new item", () => {
     const next = { ...before, turnItems: [assistant, { ...assistant, id: TurnItemId.make("b") }] };
-    expect(onlyStreamedTextChanged(before, next)).toBe(false);
+    expect(sameThreadStructure(before, next)).toBe(false);
   });
 
   it("sees other fields change on a streaming item", () => {
     const next = withItem({ ...assistant, text: "Hello", title: "Answer" });
-    expect(onlyStreamedTextChanged(before, next)).toBe(false);
+    expect(sameThreadStructure(before, next)).toBe(false);
+  });
+
+  it("holds through a visit mark", () => {
+    const thread = { ...before.thread, lastVisitedAt: later, updatedAt: later };
+    expect(sameThreadStructure(before, { ...before, thread })).toBe(true);
+  });
+
+  it("sees other thread changes", () => {
+    const thread = { ...before.thread, title: "Renamed" };
+    expect(sameThreadStructure(before, { ...before, thread })).toBe(false);
   });
 
   it("sees changes outside the turn items", () => {
-    expect(onlyStreamedTextChanged(before, { ...before, runs: [] })).toBe(false);
+    expect(sameThreadStructure(before, { ...before, runs: [] })).toBe(false);
   });
 });
