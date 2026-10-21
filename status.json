@@ -3,13 +3,14 @@
   "phase": "conflict",
   "upstreamTag": "v0.1.2-nightly.20261021.3473",
   "conflicts": [
-    "apps/web/src/markdown-clipboard.ts"
+    "pnpm-lock.yaml"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39603630169",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39607528906",
   "releasedVersion": "0.1.1-nightly.20261020.1792535967237",
   "baseCommit": "157a69769a490690ef8ca8ce52139bea78858385",
-  "sequence": 1792587374060,
-  "conflictIdentity": "b646fe4ea5e6a0cc95ae5732138ebbaa52eae0c21dc0bce32aeb8300b721dcab",
+  "sequence": 1792588998269,
+  "conflictPullRequest": 22893,
+  "conflictIdentity": "587ecc9c8baca246416842a30322ff8fc8349af0feb185f464f11673c007cb8f",
   "inputs": {
     "upstreamTag": "v0.1.2-nightly.20261021.3473",
     "pullRequests": [
@@ -61,6 +62,11 @@
       {
         "number": 22883,
         "headSha": "2fc4d5bc31ac30ce1bd03ec30053e1c622aeb894",
+        "baseRef": "main"
+      },
+      {
+        "number": 22893,
+        "headSha": "05dcba5b72d81053be96117e4035432d3d7065d6",
         "baseRef": "main"
       }
     ],
@@ -184,6 +190,18 @@
       "baseRef": "main",
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/22883",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 22893,
+      "title": "fix(markdown): an escaped backslash before \\( no longer crashes dev builds",
+      "headSha": "05dcba5b72d81053be96117e4035432d3d7065d6",
+      "baseSha": "448b8a918694e84137f850c6526d75aacfb2292d",
+      "headRef": "fix/latex-escaped-backslash-before-paren",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/22893",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     }
