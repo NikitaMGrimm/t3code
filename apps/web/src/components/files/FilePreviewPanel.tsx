@@ -289,8 +289,11 @@ function WorkspaceVideoPreview(props: {
       void refreshAssetUrl().catch(() => undefined);
     },
   });
+  // Servers that report the file's revision let an unchanged file stay loaded; older ones
+  // only offer the workspace mutation, which changes after every command.
+  const fileRevision = assetUrl._tag === "Success" ? assetUrl.fileRevision : undefined;
   const revisionSuffix =
-    props.workspaceMutationId === null
+    fileRevision !== undefined || props.workspaceMutationId === null
       ? ""
       : `${assetUrl._tag === "Success" && assetUrl.url.includes("?") ? "&" : "?"}workspace-revision=${encodeURIComponent(props.workspaceMutationId)}`;
   const latestUrl = assetUrl._tag === "Success" ? `${assetUrl.url}${revisionSuffix}` : null;
@@ -301,7 +304,7 @@ function WorkspaceVideoPreview(props: {
         src={latestUrl}
         sourceFailed={assetUrl._tag === "Failure"}
         label={props.name}
-        revision={props.workspaceMutationId}
+        revision={fileRevision ?? props.workspaceMutationId}
         preload="metadata"
         className="flex h-full min-h-0 w-full max-w-5xl items-center justify-center"
         onRetry={refreshAssetUrl}
@@ -343,8 +346,9 @@ function WorkspaceAudioPreview(props: {
       void refreshAssetUrl().catch(() => undefined);
     },
   });
+  const fileRevision = assetUrl._tag === "Success" ? assetUrl.fileRevision : undefined;
   const revisionSuffix =
-    props.workspaceMutationId === null
+    fileRevision !== undefined || props.workspaceMutationId === null
       ? ""
       : `${assetUrl._tag === "Success" && assetUrl.url.includes("?") ? "&" : "?"}workspace-revision=${encodeURIComponent(props.workspaceMutationId)}`;
   const url = assetUrl._tag === "Success" ? `${assetUrl.url}${revisionSuffix}` : null;
@@ -360,7 +364,14 @@ function WorkspaceAudioPreview(props: {
     );
   }
   if (url === null) return <FileSurfaceLoading />;
-  return <AudioPreview src={url} name={props.name} onError={() => setFailedUrl(url)} />;
+  return (
+    <AudioPreview
+      src={url}
+      name={props.name}
+      revision={fileRevision ?? props.workspaceMutationId}
+      onError={() => setFailedUrl(url)}
+    />
+  );
 }
 
 function clampFileLine(contents: string, requestedLine: number): number {
