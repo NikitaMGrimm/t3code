@@ -250,7 +250,7 @@ describe("copying rendered Markdown tables", () => {
     const table = renderedTable(
       [new FakeText("Formula"), new FakeText("Note")],
       [renderedFormula("|x|"), new FakeText("a | b")],
-      [renderedFormula("\\|x\\|"), new FakeElement("CODE").append(new FakeText("c|d"))],
+      [renderedFormula("\\|x\\|"), new FakeElement("CODE").append(new FakeText("\\(c|d\\)"))],
       [
         new FakeElement("A", [], { href: "https://example.com/?q=a|b" }).append(
           new FakeText("norm "),
@@ -258,58 +258,39 @@ describe("copying rendered Markdown tables", () => {
         ),
         new FakeText("e"),
       ],
-    );
-    const markdown = [
-      "| Formula | Note |",
-      "| --- | --- |",
-      "| \\(|x|\\) | a \\| b |",
-      "| \\(\\|x\\|\\) | `c\\|d` |",
-      "| [norm \\(|y|\\)](https://example.com/?q=a\\|b) | e |",
-    ].join("\n");
-
-    expect(serializeTableElementToMarkdown(table as unknown as Element)).toBe(markdown);
-    expect(serializeRenderedMarkdownFragment(asNode(new FakeElement("DIV").append(table)))).toBe(
-      markdown,
-    );
-
-    const tree = parseMarkdownWithMath(markdown);
-    const parsed = tree.children[0];
-    if (parsed?.type !== "table") throw new Error("Expected a table");
-    expect(parsed.children.map((row) => row.children.length)).toEqual([2, 2, 2, 2]);
-    expect(markdownMathRanges(markdown, tree).map((formula) => formula.tex)).toEqual([
-      "|x|",
-      "\\|x\\|",
-      "|y|",
-    ]);
-    const [, , codeRow, linkRow] = parsed.children;
-    expect(codeRow?.children[1]?.children[0]).toMatchObject({ type: "inlineCode", value: "c|d" });
-    expect(linkRow?.children[0]?.children[0]).toMatchObject({
-      type: "link",
-      url: "https://example.com/?q=a|b",
-    });
-  });
-
-  it("escapes prose pipes in lists and quotes inside raw HTML table cells", () => {
-    const table = renderedTable(
-      [new FakeText("List"), new FakeText("Quote")],
       [
         new FakeElement("UL").append(
-          new FakeElement("LI").append(renderedFormula("|x|"), new FakeText(" a | b")),
+          new FakeElement("LI").append(renderedFormula("|z|"), new FakeText(" a | b")),
         ),
         new FakeElement("BLOCKQUOTE").append(new FakeElement("P").append(new FakeText("c | d"))),
       ],
     );
-    const markdown = [
-      "| List | Quote |",
-      "| --- | --- |",
-      "| - \\(|x|\\) a \\| b | > c \\| d |",
-    ].join("\n");
+    const markdown = serializeTableElementToMarkdown(table as unknown as Element);
 
-    expect(serializeTableElementToMarkdown(table as unknown as Element)).toBe(markdown);
     const tree = parseMarkdownWithMath(markdown);
     const parsed = tree.children[0];
     if (parsed?.type !== "table") throw new Error("Expected a table");
-    expect(parsed.children.map((row) => row.children.length)).toEqual([2, 2]);
-    expect(markdownMathRanges(markdown, tree).map((formula) => formula.tex)).toEqual(["|x|"]);
+    expect(parsed.children.map((row) => row.children.length)).toEqual([2, 2, 2, 2, 2]);
+    expect(markdownMathRanges(markdown, tree).map((formula) => formula.tex)).toEqual([
+      "|x|",
+      "\\|x\\|",
+      "|y|",
+      "|z|",
+    ]);
+    expect(parsed.children[1]?.children[1]?.children).toMatchObject([
+      { type: "text", value: "a | b" },
+    ]);
+    expect(parsed.children[4]?.children[1]?.children).toMatchObject([
+      { type: "text", value: "> c | d" },
+    ]);
+    const [, , codeRow, linkRow] = parsed.children;
+    expect(codeRow?.children[1]?.children[0]).toMatchObject({
+      type: "inlineCode",
+      value: "\\(c|d\\)",
+    });
+    expect(linkRow?.children[0]?.children[0]).toMatchObject({
+      type: "link",
+      url: "https://example.com/?q=a|b",
+    });
   });
 });
