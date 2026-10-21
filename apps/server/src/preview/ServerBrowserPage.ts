@@ -433,7 +433,7 @@ type Viewport = { readonly width: number; readonly height: number };
  * A page's display ratio and CSS viewport, read in an isolated world since page script can
  * reassign `devicePixelRatio`, `innerWidth`, and `innerHeight` in its own, and its page zoom.
  */
-export const readPageMetrics = async (cdp: CDPSession) => {
+const readPageMetrics = async (cdp: CDPSession) => {
   const { frameTree } = await cdp.send("Page.getFrameTree");
   const { executionContextId } = await cdp.send("Page.createIsolatedWorld", {
     frameId: frameTree.frame.id,
@@ -472,20 +472,18 @@ export const readPageMetrics = async (cdp: CDPSession) => {
 const CAPTURE_TIMEOUT_MS = 5_000;
 const NO_FRAME_MESSAGE =
   "The page did not draw a frame within 5 seconds, so no screenshot was taken. Use preview_evaluate to read the page, or open the tab in the Browser panel and retry.";
-/** Each page's capture Chromium has not answered yet; a page only draws one at a time. */
+/** Captures Chromium has not answered yet; a page only draws one at a time. */
 const pendingCaptures = new WeakMap<Page, object>();
 
-const captureFrame = async (
-  page: Page,
-  cdp: CDPSession,
-  options: {
-    readonly format: "png" | "jpeg";
-    readonly quality?: number;
-    readonly scale: number;
-    readonly viewport?: Viewport;
-    readonly offset?: { readonly x: number; readonly y: number } | undefined;
-  },
-) => {
+type CaptureOptions = {
+  readonly format: "png" | "jpeg";
+  readonly quality?: number;
+  readonly scale: number;
+  readonly viewport?: Viewport;
+  readonly offset?: { readonly x: number; readonly y: number } | undefined;
+};
+
+const captureFrame = async (page: Page, cdp: CDPSession, options: CaptureOptions) => {
   let clip;
   if (options.scale < 1) {
     const viewport = options.viewport ?? page.viewportSize() ?? { width: 1280, height: 800 };
@@ -519,7 +517,7 @@ const captureFrame = async (
 export const captureViewport = (
   page: Page,
   cdp: CDPSession,
-  options: Parameters<typeof captureFrame>[2],
+  options: CaptureOptions,
   /**
    * Aborted when the caller retires `cdp`, which abandons the capture. Its caller then bounds
    * the capture itself, instead of the frame limit.
@@ -536,17 +534,17 @@ export const captureViewport = (
     if (pendingCaptures.get(page) === token) pendingCaptures.delete(page);
   };
   retired?.addEventListener("abort", release, { once: true });
-  const capture = captureFrame(page, cdp, options).finally(() => {
+  const captured = captureFrame(page, cdp, options).finally(() => {
     retired?.removeEventListener("abort", release);
     release();
   });
-  void capture.catch(constVoid);
-  if (retired) return capture;
+  void captured.catch(constVoid);
+  if (retired) return captured;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const limit = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => reject(noFrame()), CAPTURE_TIMEOUT_MS);
   });
-  return Promise.race([capture, limit]).finally(() => clearTimeout(timer));
+  return Promise.race([captured, limit]).finally(() => clearTimeout(timer));
 };
 
 type SnapshotInput = {
