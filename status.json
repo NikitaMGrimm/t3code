@@ -5,10 +5,10 @@
   "conflicts": [
     "pnpm-lock.yaml"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39607528906",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39611489066",
   "releasedVersion": "0.1.1-nightly.20261020.1792535967237",
   "baseCommit": "157a69769a490690ef8ca8ce52139bea78858385",
-  "sequence": 1792588998269,
+  "sequence": 1792590622088,
   "conflictPullRequest": 22893,
   "conflictIdentity": "587ecc9c8baca246416842a30322ff8fc8349af0feb185f464f11673c007cb8f",
   "inputs": {
@@ -45,23 +45,18 @@
         "baseRef": "main"
       },
       {
-        "number": 22322,
-        "headSha": "64dc17fe2eb4126bd69752c5a1c77eae35ec6ebe",
-        "baseRef": "main"
-      },
-      {
         "number": 22522,
         "headSha": "6498810463c4704e2858790db80283227ce7756f",
         "baseRef": "main"
       },
       {
         "number": 22875,
-        "headSha": "f372994eb3572c842fc1984b1e7e93d6377d73f1",
+        "headSha": "7552eae13ccf2d2ebadc25522b2e36ed1d0b97ec",
         "baseRef": "main"
       },
       {
         "number": 22883,
-        "headSha": "2fc4d5bc31ac30ce1bd03ec30053e1c622aeb894",
+        "headSha": "b76383a1281c507b75bfb03ea665a41ef0620fbd",
         "baseRef": "main"
       },
       {
@@ -146,18 +141,6 @@
       "baseRepository": "pingdotgg/t3code"
     },
     {
-      "number": 22322,
-      "title": "fix(mobile): a pasted pairing link's code replaces the old Code field",
-      "headSha": "64dc17fe2eb4126bd69752c5a1c77eae35ec6ebe",
-      "baseSha": "67c0fc0cdaf963b103518862dd7b68a9c758ecf2",
-      "headRef": "fix/mobile-pairing-link-code",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/22322",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
       "number": 22522,
       "title": "fix(web): mouse Back/Forward over a streamed preview navigate the preview",
       "headSha": "6498810463c4704e2858790db80283227ce7756f",
@@ -172,7 +155,7 @@
     {
       "number": 22875,
       "title": "fix(web): copied Markdown tables keep formula pipes",
-      "headSha": "f372994eb3572c842fc1984b1e7e93d6377d73f1",
+      "headSha": "7552eae13ccf2d2ebadc25522b2e36ed1d0b97ec",
       "baseSha": "448b8a918694e84137f850c6526d75aacfb2292d",
       "headRef": "fix/latex-table-copy-pipes",
       "baseRef": "main",
@@ -184,7 +167,7 @@
     {
       "number": 22883,
       "title": "fix(markdown): formulas ending in a comma render",
-      "headSha": "2fc4d5bc31ac30ce1bd03ec30053e1c622aeb894",
+      "headSha": "b76383a1281c507b75bfb03ea665a41ef0620fbd",
       "baseSha": "448b8a918694e84137f850c6526d75aacfb2292d",
       "headRef": "fix/latex-comma-before-closing-dollar",
       "baseRef": "main",
