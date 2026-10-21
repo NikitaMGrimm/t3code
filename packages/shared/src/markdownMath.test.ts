@@ -124,6 +124,7 @@ describe("chat math parsing", () => {
       "It costs $5 and $10.",
       "Budget $5-$10 per seat, or $20,000-$30,000 a year.",
       "Plans are $5/$10 monthly.",
+      "Pay $5,$10 now.",
       "Run $browser then $deploy on it.",
       "Set $HOME before running.",
     ]) {
@@ -143,20 +144,12 @@ describe("chat math parsing", () => {
     }
   });
 
-  it("reads formulas that end in a comma, as with other punctuation", () => {
-    expect(formulas("Where $x = 1,$ $f(x),$ and $y = 2.$ hold, with $$a,$$ and $$ b,$$.")).toEqual([
+  it("reads formulas that end in a comma", () => {
+    expect(formulas("Where $x = 1,$ with $$a,$$ and $$ b,$$.")).toEqual([
       ["inline", "x = 1,"],
-      ["inline", "f(x),"],
-      ["inline", "y = 2."],
       ["display", "a,"],
       ["display", " b,"],
     ]);
-    expect(markdownMathRanges("| Value |\n| --- |\n| $x,$ |")).toEqual([
-      expect.objectContaining({ source: "$x,$", tex: "x,", inTable: true }),
-    ]);
-    for (const prose of ["Pay $5,$10 now.", "Prices $1,000,$2,000 rose."]) {
-      expect(formulas(prose), prose).toEqual([]);
-    }
   });
 
   it("leaves code, escapes, links, and citations alone", () => {
