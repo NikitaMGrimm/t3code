@@ -1,9 +1,18 @@
-import { MessageId, RunId, TurnItemId, type OrchestrationV2TurnItem } from "@t3tools/contracts";
+import {
+  EnvironmentId,
+  MessageId,
+  RunId,
+  TurnItemId,
+  type OrchestrationV2TurnItem,
+} from "@t3tools/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as DateTime from "effect/DateTime";
+import * as Option from "effect/Option";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 
 import { v2Now, v2Projection, v2ThreadId } from "./orchestrationV2TestFixtures.ts";
-import { sameThreadStructure } from "./threadDetail.ts";
+import { createEnvironmentThreadDetailAtoms, sameThreadStructure } from "./threadDetail.ts";
+import { EMPTY_ENVIRONMENT_THREAD_STATE } from "./threadState.ts";
 
 const later = DateTime.makeUnsafe("2026-06-20T00:00:01.000Z");
 
@@ -80,5 +89,32 @@ describe("sameThreadStructure", () => {
 
   it("sees changes outside the turn items", () => {
     expect(sameThreadStructure(before, { ...before, runs: [] })).toBe(false);
+  });
+});
+
+describe("lastVisitedAtAtom", () => {
+  it("follows a visit mark the quiet thread holds through", () => {
+    const projection = withItem(assistant);
+    const state = Atom.make(
+      AsyncResult.success({ ...EMPTY_ENVIRONMENT_THREAD_STATE, data: Option.some(projection) }),
+    );
+    const details = createEnvironmentThreadDetailAtoms(() => state);
+    const ref = { environmentId: EnvironmentId.make("env"), threadId: v2ThreadId };
+    const registry = AtomRegistry.make();
+    const unmountQuiet = registry.mount(details.quietThreadAtom(ref));
+    const unmountVisit = registry.mount(details.lastVisitedAtAtom(ref));
+    const quietBefore = registry.get(details.quietThreadAtom(ref));
+
+    const visited = { ...projection, thread: { ...projection.thread, lastVisitedAt: later } };
+    registry.set(
+      state,
+      AsyncResult.success({ ...EMPTY_ENVIRONMENT_THREAD_STATE, data: Option.some(visited) }),
+    );
+
+    expect(registry.get(details.quietThreadAtom(ref))).toBe(quietBefore);
+    expect(registry.get(details.lastVisitedAtAtom(ref))).toBe(later);
+    unmountQuiet();
+    unmountVisit();
+    registry.dispose();
   });
 });

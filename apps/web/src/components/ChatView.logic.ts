@@ -1626,11 +1626,15 @@ export function sendTitleFallbackLabels(snapshot: ComposerSendSnapshot) {
   ];
 }
 
-/** A thread shell built from its loaded detail, for direct links that hydrate the detail first. */
+/**
+ * A thread shell built from its loaded detail, for direct links that hydrate the detail first.
+ * `lastVisitedAt` is passed live: the quiet projection holds through visit marks.
+ */
 export function presentThreadShellFromProjection(
   environmentId: EnvironmentId,
   threadId: ThreadId,
   projection: ThreadProjection,
+  lastVisitedAt: ThreadProjection["thread"]["lastVisitedAt"],
 ) {
   const latestRun = deriveLatestThreadRun(projection);
   const runtime = deriveThreadRuntime(projection);
@@ -1640,6 +1644,7 @@ export function presentThreadShellFromProjection(
   return {
     ...presentThreadShell(environmentId, {
       ...projection.thread,
+      lastVisitedAt,
       latestRunId: latestRun?.runId ?? null,
       activeRunId: runtime?.activeRunId ?? null,
       status: runtime?.status ?? "idle",

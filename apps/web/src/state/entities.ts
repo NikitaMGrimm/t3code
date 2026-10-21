@@ -1,3 +1,4 @@
+import type * as DateTime from "effect/DateTime";
 import { useAtomValue } from "@effect/atom-react";
 import type {
   EnvironmentProject,
@@ -62,6 +63,9 @@ const EMPTY_VISIBLE_TURN_ITEMS_ATOM = Atom.make(EMPTY_VISIBLE_TURN_ITEMS).pipe(
 const EMPTY_CHECKPOINT_SUMMARIES_ATOM = Atom.make<ReadonlyArray<ThreadCheckpointSummary>>(
   Object.freeze([]),
 ).pipe(Atom.withLabel("web-thread-checkpoint-summaries:empty"));
+const EMPTY_LAST_VISITED_AT_ATOM = Atom.make<DateTime.Utc | null>(null).pipe(
+  Atom.withLabel("web-thread-last-visited:empty"),
+);
 const EMPTY_THREAD_HISTORY_ATOM = Atom.make<ThreadHistoryMeta>(EMPTY_THREAD_HISTORY_META).pipe(
   Atom.withLabel("web-thread-history:empty"),
 );
@@ -160,6 +164,13 @@ export function useThreadProjection(ref: ScopedThreadRef | null): EnvironmentThr
 export function useQuietThreadProjection(ref: ScopedThreadRef | null): EnvironmentThread | null {
   return useAtomValue(
     ref === null ? EMPTY_THREAD_PROJECTION_ATOM : environmentThreadDetails.quietThreadAtom(ref),
+  );
+}
+
+/** The detail's live visit mark, which the quiet projection holds through. */
+export function useThreadLastVisitedAt(ref: ScopedThreadRef | null): DateTime.Utc | null {
+  return useAtomValue(
+    ref === null ? EMPTY_LAST_VISITED_AT_ATOM : environmentThreadDetails.lastVisitedAtAtom(ref),
   );
 }
 

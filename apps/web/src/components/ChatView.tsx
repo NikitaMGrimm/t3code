@@ -234,6 +234,7 @@ import {
   useEnvironmentSupportsServerBrowser,
   useProject,
   useQuietThreadProjection,
+  useThreadLastVisitedAt,
   useQuietThreadVisibleTurnItems,
   useThreadStatus,
   useThreadHistory,
@@ -462,10 +463,19 @@ export default function ChatView(props: ChatViewProps) {
   });
   const serverThreadProjection = useQuietThreadProjection(routeThreadDetailRef);
   const serverProjection = serverThreadProjection?.projection ?? null;
+  // Only the shell-less fallback needs it; with a shell, visit state comes from the shell.
+  const fallbackLastVisitedAt = useThreadLastVisitedAt(
+    serverThreadShell === null ? routeThreadDetailRef : null,
+  );
   const serverThread =
     serverThreadShell !== null || serverProjection === null
       ? serverThreadShell
-      : presentThreadShellFromProjection(environmentId, threadId, serverProjection);
+      : presentThreadShellFromProjection(
+          environmentId,
+          threadId,
+          serverProjection,
+          fallbackLastVisitedAt,
+        );
   const promptRef = useRef("");
   const localComposerRef = useRef<ChatComposerHandle | null>(null);
   const composerRef = useComposerHandleContext() ?? localComposerRef;

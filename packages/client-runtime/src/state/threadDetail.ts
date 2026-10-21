@@ -72,7 +72,8 @@ export function sameThreadStructure(
     if (previous[key] !== next[key]) return false;
   }
   // The open thread is marked visited several times while a reply streams.
-  // Visit state is read from the shell, so a mark is not structure.
+  // Visit state is read from the shell, or from lastVisitedAtAtom while the
+  // thread is not in the shell index yet, so a mark is not structure.
   if (
     previous.thread !== next.thread &&
     !sameAppThread(
@@ -268,6 +269,12 @@ export function createEnvironmentThreadDetailAtoms<E>(
     }).pipe(Atom.setIdleTTL(0), Atom.withLabel(`environment-thread-checkpoint-summaries:${key}`));
   });
 
+  const lastVisitedAtAtomFamily = Atom.family((key: string) =>
+    Atom.make(
+      (get) =>
+        Option.getOrNull(get(threadStateValueAtomFamily(key)).data)?.thread.lastVisitedAt ?? null,
+    ).pipe(Atom.setIdleTTL(0), Atom.withLabel(`environment-thread-last-visited:${key}`)),
+  );
   const worktreePathAtomFamily = Atom.family((key: string) =>
     Atom.make(
       (get) =>
@@ -330,6 +337,7 @@ export function createEnvironmentThreadDetailAtoms<E>(
 
   return {
     worktreePathAtom: (ref: ScopedThreadRef) => worktreePathAtomFamily(threadKey(ref)),
+    lastVisitedAtAtom: (ref: ScopedThreadRef) => lastVisitedAtAtomFamily(threadKey(ref)),
     pendingRequestsAtom: (ref: ScopedThreadRef) => pendingRequestsAtomFamily(threadKey(ref)),
     queueWorkflowAtom: (ref: ScopedThreadRef) => queueWorkflowAtomFamily(threadKey(ref)),
     queuedCountAtom: (ref: ScopedThreadRef) => queuedCountAtomFamily(threadKey(ref)),
