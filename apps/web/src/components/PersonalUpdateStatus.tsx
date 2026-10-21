@@ -28,12 +28,12 @@ export function PersonalUpdateNotification() {
       description: (
         <>
           {personalUpdateMessage(status)}{" "}
-          <div className="mt-2 flex flex-wrap items-center gap-3">
+          <span className="mt-2 flex flex-wrap items-center gap-3">
             <a href={status.runUrl} target="_blank" rel="noreferrer">
               View update details
             </a>
             <PersonalNightlyRepairButton status={status} />
-          </div>
+          </span>
         </>
       ),
       timeout: 10_000,
@@ -54,12 +54,12 @@ export function PersonalUpdateStatus() {
       <AlertTitle>{blocked ? "Personal nightly update stopped" : "Personal nightly"}</AlertTitle>
       <AlertDescription>
         {personalUpdateMessage(status)}{" "}
-        <div className="mt-2 flex flex-wrap items-center gap-3">
+        <span className="mt-2 flex flex-wrap items-center gap-3">
           <a href={status.runUrl} target="_blank" rel="noreferrer">
             View update details
           </a>
           {blocked ? <PersonalNightlyRepairButton status={status} /> : null}
-        </div>
+        </span>
         {error ? <span> {error}</span> : null}
       </AlertDescription>
     </Alert>
