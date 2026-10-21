@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("~/branding", () => ({ APP_VERSION: "0.0.46-nightly.20261007.100" }));
 
-import { resolveConnectionServerVersionMismatch } from "./ConnectionsSettings";
+import { resolveConnectionServerVersionMismatch } from "./ConnectionsSettings.logic";
 
 const clientVersion = "0.0.46-nightly.20261007.100";
 const releaseVersion = "0.0.46-nightly.20261008.200";
