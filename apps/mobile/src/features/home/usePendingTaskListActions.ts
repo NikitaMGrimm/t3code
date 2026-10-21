@@ -6,6 +6,7 @@ import { removeThreadOutboxMessage } from "../../state/thread-outbox-removal";
 import { clearComposerDraftContent } from "../../state/use-composer-drafts";
 import type { PendingNewTask } from "../../state/use-pending-new-tasks";
 import { releaseEditingQueuedMessage } from "../../state/use-thread-outbox";
+import { withThreadDismissal } from "./thread-dismissal";
 
 export function usePendingTaskListActions(): {
   readonly openPendingTask: (pendingTask: PendingNewTask) => void;
@@ -37,10 +38,15 @@ export function usePendingTaskListActions(): {
           text: "Discard",
           style: "destructive",
           onPress: () => {
-            clearComposerDraftContent(pendingTask.draftKey, {
-              clearModelSelection: true,
-              clearWorkspaceSelection: true,
-            });
+            void withThreadDismissal(
+              pendingTask.key,
+              async () =>
+                clearComposerDraftContent(pendingTask.draftKey, {
+                  clearModelSelection: true,
+                  clearWorkspaceSelection: true,
+                }),
+              () => true,
+            );
           },
         },
       ]);
@@ -58,7 +64,11 @@ export function usePendingTaskListActions(): {
             // Release the edit lock only after removal succeeds, and only if
             // it is held for THIS task — clearing it up front (or for another
             // task) would let the drain deliver a mid-edit payload.
-            void removeThreadOutboxMessage(pendingTask.message)
+            void withThreadDismissal(
+              pendingTask.key,
+              () => removeThreadOutboxMessage(pendingTask.message).then(() => true),
+              () => true,
+            )
               .then(() => releaseEditingQueuedMessage(pendingTask.message.messageId))
               .catch((error) => {
                 Dialog.alert(
