@@ -5172,6 +5172,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     focusComposer();
   };
   const addComposerFoldersStable = useStableCallback(addComposerFolders);
+  const addComposerAttachmentsStable = useStableCallback(addComposerAttachments);
 
   const onComposerPaste = (event: React.ClipboardEvent<HTMLElement>) => {
     const { files, folders } = splitTransferredFiles(event.clipboardData);
@@ -5778,7 +5779,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     ) : null;
   const composerAttachButton = showComposerAttachAction ? (
     <ComposerAttachButton
-      addComposerAttachments={addComposerAttachments}
+      addComposerAttachments={addComposerAttachmentsStable}
       focusComposer={focusComposer}
     />
   ) : null;
@@ -6271,8 +6272,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   }
                   className="flex shrink-0 flex-nowrap items-center justify-end gap-2"
                 >
-                  {composerAttachButton}
                   <ComposerFooterPrimaryActions
+                    attachAction={composerAttachButton}
                     compact={isComposerResting || isComposerPrimaryActionsCompact}
                     canOperateThread={canOperateThread}
                     activeContextWindow={
