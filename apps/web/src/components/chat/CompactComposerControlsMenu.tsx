@@ -32,9 +32,9 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
   onToggleInteractionMode: () => void;
   onRuntimeModeChange: (mode: RuntimeMode) => void;
 }) {
-  const composerFloatingLayerProps = useComposerMenuProps();
   const size = props.size ?? "sm";
   const [open, setOpen] = useComposerMenuState(props.hidden);
+  const composerFloatingLayerProps = useComposerMenuProps(() => setOpen(false));
 
   return (
     <Menu open={open} onOpenChange={setOpen}>

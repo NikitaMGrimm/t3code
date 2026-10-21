@@ -26,6 +26,7 @@ import {
   ComboboxStatus,
 } from "./ui/combobox";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { useComposerPastePassthrough } from "./chat/composerEventScope";
 
 export function BranchPicker({
   items,
@@ -67,6 +68,7 @@ export function BranchPicker({
   children: ReactNode;
 }) {
   const highlightedValueRef = useRef<string | null>(null);
+  const searchPastePassthroughProps = useComposerPastePassthrough(open);
   const startFromOriginSwitchId = useId();
   const branchListScrollElementRef = useRef<HTMLElement | null>(null);
   const previousBranchListScrollTopRef = useRef<number | null>(null);
@@ -171,6 +173,7 @@ export function BranchPicker({
       {children}
       <ComboboxPopup {...popupProps}>
         <ComboboxSearchInput
+          {...searchPastePassthroughProps}
           placeholder="Search refs..."
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}

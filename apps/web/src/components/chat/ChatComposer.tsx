@@ -99,6 +99,7 @@ import {
   makeComposerMentionDragHandlers,
 } from "./composerMentionDrag";
 import {
+  isComposerPasteSource,
   isInsideCollapsedComposerControls,
   isInsideRestingComposerControlScope,
 } from "./composerEventScope";
@@ -1104,6 +1105,7 @@ function useRestingComposerControlsLayout(host: HTMLDivElement | null, useContro
 const runtimeModeOptions = runtimeModes.map((mode) => ({ mode, ...runtimeModeConfig[mode] }));
 
 export interface ChatComposerHandle {
+  restoreFocus: () => void;
   focusAtEnd: () => void;
   focusAt: (cursor: number) => void;
   restoreAfterTimelineReachedEnd: () => void;
@@ -1116,6 +1118,8 @@ export interface ChatComposerHandle {
     options?: { ensureLeadingBoundary?: boolean; clipboardData?: DataTransfer },
   ) => boolean;
   pasteTextAtEnd: (text: string, options?: { bypassAutoAttachment?: boolean }) => boolean;
+  /** Pastes text from an event that targeted a composer control or picker. */
+  pasteClipboardEvent: (event: ClipboardEvent) => boolean;
   citeAssistantText: (
     citation: AssistantCitation,
     sourceAnchor: AssistantCitationSourceAnchor,
@@ -2191,7 +2195,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     const onKeyDown = (event: KeyboardEvent) => {
       if (
         event.target instanceof Node &&
-        composerFormRef.current?.contains(event.target) &&
+        (composerFormRef.current?.contains(event.target) || isComposerPasteSource(event.target)) &&
         isPasteAsTextShortcut(event, isMacPlatform(navigator.platform))
       ) {
         armPasteAsTextShortcut();
@@ -2209,6 +2213,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         ) !== null;
       if (
         (activeElement instanceof Node && composerFormRef.current?.contains(activeElement)) ||
+        isComposerPasteSource(activeElement) ||
         !blocksPasteToFocus
       ) {
         armPasteAsTextShortcut();
@@ -5447,6 +5452,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   useImperativeHandle(
     composerRef,
     () => ({
+      restoreFocus: () => composerEditorRef.current?.restoreFocus(),
       focusAtEnd: () => {
         composerEditorRef.current?.focusAtEnd();
       },
@@ -5494,6 +5500,22 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         }
         focusComposer();
         return true;
+      },
+      pasteClipboardEvent: (event) => {
+        const clipboardData = event.clipboardData;
+        const editor = composerEditorRef.current;
+        const bypassAutoAttachment = consumePasteAsTextShortcut(pasteAsTextShortcutUntilRef);
+        if (!clipboardData || !editor) return false;
+        // The same long-text folding as onComposerPaste, at the retained selection.
+        if (
+          (readPastedComposerContext(clipboardData)?.records.length ?? 0) === 0 &&
+          foldPastedText(clipboardData.getData("text/plain"), bypassAutoAttachment)
+        ) {
+          event.preventDefault();
+          editor.focus();
+          return true;
+        }
+        return editor.pasteClipboardEvent(event);
       },
       citeAssistantText: (citation, sourceAnchor) =>
         insertComposerTextStable(

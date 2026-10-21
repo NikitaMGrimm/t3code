@@ -11,6 +11,7 @@ import { memo } from "react";
 import { ADD_TO_MACHINE_LABEL_CLASS, type EnvironmentOption } from "./BranchToolbar.logic";
 import { EnvironmentMachineIcon } from "./EnvironmentMachineIcon";
 import { useComposerMenuProps } from "./chat/composerEventScope";
+import { useComposerMenuState } from "./chat/useComposerMenuState";
 import {
   Select,
   SelectGroup,
@@ -44,7 +45,8 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
   onEnvironmentChange,
   onAddToMachine,
 }: BranchToolbarEnvironmentSelectorProps) {
-  const composerFloatingLayerProps = useComposerMenuProps();
+  const [open, setOpen] = useComposerMenuState();
+  const composerFloatingLayerProps = useComposerMenuProps(() => setOpen(false));
   const shortcutLabel = shortcutLabelForCommand(
     useAtomValue(primaryServerKeybindingsAtom),
     "composer.host",
@@ -92,6 +94,8 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
   return (
     <Select
       modal={false}
+      open={open}
+      onOpenChange={setOpen}
       value={autoEnvironmentLabel ? AUTO_VALUE : environmentValue(environmentId)}
       onValueChange={(value) => {
         if (value === ADD_MACHINE_VALUE) {

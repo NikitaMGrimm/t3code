@@ -112,7 +112,6 @@ export function BranchToolbarBranchSelector({
   onCheckoutPullRequestRequest,
   onComposerFocusRequest,
 }: BranchToolbarBranchSelectorProps) {
-  const composerFloatingLayerProps = useComposerMenuProps();
   const canWriteSourceControl = useEnvironmentScope(environmentId, AuthSourceControlWriteScope);
   const canOperateThread = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   const stopThreadSession = useAtomCommand(threadEnvironment.stopSession, "thread session stop");
@@ -511,6 +510,7 @@ export function BranchToolbarBranchSelector({
       setBranchQuery("");
     }
   };
+  const composerFloatingLayerProps = useComposerMenuProps(() => handleOpenChange(false));
 
   useImperativeHandle(
     ref,

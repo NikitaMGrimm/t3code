@@ -10,6 +10,7 @@ import {
   type EnvMode,
 } from "./BranchToolbar.logic";
 import { useComposerMenuProps } from "./chat/composerEventScope";
+import { useComposerMenuState } from "./chat/useComposerMenuState";
 import { PreviousWorktreeItemContent } from "./PreviousWorktreeItemContent";
 import {
   Select,
@@ -47,7 +48,8 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
   previousWorktreeBranch = null,
   onUsePreviousWorktree,
 }: BranchToolbarEnvModeSelectorProps) {
-  const composerFloatingLayerProps = useComposerMenuProps();
+  const [open, setOpen] = useComposerMenuState();
+  const composerFloatingLayerProps = useComposerMenuProps(() => setOpen(false));
   const shortcutLabel = shortcutLabelForCommand(
     useAtomValue(primaryServerKeybindingsAtom),
     "composer.workspace",
@@ -106,6 +108,8 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
   return (
     <Select
       modal={false}
+      open={open}
+      onOpenChange={setOpen}
       value={effectiveEnvMode}
       onValueChange={(value: string | null) => {
         if (value === PREVIOUS_WORKTREE_SELECT_VALUE) {

@@ -74,6 +74,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { MiddleTruncate } from "./ui/middle-truncate";
 import { ComposerSurface } from "./chat/ComposerSurface";
 import { useComposerMenuProps } from "./chat/composerEventScope";
+import { useComposerMenuState } from "./chat/useComposerMenuState";
 import { measureRestingComposerControls } from "./chat/restingComposerControlsMeasurement";
 import { resolveRestingComposerControlsNaturalWidth } from "./composerFooterLayout";
 import { cn } from "~/lib/utils";
@@ -194,7 +195,8 @@ const RunContextSelector = memo(function RunContextSelector({
   addTargets,
   onAddToMachine,
 }: RunContextSelectorProps) {
-  const composerFloatingLayerProps = useComposerMenuProps();
+  const [open, setOpen] = useComposerMenuState();
+  const composerFloatingLayerProps = useComposerMenuProps(() => setOpen(false));
   const activeEnvironment =
     availableEnvironments?.find((env) => env.environmentId === environmentId) ?? null;
   const WorkspaceIcon =
@@ -294,7 +296,7 @@ const RunContextSelector = memo(function RunContextSelector({
   }
 
   return (
-    <Menu>
+    <Menu open={open} onOpenChange={setOpen}>
       <MenuTrigger
         render={isPanel ? <ThreadDetailsControl part="select" /> : <ComposerControl size="xs" />}
         className={isPanel ? undefined : "min-w-0 max-w-[48%] flex-initial justify-start"}
