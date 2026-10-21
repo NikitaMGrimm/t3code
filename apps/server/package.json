@@ -28,11 +28,7 @@
     "record:grok-replay": "node scripts/record-grok-acp-replay-fixture.ts",
     "record:muse-replay": "node scripts/record-muse-msp-replay-fixture.ts",
     "generate": "graphqlgen",
-    "generate:expo-schema": "node scripts/fetch-expo-schema.ts",
-    "capture:run-metrics-lineage": "node scripts/capture-run-metrics-lineage.mjs",
-    "capture:run-metrics": "node scripts/capture-run-metrics.mjs",
-    "capture:run-metrics-integration": "node scripts/capture-run-metrics-integration.mjs",
-    "capture:run-metrics-live": "node scripts/capture-run-metrics-live.mjs"
+    "generate:expo-schema": "node scripts/fetch-expo-schema.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.276",

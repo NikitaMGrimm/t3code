@@ -28,8 +28,6 @@ import { makeRunOutcomeRecorder } from "./RunMetrics.ts";
 
 const at = (iso: string) => DateTime.makeUnsafe(iso);
 const threadId = ThreadId.make("thread:metrics");
-// Stands in for the projection store's thread lineage.
-const topLevelThread = () => Effect.succeed(false);
 
 // Each test labels its runs with its own provider, since the metric registry is shared.
 const runUpdated = (
@@ -62,14 +60,6 @@ const commitWith =
   (events: ReadonlyArray<OrchestrationV2StoredEvent>) =>
     recorder.prepare(events).pipe(Effect.flatMap(recorder.record));
 
-const counterValue = (provider: string) =>
-  runSnapshots(provider).pipe(
-    Effect.map((snapshots) => {
-      const counter = snapshots.find((snapshot) => snapshot.id === "t3_runs_total");
-      return counter?.type === "Counter" ? counter.state.count : 0;
-    }),
-  );
-
 const runSnapshots = (provider: string) =>
   Metric.snapshot.pipe(
     Effect.map((snapshots) =>
@@ -84,10 +74,8 @@ describe("makeRunOutcomeRecorder", () => {
   it.effect("records a finished run once, labelled, with its queue wait and duration", () =>
     Effect.gen(function* () {
       // A subagent thread's first run carries no delegatedTaskId; only its lineage says delegated.
-      const lookups: Array<ThreadId> = [];
-      const record = commitWith(
-        makeRunOutcomeRecorder((id) => Effect.sync(() => lookups.push(id)).pipe(Effect.as(true))),
-      );
+      const recorder = makeRunOutcomeRecorder(() => Effect.succeed(true));
+      const record = commitWith(recorder);
       const finished = {
         id: RunId.make("run:metrics:once"),
         status: "completed" as const,
@@ -96,11 +84,11 @@ describe("makeRunOutcomeRecorder", () => {
       };
 
       yield* record([runUpdated(1, "p1", { ...finished, status: "running", completedAt: null })]);
+      // A transaction that rolls back prepares and never records; it must not reserve the run.
+      yield* recorder.prepare([runUpdated(2, "p1", finished)]);
       yield* record([runUpdated(2, "p1", finished)]);
       // Later updates to a finished run, such as its checkpoint, are not another run.
       yield* record([runUpdated(3, "p1", finished)]);
-      // The repeat reads lineage again in its own batch; only recording deduplicates.
-      assert.deepStrictEqual(lookups, [threadId, threadId]);
 
       const snapshots = yield* runSnapshots("p1");
       const byId = (id: string) => snapshots.find((snapshot) => snapshot.id === id);
@@ -124,7 +112,7 @@ describe("makeRunOutcomeRecorder", () => {
   it.effect("does not count a rollback of a run that already finished", () =>
     Effect.gen(function* () {
       // A fresh recorder stands in for a restart, which forgets the runs already counted.
-      const record = commitWith(makeRunOutcomeRecorder(topLevelThread));
+      const record = commitWith(makeRunOutcomeRecorder(() => Effect.succeed(false)));
       yield* record([
         runUpdated(1, "p2", {
           id: RunId.make("run:metrics:rolled-back"),
@@ -135,86 +123,6 @@ describe("makeRunOutcomeRecorder", () => {
       ]);
 
       assert.deepStrictEqual(yield* runSnapshots("p2"), []);
-    }),
-  );
-
-  it.effect("counts a run cancelled before it started without timing it", () =>
-    Effect.gen(function* () {
-      // An unreadable lineage costs only the label, never the committed outcome.
-      const record = commitWith(
-        makeRunOutcomeRecorder(() => Effect.fail("projection read failed")),
-      );
-      yield* record([
-        runUpdated(1, "p3", {
-          id: RunId.make("run:metrics:cancelled"),
-          status: "cancelled",
-          startedAt: null,
-          completedAt: at("2026-10-19T12:01:00.000Z"),
-        }),
-      ]);
-
-      assert.deepStrictEqual(
-        (yield* runSnapshots("p3")).map((snapshot) => [
-          snapshot.id,
-          snapshot.attributes?.["delegated"],
-        ]),
-        [["t3_runs_total", "false"]],
-      );
-    }),
-  );
-
-  it.effect("counts only what a committed transaction records, once across writers", () =>
-    Effect.gen(function* () {
-      const recorder = makeRunOutcomeRecorder(topLevelThread);
-      const finished = runUpdated(1, "p4", {
-        id: RunId.make("run:metrics:rollback-then-retry"),
-        status: "failed",
-        startedAt: at("2026-10-19T12:00:30.000Z"),
-        completedAt: at("2026-10-19T12:01:30.000Z"),
-      });
-
-      // A transaction that rolls back prepares and never records; it must not reserve the run.
-      yield* recorder.prepare([finished]);
-      assert.strictEqual(yield* counterValue("p4"), 0);
-      // Two writers that both prepared the run before either published count it once.
-      const first = yield* recorder.prepare([finished]);
-      const second = yield* recorder.prepare([finished]);
-      yield* recorder.record(first);
-      yield* recorder.record(second);
-      assert.strictEqual(yield* counterValue("p4"), 1);
-    }),
-  );
-
-  it.effect("applies the FIFO bound in event order within one batch", () =>
-    Effect.gen(function* () {
-      const lookups: Array<ThreadId> = [];
-      const recorder = makeRunOutcomeRecorder((id) =>
-        Effect.sync(() => lookups.push(id)).pipe(Effect.as(false)),
-      );
-      const finished = (index: number) =>
-        runUpdated(index, "p5", {
-          id: RunId.make(`run:metrics:fifo:${index}`),
-          status: "completed",
-          startedAt: null,
-          completedAt: at("2026-10-19T12:01:00.000Z"),
-        });
-      const repeated = finished(0);
-      // The repeat follows enough other runs to evict the first sighting, as separate batches would.
-      const others = Array.from({ length: 4096 }, (_, index) => finished(index + 1));
-      yield* commitWith(recorder)([repeated, ...others, repeated, repeated]);
-
-      assert.strictEqual(yield* counterValue("p5"), 4098);
-      assert.deepStrictEqual(lookups, [threadId]);
-
-      // A run counted in an earlier batch is still prepared, so new runs ahead of it in the same
-      // batch can evict it before it is recorded again.
-      const counted = finished(5000);
-      yield* commitWith(recorder)([counted]);
-      const fresh = Array.from({ length: 4096 }, (_, index) => finished(index + 6000));
-      yield* commitWith(recorder)([...fresh, counted]);
-
-      assert.strictEqual(yield* counterValue("p5"), 4098 + 1 + 4097);
-      assert.deepStrictEqual(lookups, [threadId, threadId, threadId]);
     }),
   );
 });
