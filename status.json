@@ -3,13 +3,14 @@
   "phase": "conflict",
   "upstreamTag": "v0.1.2-nightly.20261021.3486",
   "conflicts": [
-    "packages/provider-core/src/server/orchestrationInstructions.ts"
+    "pnpm-lock.yaml"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39646177258",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39661444253",
   "releasedVersion": "0.1.1-nightly.20261020.1792535967237",
   "baseCommit": "4aaaa251825dcbaec671ae62ca702e61622e9d61",
-  "sequence": 1792604553898,
-  "conflictIdentity": "8db202a2ab084e5ef86abc786e053726ca2dff1e85f5dba3217cd21c492af832",
+  "sequence": 1792610711294,
+  "conflictPullRequest": 22883,
+  "conflictIdentity": "e7faf5190c185e1a41dbae81395c7fde026de7aabd95d9c7d6f73cd32a1b0542",
   "inputs": {
     "upstreamTag": "v0.1.2-nightly.20261021.3486",
     "pullRequests": [
@@ -55,12 +56,12 @@
       },
       {
         "number": 22883,
-        "headSha": "b76383a1281c507b75bfb03ea665a41ef0620fbd",
+        "headSha": "9b097f58e78ad8e9aaac981d5160f2e0d77f2cb7",
         "baseRef": "main"
       },
       {
         "number": 22893,
-        "headSha": "05dcba5b72d81053be96117e4035432d3d7065d6",
+        "headSha": "4e93d55e6cdde1a8ba54399238d8a3a8cfa77711",
         "baseRef": "main"
       }
     ],
@@ -166,8 +167,8 @@
     {
       "number": 22883,
       "title": "fix(markdown): formulas ending in a comma render",
-      "headSha": "b76383a1281c507b75bfb03ea665a41ef0620fbd",
-      "baseSha": "448b8a918694e84137f850c6526d75aacfb2292d",
+      "headSha": "9b097f58e78ad8e9aaac981d5160f2e0d77f2cb7",
+      "baseSha": "41967084e3979818e0bf8fa7cea31ffb6feb7369",
       "headRef": "fix/latex-comma-before-closing-dollar",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -178,8 +179,8 @@
     {
       "number": 22893,
       "title": "fix(markdown): an escaped backslash before \\( no longer crashes dev builds",
-      "headSha": "05dcba5b72d81053be96117e4035432d3d7065d6",
-      "baseSha": "448b8a918694e84137f850c6526d75aacfb2292d",
+      "headSha": "4e93d55e6cdde1a8ba54399238d8a3a8cfa77711",
+      "baseSha": "41967084e3979818e0bf8fa7cea31ffb6feb7369",
       "headRef": "fix/latex-escaped-backslash-before-paren",
       "baseRef": "main",
       "author": "NikitaMGrimm",
