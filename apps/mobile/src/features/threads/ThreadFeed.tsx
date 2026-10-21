@@ -2482,20 +2482,19 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
 
   const feedThreadKey = scopedThreadKey(props.environmentId, props.threadId);
   const workGroupScrollPositions = new Map<string, ThreadWorkGroupScrollPosition>();
-  useEffect(() => {
+  // Only a new thread or a send resets following. Listed as dependencies, these handlers also ran
+  // whenever a parent passed a new follow callback, as a fold does: following re-armed under a
+  // reader and a width reflow lost its place mid-fold.
+  const resetEndFollow = useEffectEvent((_trigger: unknown) => {
     clearUserScrollSettle();
     userScrollSessionRef.current = false;
     cancelReflow();
     transitionEndFollow({ type: "reset" });
-  }, [cancelReflow, clearUserScrollSettle, feedThreadKey, transitionEndFollow]);
+  });
+  useEffect(() => resetEndFollow(feedThreadKey), [feedThreadKey]);
   useEffect(() => {
-    if (props.submittedMessageId !== null) {
-      clearUserScrollSettle();
-      userScrollSessionRef.current = false;
-      cancelReflow();
-      transitionEndFollow({ type: "reset" });
-    }
-  }, [cancelReflow, clearUserScrollSettle, props.submittedMessageId, transitionEndFollow]);
+    if (props.submittedMessageId !== null) resetEndFollow(props.submittedMessageId);
+  }, [props.submittedMessageId]);
 
   useEffect(() => {
     reportHeaderMaterialVisibility(false);
