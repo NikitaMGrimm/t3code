@@ -30,6 +30,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNativeColumnLayoutMetrics } from "../../native/native-layout-metrics";
+import { NativeInspectorContent } from "../../native/NativeInspectorContent";
 
 import { AppText as Text } from "../../components/ui/AppText";
 import { SymbolView } from "../../components/ui/AppSymbol";
@@ -384,7 +385,7 @@ function ReviewFileNavigator({
             scrollEdgeEffects={headerScrollEdgeEffects}
             style={{ backgroundColor: sheetColor, flex: 1 }}
           >
-            {fileList}
+            <NativeInspectorContent>{fileList}</NativeInspectorContent>
             <ScreenStackHeaderConfig
               backgroundColor="rgba(0,0,0,0)"
               color={foregroundColor}
