@@ -55,6 +55,7 @@ import {
 import { cn } from "~/lib/utils";
 import { getVirtualizedScrollFadeClassName } from "../ui/scroll-area";
 import { TooltipProvider } from "../ui/tooltip";
+import { useComposerPastePassthrough } from "./composerEventScope";
 import { InlineButton } from "../ui/button";
 import {
   isProviderInstancePickerReady,
@@ -370,6 +371,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
   } = props;
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchPastePassthroughProps = useComposerPastePassthrough();
   const modelListRef = useRef<LegendListRef | null>(null);
   const pickerContentRef = useRef<HTMLDivElement>(null);
   const highlightedModelKeyRef = useRef<string | null>(null);
@@ -869,6 +871,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
             )}
           >
             <ComboboxSearchInput
+              {...searchPastePassthroughProps}
               ref={searchInputRef}
               placeholder="Search models..."
               value={searchQuery}

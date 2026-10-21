@@ -74,3 +74,35 @@ export function pasteTextToFocusComposer(event: ClipboardEvent): string | null {
   const text = event.clipboardData.getData("text/plain");
   return text.length > 0 ? text : null;
 }
+
+// Marks a field that focused itself, such as a picker search, rather than one
+// the user chose. Pastes pass through it to the composer until the user engages.
+export const COMPOSER_PASTE_PASSTHROUGH_ATTRIBUTE = "data-composer-paste-passthrough";
+const COMPOSER_CONTROL_SELECTOR = "[data-composer-control]";
+
+function isTextPaste(event: ClipboardEvent): boolean {
+  if (event.defaultPrevented || !event.clipboardData) return false;
+  if (event.clipboardData.files.length > 0) return false;
+  return event.clipboardData.getData("text/plain").length > 0;
+}
+
+/** A text paste inside an open composer menu that belongs in the draft. */
+export function isComposerMenuPaste(event: ClipboardEvent): boolean {
+  if (!isTextPaste(event)) return false;
+  return (
+    !eventPathContainsSelector(event, TYPE_TO_FOCUS_EDITABLE_SELECTOR) ||
+    eventPathContainsSelector(event, `[${COMPOSER_PASTE_PASSTHROUGH_ATTRIBUTE}]`)
+  );
+}
+
+/** A text paste while a composer control keeps focus, as after a pointer toggle. */
+export function isComposerControlPaste(event: ClipboardEvent): boolean {
+  if (!isTextPaste(event)) return false;
+  if (!eventPathContainsSelector(event, COMPOSER_CONTROL_SELECTOR)) return false;
+  if (eventPathContainsSelector(event, SECRET_REQUEST_SELECTOR)) return false;
+  return document.querySelector(TYPE_TO_FOCUS_FLOATING_LAYER_SELECTOR) === null;
+}
+
+export function isComposerControl(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(COMPOSER_CONTROL_SELECTOR) !== null;
+}

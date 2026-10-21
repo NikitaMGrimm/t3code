@@ -42,6 +42,7 @@ import { useUsageLimitsPanel } from "./chat/useUsageLimitsPanel";
 import { useWorktreeSetup } from "./chat/useWorktreeSetup";
 import { useChatShortcuts, type ChatShortcutHandler } from "./chat/useChatShortcuts";
 import {
+  isComposerControlPaste,
   pasteTextToFocusComposer,
   shouldRedirectInputToComposer,
 } from "./chat/composerFocusRedirect";
@@ -2531,6 +2532,10 @@ export default function ChatView(props: ChatViewProps) {
     });
   };
   const scheduleComposerFocusStable = useStableCallback(scheduleComposerFocus);
+  const restoreComposerFocus = () => {
+    window.requestAnimationFrame(() => composerRef.current?.restoreFocus());
+  };
+  const restoreComposerFocusStable = useStableCallback(restoreComposerFocus);
   const insertArtifactTemplate = (template: CodexArtifactTemplate) => {
     const composer = composerRef.current;
     if (!composer) return;
@@ -2779,7 +2784,7 @@ export default function ChatView(props: ChatViewProps) {
     if (isLocalDraftThread) {
       setDraftThreadContext(composerDraftTarget, { runtimeMode: mode });
     }
-    scheduleComposerFocus();
+    restoreComposerFocus();
   };
   const handleRuntimeModeChangeStable = useStableCallback(handleRuntimeModeChange);
 
@@ -2790,7 +2795,7 @@ export default function ChatView(props: ChatViewProps) {
     if (isLocalDraftThread) {
       setDraftThreadContext(composerDraftTarget, { interactionMode: mode });
     }
-    scheduleComposerFocus();
+    restoreComposerFocus();
   };
   const handleInteractionModeChangeStable = useStableCallback(handleInteractionModeChange);
   const toggleInteractionMode = () => {
@@ -4335,7 +4340,9 @@ export default function ChatView(props: ChatViewProps) {
   }, [toggleRightPanelStable, toggleRightPanelMaximizedStable]);
 
   // Paste-to-focus: the resting composer blurs on a click into the timeline,
-  // so a paste that follows has no editable target and would be dropped.
+  // so a paste that follows has no editable target and would be dropped. A
+  // composer control keeps focus after a pointer toggle; its paste goes in at
+  // the draft's retained selection instead of the end.
   useEffect(() => {
     const keyHandler = (event: KeyboardEvent) => {
       if (
@@ -4349,6 +4356,13 @@ export default function ChatView(props: ChatViewProps) {
       if (!activeThreadId || isCommandPaletteOpen()) return;
       if (getTerminalFocusOwner() !== null) return;
       if (composerRef.current?.isModelPickerOpen()) return;
+      if (isComposerControlPaste(event)) {
+        if (composerRef.current?.pasteClipboardEvent(event)) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        return;
+      }
       const text = pasteTextToFocusComposer(event);
       const clipboardData = event.clipboardData;
       if (text === null || clipboardData === null) return;
@@ -6113,7 +6127,7 @@ export default function ChatView(props: ChatViewProps) {
       resolvedDriverKind !== null &&
       resolvedDriverKind !== lockedProvider
     ) {
-      if (options?.focusComposer !== false) scheduleComposerFocus();
+      if (options?.focusComposer !== false) restoreComposerFocus();
       return;
     }
     if (
@@ -6129,7 +6143,7 @@ export default function ChatView(props: ChatViewProps) {
         entry?.continuation?.groupKey &&
         currentEntry.continuation.groupKey !== entry.continuation.groupKey
       ) {
-        if (options?.focusComposer !== false) scheduleComposerFocus();
+        if (options?.focusComposer !== false) restoreComposerFocus();
         return;
       }
     }
@@ -6140,7 +6154,7 @@ export default function ChatView(props: ChatViewProps) {
       model,
     );
     if (!resolvedModel) {
-      if (options?.focusComposer !== false) scheduleComposerFocus();
+      if (options?.focusComposer !== false) restoreComposerFocus();
       return;
     }
     const rememberedOptions =
@@ -6163,7 +6177,7 @@ export default function ChatView(props: ChatViewProps) {
         title: modelChangeBlockReason.title,
         description: modelChangeBlockReason.description,
       });
-      if (options?.focusComposer !== false) scheduleComposerFocus();
+      if (options?.focusComposer !== false) restoreComposerFocus();
       return;
     }
     setComposerDraftModelSelection(
@@ -6172,14 +6186,14 @@ export default function ChatView(props: ChatViewProps) {
       { explicit: true, replaceOptions: true },
     );
     setStickyComposerModelSelection(nextModelSelection);
-    if (options?.focusComposer !== false) scheduleComposerFocus();
+    if (options?.focusComposer !== false) restoreComposerFocus();
   };
   const onProviderModelSelectStable = useStableCallback(onProviderModelSelect);
   const onEnvModeChange = (mode: DraftThreadEnvMode) => {
     if (multipleModelSelections !== null) return;
     if (canOverrideServerThreadEnvMode) {
       if (activeThread) setPendingServerThreadEnvModeEntry({ threadId: activeThread.id, mode });
-      scheduleComposerFocus();
+      restoreComposerFocus();
       return;
     }
     if (isLocalDraftThread) {
@@ -6192,7 +6206,7 @@ export default function ChatView(props: ChatViewProps) {
         ...(mode === "worktree" && draftThread?.worktreePath ? { worktreePath: null } : {}),
       });
     }
-    scheduleComposerFocus();
+    restoreComposerFocus();
   };
   const onEnvModeChangeStable = useStableCallback(onEnvModeChange);
 
@@ -7038,7 +7052,7 @@ export default function ChatView(props: ChatViewProps) {
                                     }
                                   : {})}
                                 envLocked={envLocked}
-                                onComposerFocusRequest={scheduleComposerFocusStable}
+                                onComposerFocusRequest={restoreComposerFocusStable}
                                 {...(canCheckoutPullRequestIntoThread
                                   ? { onCheckoutPullRequestRequest: openPullRequestDialogStable }
                                   : {})}
@@ -7146,7 +7160,7 @@ export default function ChatView(props: ChatViewProps) {
               {...(canCheckoutPullRequestIntoThread
                 ? { onCheckoutPullRequestRequest: openPullRequestDialogStable }
                 : {})}
-              onComposerFocusRequest={scheduleComposerFocusStable}
+              onComposerFocusRequest={restoreComposerFocusStable}
               {...(isServerThread && isGitRepo
                 ? { onOpenChanges: openChangesFromThreadPanelStable }
                 : {})}

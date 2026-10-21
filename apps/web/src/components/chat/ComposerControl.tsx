@@ -33,6 +33,7 @@ export function ComposerControl({
 }: ComposerControlProps) {
   const defaultProps = {
     className: composerControlClassName(size, className),
+    "data-composer-control": "",
     type: render ? undefined : ("button" as const),
   };
   return useRender({
@@ -113,7 +114,11 @@ export function ComposerSelectControl({
   size?: ComposerControlSize;
 }) {
   return (
-    <SelectPrimitive.Trigger className={composerControlClassName(size, className)} {...props}>
+    <SelectPrimitive.Trigger
+      className={composerControlClassName(size, className)}
+      data-composer-control=""
+      {...props}
+    >
       {children}
       <SelectPrimitive.Icon>
         <ComposerControlChevron size={size} />

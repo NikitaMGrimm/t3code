@@ -518,8 +518,8 @@ export const TraitsPicker = memo(function TraitsPicker({
     hidden?: boolean;
     disabled?: boolean;
   }) {
-  const composerFloatingLayerProps = useComposerMenuProps();
   const [isMenuOpen, setIsMenuOpen] = useComposerMenuState(hidden || disabled);
+  const composerFloatingLayerProps = useComposerMenuProps(() => setIsMenuOpen(false));
   const { descriptors, primarySelectDescriptor, ultrathinkPromptControlled } =
     getTraitsSectionVisibility({
       provider,

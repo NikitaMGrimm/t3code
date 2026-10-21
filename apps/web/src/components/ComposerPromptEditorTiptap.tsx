@@ -125,8 +125,11 @@ import type { ComposerDraftContextRecords } from "./composerContextPresentation"
 
 export interface ComposerPromptEditorHandle {
   focus: () => void;
+  restoreFocus: () => void;
   focusAt: (cursor: number) => void;
   focusAtEnd: () => void;
+  /** Pastes a clipboard event that targeted another element at the retained selection. */
+  pasteClipboardEvent: (event: ClipboardEvent) => boolean;
   readSelectionRange: () => { start: number; end: number };
   requestCitationComment: (request: ComposerCitationCommentRequest) => void;
   readSnapshot: () => {
@@ -1702,6 +1705,7 @@ function ComposerPromptEditorTiptapInner(
   useImperativeHandle(
     editorRef,
     () => ({
+      restoreFocus: () => editor?.view.focus(),
       focus: () => {
         // The collapsed cursor cannot say where inside `$name` text a caret
         // sits, so restoring the caret passes along its exact offset.
@@ -1717,6 +1721,14 @@ function ComposerPromptEditorTiptapInner(
                 snapshotRef.current.value.length,
               ),
         );
+      },
+      pasteClipboardEvent: (event) => {
+        const text = event.clipboardData?.getData("text/plain");
+        if (!editor?.isEditable || !text) return false;
+        // focus() restores the selection the editor kept while blurred, and
+        // pasteText runs the same handlePaste path as a paste typed here.
+        editor.view.focus();
+        return editor.view.pasteText(text, event);
       },
       readSelectionRange: () => {
         readSnapshot();

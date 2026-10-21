@@ -41,8 +41,8 @@ export const ComposerFooterModeControls = memo(function ComposerFooterModeContro
   onRuntimeModeChange: (mode: RuntimeMode) => void;
 }) {
   const size = props.size ?? "sm";
-  const composerFloatingLayerProps = useComposerMenuProps();
   const [open, setOpen] = useComposerMenuState(props.hidden);
+  const composerFloatingLayerProps = useComposerMenuProps(() => setOpen(false));
   const runtimeModeOption =
     props.runtimeModeOptions.find((option) => option.mode === props.runtimeMode) ??
     supervisedRuntimeModeOption;
