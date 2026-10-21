@@ -1,14 +1,15 @@
 {
   "schema": 1,
-  "phase": "failed",
+  "phase": "conflict",
   "upstreamTag": "v0.1.2-nightly.20261021.3473",
-  "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39592689766",
+  "conflicts": [
+    "apps/web/src/markdown-clipboard.ts"
+  ],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39602134589",
   "releasedVersion": "0.1.1-nightly.20261020.1792535967237",
   "baseCommit": "157a69769a490690ef8ca8ce52139bea78858385",
-  "sequence": 1792582345450,
-  "candidateCommit": "3863042196292d080848bfdf9566f029456d1137",
-  "candidateVersion": "0.1.2-nightly.20261021.1792582345450",
+  "sequence": 1792586723156,
+  "conflictIdentity": "b646fe4ea5e6a0cc95ae5732138ebbaa52eae0c21dc0bce32aeb8300b721dcab",
   "inputs": {
     "upstreamTag": "v0.1.2-nightly.20261021.3473",
     "pullRequests": [
@@ -50,6 +51,11 @@
       {
         "number": 22522,
         "headSha": "6498810463c4704e2858790db80283227ce7756f",
+        "baseRef": "main"
+      },
+      {
+        "number": 22875,
+        "headSha": "f372994eb3572c842fc1984b1e7e93d6377d73f1",
         "baseRef": "main"
       }
     ],
@@ -149,6 +155,18 @@
       "baseRef": "main",
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/22522",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 22875,
+      "title": "fix(web): copied Markdown tables keep formula pipes",
+      "headSha": "f372994eb3572c842fc1984b1e7e93d6377d73f1",
+      "baseSha": "448b8a918694e84137f850c6526d75aacfb2292d",
+      "headRef": "fix/latex-table-copy-pipes",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/22875",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     }
