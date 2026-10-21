@@ -143,6 +143,22 @@ describe("chat math parsing", () => {
     }
   });
 
+  it("reads formulas that end in a comma, as with other punctuation", () => {
+    expect(formulas("Where $x = 1,$ $f(x),$ and $y = 2.$ hold, with $$a,$$ and $$ b,$$.")).toEqual([
+      ["inline", "x = 1,"],
+      ["inline", "f(x),"],
+      ["inline", "y = 2."],
+      ["display", "a,"],
+      ["display", " b,"],
+    ]);
+    expect(markdownMathRanges("| Value |\n| --- |\n| $x,$ |")).toEqual([
+      expect.objectContaining({ source: "$x,$", tex: "x,", inTable: true }),
+    ]);
+    for (const prose of ["Pay $5,$10 now.", "Prices $1,000,$2,000 rose."]) {
+      expect(formulas(prose), prose).toEqual([]);
+    }
+  });
+
   it("leaves code, escapes, links, and citations alone", () => {
     for (const [markdown, rendered] of [
       ["Use `$x$` in code.", "Use  in code."],
