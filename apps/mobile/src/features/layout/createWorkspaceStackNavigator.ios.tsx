@@ -279,6 +279,7 @@ function WorkspaceColumns(
             />
             <ColumnContent>
               <WorkspaceEmptyDetail
+                tab={selectedTab}
                 onStartNewTask={
                   // The detail bar or a visible sidebar already carries compose.
                   detailCompose || panes.primarySidebarVisible ? undefined : openNewTask
