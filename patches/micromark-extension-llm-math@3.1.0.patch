@@ -232,6 +232,16 @@ diff --git a/dev/lib/math-tex-text.js b/dev/lib/math-tex-text.js
        effects.consume(code)
        effects.exit('mathTextSequence')
        effects.exit('mathText')
+@@ -180,5 +184,8 @@
+  */
+ function previous(code) {
+   // If there is a previous code, there will always be a tail.
+-  return code !== codes.backslash
++  return (
++    code !== codes.backslash ||
++    this.events[this.events.length - 1][1].type === types.characterEscape
++  )
+ }
 diff --git a/dev/lib/math-text.js b/dev/lib/math-text.js
 --- a/dev/lib/math-text.js
 +++ b/dev/lib/math-text.js
@@ -299,7 +309,7 @@ diff --git a/dev/lib/math-text.js b/dev/lib/math-text.js
        if (
          code === codes.eof ||
          code === codes.space ||
-@@ -179,9 +207,26 @@
+@@ -179,9 +207,28 @@
  
        // Done!
        if (size === sizeOpen) {
@@ -318,7 +328,9 @@ diff --git a/dev/lib/math-text.js b/dev/lib/math-text.js
 +        const closeWhitespace =
 +          charBeforeClose === codes.space ||
 +          charBeforeClose === codes.horizontalTab ||
-+          charBeforeClose === codes.comma
++          // A formula can end in a comma, as it can in `.` or `;`. The comma
++          // still matches an opening space, as in `$$ x,$$`.
++          (charBeforeClose === codes.comma && openWhitespace)
 +        if (openWhitespace === closeWhitespace) {
 +          effects.exit('mathTextSequence')
 +          effects.exit('mathText')

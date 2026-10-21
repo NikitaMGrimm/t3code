@@ -77,18 +77,6 @@
       "baseRepository": "pingdotgg/t3code"
     },
     {
-      "number": 22322,
-      "title": "fix(mobile): a pasted pairing link's code replaces the old Code field",
-      "headSha": "64dc17fe2eb4126bd69752c5a1c77eae35ec6ebe",
-      "baseSha": "67c0fc0cdaf963b103518862dd7b68a9c758ecf2",
-      "headRef": "fix/mobile-pairing-link-code",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/22322",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
       "number": 22522,
       "title": "fix(web): mouse Back/Forward over a streamed preview navigate the preview",
       "headSha": "6498810463c4704e2858790db80283227ce7756f",
@@ -99,7 +87,43 @@
       "url": "https://github.com/pingdotgg/t3code/pull/22522",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 22875,
+      "title": "fix(web): copied Markdown tables keep formula pipes",
+      "headSha": "7552eae13ccf2d2ebadc25522b2e36ed1d0b97ec",
+      "baseSha": "448b8a918694e84137f850c6526d75aacfb2292d",
+      "headRef": "fix/latex-table-copy-pipes",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/22875",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 22883,
+      "title": "fix(markdown): formulas ending in a comma render",
+      "headSha": "b76383a1281c507b75bfb03ea665a41ef0620fbd",
+      "baseSha": "448b8a918694e84137f850c6526d75aacfb2292d",
+      "headRef": "fix/latex-comma-before-closing-dollar",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/22883",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 22893,
+      "title": "fix(markdown): an escaped backslash before \\( no longer crashes dev builds",
+      "headSha": "05dcba5b72d81053be96117e4035432d3d7065d6",
+      "baseSha": "448b8a918694e84137f850c6526d75aacfb2292d",
+      "headRef": "fix/latex-escaped-backslash-before-paren",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/22893",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "ee0eb9a251d18e869fa7b8020d23a58310038625"
+  "prBaseline": "91410ac5e5278341facbdaec5a9c55b48acabfe5"
 }
