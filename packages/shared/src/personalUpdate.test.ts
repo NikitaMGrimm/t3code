@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
-import { decodePersonalUpdateStatus, personalUpdateMessage } from "./personalUpdate.ts";
+import {
+  decodePersonalUpdateStatus,
+  personalUpdateMessage,
+  personalUpdateRepairKey,
+  personalUpdateRepairPrompt,
+} from "./personalUpdate.ts";
 
 const status = {
   schema: 1,
@@ -79,4 +84,42 @@ describe("personal nightly status", () => {
     expect(decodePersonalUpdateStatus(status).sequence).toBeUndefined();
     expect(() => decodePersonalUpdateStatus({ ...status, sequence: "1791417149067" })).toThrow();
   });
+});
+
+it("identifies PR and personal overlay conflicts without breaking older status feeds", () => {
+  const pull = decodePersonalUpdateStatus({
+    ...status,
+    conflictStage: "pull_request",
+    conflictPullRequest: 22883,
+  });
+  expect(personalUpdateMessage(pull)).toContain("importing PR #22883");
+  const personal = decodePersonalUpdateStatus({ ...status, conflictStage: "personal" });
+  expect(personalUpdateMessage(personal)).toContain("applying your personal changes");
+  expect(personalUpdateMessage(decodePersonalUpdateStatus(status))).toContain("merge conflicts:");
+});
+
+it("retains the exact failure snapshot in an agent repair and uses stable conflict identity", () => {
+  const recorded = {
+    ...status,
+    conflictIdentity: "f".repeat(64),
+    baseCommit: "a".repeat(40),
+    conflictPullRequest: 22883,
+    inputs: {
+      upstreamTag: status.upstreamTag,
+      pullRequests: [{ number: 22883, headSha: "b".repeat(40), baseRef: "main" }],
+      resolutions: "c".repeat(64),
+    },
+  };
+  const decoded = decodePersonalUpdateStatus(recorded);
+  const prompt = personalUpdateRepairPrompt(decoded);
+  expect(prompt).toContain(recorded.baseCommit);
+  expect(prompt).toContain(recorded.inputs.pullRequests[0]!.headSha);
+  expect(prompt).toContain(recorded.inputs.resolutions);
+  expect(prompt).toContain("diagnose the current failure");
+  expect(prompt).toContain(
+    "fetch refs/heads/personal-nightly directly from https://github.com/NikitaMGrimm/t3code.git",
+  );
+  expect(prompt).toContain("Do not assume origin");
+  expect(personalUpdateRepairKey(decoded)).toBe(recorded.conflictIdentity);
+  expect(() => decodePersonalUpdateStatus({ ...recorded, baseCommit: "main" })).toThrow();
 });

@@ -1,13 +1,16 @@
 import { StrictMode } from "react";
-import { act } from "react";
-import { createRoot } from "react-dom/client";
+import { act, render } from "../../test/render";
 import { expect, it, vi } from "vite-plus/test";
 
 import { refreshPersonalUpdateStatus } from "../hooks/usePersonalUpdateStatus";
 import { PersonalUpdateNotification } from "./PersonalUpdateStatus";
 import { ToastProvider } from "./ui/toast";
 
-vi.mock("@tanstack/react-router", () => ({ useParams: () => ({}) }));
+vi.mock("@tanstack/react-router", async (original) => ({
+  ...(await original<typeof import("@tanstack/react-router")>()),
+  useParams: () => ({}),
+}));
+vi.mock("./PersonalNightlyRepairButton", () => ({ PersonalNightlyRepairButton: () => null }));
 
 async function withNotifications(
   initial: object,
@@ -21,7 +24,6 @@ async function withNotifications(
   }) => Promise<void>,
   { cdn = false } = {},
 ) {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -36,36 +38,36 @@ async function withNotifications(
     value: () => [],
   });
   let status = initial;
+  let cachedNow = 0;
   // Like the raw GitHub CDN, which serves a URL's first body until its max-age expires.
   const cached = new Map<string, { body: string; expires: number }>();
   vi.stubGlobal("fetch", async (url: string) => {
     const hit = cached.get(url);
-    if (cdn && hit && hit.expires > Date.now()) return new Response(hit.body);
+    if (cdn && hit && hit.expires > cachedNow) return new Response(hit.body);
     const body = JSON.stringify(status);
-    cached.set(url, { body, expires: Date.now() + 300_000 });
+    cached.set(url, { body, expires: cachedNow + 300_000 });
     return new Response(body);
   });
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
   const refresh = () => act(() => refreshPersonalUpdateStatus());
   const live = (element: Element) => !element.closest("[data-ending-style]");
 
   try {
-    await act(() =>
-      root.render(
-        <StrictMode>
-          <ToastProvider>
-            <PersonalUpdateNotification />
-          </ToastProvider>
-        </StrictMode>,
-      ),
+    await using screen = await render(
+      <StrictMode>
+        <ToastProvider>
+          <PersonalUpdateNotification />
+        </ToastProvider>
+      </StrictMode>,
+      // Notification routing is mocked; this test drives the status feed only.
+      { router: false },
     );
+    const container = screen.container;
     await refresh();
     await run({
       container,
       setStatus: (next) => {
         status = next;
+        cachedNow += 240_000;
         return refresh();
       },
       refresh,
@@ -83,8 +85,6 @@ async function withNotifications(
         ),
     });
   } finally {
-    await act(() => root.unmount());
-    container.remove();
     if (animations) Object.defineProperty(Element.prototype, "getAnimations", animations);
     else Reflect.deleteProperty(Element.prototype, "getAnimations");
     vi.unstubAllGlobals();

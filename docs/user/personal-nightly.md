@@ -6,6 +6,13 @@ If a nightly has merge conflicts or fails its checks, the current build stays
 available. A dismissible notification shows the stopped update without shifting
 the app layout. Settings → General → About keeps its details and workflow link.
 
+Choose **Repair personal nightly** in the notification or Settings → General to
+start an agent in a separate worktree. Connect a T3 Code source project first;
+if several are available, choose where to run the repair. It uses that project's
+default model and permissions. The repair thread diagnoses the stopped update,
+tests its fixes, and retries the release. Your current build stays available
+until the replacement passes its checks.
+
 Install a release from [this fork](https://github.com/NikitaMGrimm/t3code/releases)
 once before using its updater. An official T3 Code installation follows the
 official release feed until replaced with a personal build. Keep the update track

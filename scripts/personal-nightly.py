@@ -271,9 +271,13 @@ def ordered_pull_requests(pulls):
 RELEASE_TOOLING = re.compile(r"\.github/|scripts/personal-nightly\.py$|personal-nightly\.json$")
 
 
+def owned(config, pull):
+    return pull.get("author", "").casefold() == config["repository"].split("/")[0].casefold()
+
+
 def release_tooling_changes(repo, config, pull):
     """Release tooling another author's PR changes. The owner's own PRs may change it."""
-    if pull.get("author", "").casefold() == config["repository"].split("/")[0].casefold():
+    if owned(config, pull):
         return []
     # -z keeps unusual names unquoted so the prefix match cannot be bypassed.
     changed = git("diff", "--name-only", "--no-renames", "-z", pull["baseSha"], pull["headSha"], cwd=repo).stdout
@@ -305,26 +309,197 @@ def deleted_here(repo, path):
     return {entry.split("\t")[0].split()[2] for entry in entries if entry} == {"1", "3"}
 
 
+LOCKFILE = "pnpm-lock.yaml"
+# pnpm reads these before resolving; another author's change to them must not run in the
+# job that holds the fork's write credentials.
+PACKAGE_MANAGER_CONFIG = re.compile(r"(?:.*/)?(?:\.npmrc|\.pnpmfile\.[cm]?js)|pnpm-workspace\.yaml")
+PNPM_NETWORK_ERROR = re.compile(r"ERR_PNPM_(?:META_FETCH_FAIL|FETCH_\w+)|E(?:CONNRESET|TIMEDOUT|NOTFOUND|AI_AGAIN|CONNREFUSED)")
+
+
+def package_manager_policy(repo, config, pulls, start):
+    """Lockfile reconciliation runs the official nightly's pnpm on owner-trusted configuration."""
+    for pull in pulls:
+        if not owned(config, pull) and any(
+                PACKAGE_MANAGER_CONFIG.fullmatch(path) for path in changed_paths(repo, pull["baseSha"], pull["headSha"])):
+            return {"reason": f"PR #{pull['number']} by another author changes package manager configuration"}
+    manifest = git("show", f"{start}:package.json", cwd=repo, check=False)
+    pin = json.loads(manifest.stdout).get("packageManager", "") if manifest.returncode == 0 else ""
+    if not re.fullmatch(r"pnpm@\d+\.\d+\.\d+(?:\+\S+)?", pin):
+        return {"reason": "The official nightly does not pin pnpm"}
+    return {"packageManager": pin}
+
+
+def pnpm(checkout, *args):
+    # Candidate manifests are untrusted input here: no lifecycle scripts, no pnpmfile, no tokens.
+    env = {key: value for key, value in os.environ.items()
+           if not re.search(r"TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|_KEY", key, re.IGNORECASE)}
+    try:
+        result = subprocess.run(["pnpm", *args, "--ignore-scripts", "--ignore-pnpmfile"] if args[0] == "install"
+                                else ["pnpm", *args], cwd=checkout, env=env, text=True, capture_output=True)
+    except FileNotFoundError:
+        return None
+    if result.returncode and PNPM_NETWORK_ERROR.search(result.stdout + result.stderr):
+        # A registry outage must fail the run so the next check retries it, not record a conflict.
+        raise RuntimeError("pnpm could not reach the registry: " + (result.stdout + result.stderr)[-2000:])
+    return result
+
+
+def unquote(text):
+    if len(text) >= 2 and text[0] == text[-1] == "'":
+        return text[1:-1].replace("''", "'")
+    if len(text) >= 2 and text[0] == text[-1] == '"':
+        return json.loads(text)
+    return text
+
+
+def yaml_entries(text):
+    """Block-style YAML as {(document, *keys): scalar}. pnpm writes lockfiles in this subset only."""
+    entries, stack, document, explicit = {}, [], 0, None
+    for line in text.splitlines():
+        if line == "---":
+            document, stack = document + 1, []
+            continue
+        stripped = line.lstrip(" ")
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(line) - len(stripped)
+        while stack and stack[-1][0] >= indent:
+            stack.pop()
+        path = (document, *(key for _, key in stack))
+        if stripped.startswith("- "):
+            entries[(*path, "-", unquote(stripped[2:].strip()))] = ""
+            continue
+        # pnpm writes keys longer than YAML's implicit key limit as "? key" then ": value".
+        if stripped.startswith("? "):
+            explicit = unquote(stripped[2:].strip())
+            entries[(*path, explicit)] = ""
+            continue
+        if stripped.startswith(": ") and explicit is not None:
+            stack.append((indent, explicit))
+            path, indent, stripped, explicit = (*path, explicit), indent + 2, stripped[2:].lstrip(" "), None
+            if not re.match(r"('(?:[^']|'')*'|[^'\"#][^#]*?):(?: |$)", stripped):
+                entries[path] = unquote(stripped)
+                continue
+        match = re.fullmatch(r"('(?:[^']|'')*'|\"(?:[^\"\\]|\\.)*\"|[^'\"#?:][^#]*?):(?: +(.*))?", stripped)
+        if match is None:
+            raise ValueError(f"Unrecognized YAML line: {stripped[:80]}")
+        key, value = unquote(match[1]), (match[2] or "").strip()
+        entries[(*path, key)] = unquote(value)
+        if not value:
+            stack.append((indent, key))
+    return entries
+
+
+def patch_hashes(entries):
+    return {path[-1]: value for path, value in entries.items() if len(path) == 3 and path[1] == "patchedDependencies"}
+
+
+def lockfile_entries(text):
+    """Patch hashes follow the merged patch files, so they compare by dependency, not content."""
+    for key, value in patch_hashes(yaml_entries(text)).items():
+        text = text.replace(value, f"<patch {key}>")
+    return yaml_entries(text)
+
+
+def unexpected_lockfile_change(base, ours, theirs, result):
+    """Every entry must be what a three-way merge of the two sides' lockfiles gives.
+
+    Versions neither side resolved, dropped changes, and entries both sides changed differently
+    are refused, so a dependency change is never decided here.
+    """
+    base, ours, theirs, result = map(lockfile_entries, (base, ours, theirs, result))
+    for path in sorted(base.keys() | ours.keys() | theirs.keys() | result.keys(), key=str):
+        values = [entries.get(path) for entries in (base, ours, theirs)]
+        if values[1] != values[2] and values[0] not in values[1:]:
+            return f"Both sides change {'/'.join(map(str, path[1:]))}"
+        expected = values[2] if values[1] == values[0] else values[1]
+        if result.get(path) != expected:
+            return f"Regeneration changes {'/'.join(map(str, path[1:]))}"
+    return None
+
+
+def reconcile_lockfile(checkout, package_manager):
+    """Rebuild a conflicted pnpm lockfile from the merged manifests and patches, or explain why not.
+
+    Starting from this side's lockfile with only the merged patches' hashes updated keeps pnpm
+    incremental: a fresh resolution rewrites unrelated peer suffixes throughout the file.
+    """
+    sides = [git("show", f":{stage}:{LOCKFILE}", cwd=checkout, check=False) for stage in (1, 2, 3)]
+    if any(side.returncode for side in sides):
+        return "The lockfile was added or deleted on one side"
+    base, ours, theirs = (side.stdout for side in sides)
+    manifest = json.loads((checkout / "package.json").read_text())
+    if manifest.get("packageManager") != package_manager:
+        return f"The merged package.json does not pin {package_manager}"
+    version = pnpm(checkout, "--version")
+    pinned = package_manager.removeprefix("pnpm@").split("+")[0]
+    if version is None or version.returncode or version.stdout.strip().splitlines()[-1:] != [pinned]:
+        return f"pnpm {pinned} is unavailable"
+    workspace = yaml_entries((checkout / "pnpm-workspace.yaml").read_text()) if (checkout / "pnpm-workspace.yaml").exists() else {}
+    patches = patch_hashes(workspace)
+    seeded = ours
+    for key, previous in patch_hashes(yaml_entries(ours)).items():
+        if key in patches and (checkout / patches[key]).is_file():
+            seeded = seeded.replace(previous, hashlib.sha256((checkout / patches[key]).read_bytes()).hexdigest())
+    (checkout / LOCKFILE).write_text(seeded)
+    for frozen in (False, True):
+        installed = pnpm(checkout, "install", "--lockfile-only", "--frozen-lockfile" if frozen else "--no-frozen-lockfile")
+        if installed.returncode:
+            error = re.findall(r"ERR_PNPM_\w+", installed.stdout + installed.stderr)
+            return f"pnpm could not update the lockfile ({error[0] if error else f'exit {installed.returncode}'})"
+        if not frozen:
+            try:
+                reason = unexpected_lockfile_change(base, ours, theirs, (checkout / LOCKFILE).read_text())
+            except ValueError as error:
+                reason = f"The lockfile could not be compared: {error}"
+            if reason:
+                return reason
+    untracked = git("ls-files", "--others", "-z", cwd=checkout).stdout
+    # The unmerged lockfile is listed once per stage.
+    if untracked or set(git("diff", "--name-only", cwd=checkout).stdout.split()) != {LOCKFILE}:
+        return "pnpm changed files other than the lockfile"
+    git("add", "--", LOCKFILE, cwd=checkout)
+    return None
+
+
+def settle_lockfile(checkout, conflicts, policy):
+    """The conflicts left after a generated-lockfile conflict is reconciled, and why one stayed."""
+    if LOCKFILE not in conflicts:
+        return conflicts, None
+    reason = (policy.get("reason")
+              or ("Other files also conflict" if conflicts != [LOCKFILE] else None)
+              or reconcile_lockfile(checkout, policy["packageManager"]))
+    if reason is None:
+        return [], None
+    # A refused attempt leaves the same unmerged index entries, so the conflict identity holds.
+    git("checkout", "--conflict=merge", "--", LOCKFILE, cwd=checkout)
+    return conflicts, {"path": LOCKFILE, "reason": reason}
+
+
+def prime_checkout(checkout, start, resolutions):
+    git("config", "user.name", "personal-nightly", cwd=checkout)
+    git("config", "user.email", "personal-nightly@users.noreply.github.com", cwd=checkout)
+    git("checkout", "--detach", start, cwd=checkout)
+    for key, files in resolutions.items():
+        if not re.fullmatch(r"[0-9a-f]{40}", key) or set(files) != {"preimage", "postimage"}:
+            raise ValueError("Invalid recorded Git conflict resolution")
+        cache = checkout / ".git" / "rr-cache" / key
+        cache.mkdir(parents=True)
+        for name, content in files.items():
+            (cache / name).write_text(content)
+
+
 @contextlib.contextmanager
 def assembly_checkout(repo, start, resolutions):
     """A disposable clone with the recorded resolutions; nothing leaves it unless fetched back."""
     with tempfile.TemporaryDirectory(prefix="t3-nightly-assembly-") as directory:
         checkout = Path(directory) / "checkout"
         git("clone", "--shared", "--no-checkout", "--no-tags", str(repo), str(checkout))
-        git("config", "user.name", "personal-nightly", cwd=checkout)
-        git("config", "user.email", "personal-nightly@users.noreply.github.com", cwd=checkout)
-        git("checkout", "--detach", start, cwd=checkout)
-        for key, files in resolutions.items():
-            if not re.fullmatch(r"[0-9a-f]{40}", key) or set(files) != {"preimage", "postimage"}:
-                raise ValueError("Invalid recorded Git conflict resolution")
-            cache = checkout / ".git" / "rr-cache" / key
-            cache.mkdir(parents=True)
-            for name, content in files.items():
-                (cache / name).write_text(content)
+        prime_checkout(checkout, start, resolutions)
         yield checkout
 
 
-def import_pull_requests(checkout, config, pulls, original):
+def import_pull_requests(checkout, config, pulls, original, policy, reconciled=None):
     included = {pull["number"] for pull in config.get("pullRequests", [])}
     for pull in pulls:
         previous = git("rev-parse", "HEAD", cwd=checkout).stdout.strip()
@@ -334,10 +509,16 @@ def import_pull_requests(checkout, config, pulls, original):
             return pull["number"] in included and git(
                 "cat-file", "-e", f"{original}:{path}", cwd=checkout, check=False).returncode != 0
 
-        conflicts = (release_tooling_changes(checkout, config, pull)
-                     or merge_delta(checkout, pull["baseSha"], pull["headSha"], reviewed_deletion))
+        tooling = release_tooling_changes(checkout, config, pull)
+        if tooling:
+            return {"conflicts": tooling, "conflictPullRequest": pull["number"], "conflictStage": "pull_request"}
+        merged = merge_delta(checkout, pull["baseSha"], pull["headSha"], reviewed_deletion)
+        conflicts, lockfile = settle_lockfile(checkout, merged, policy)
         if conflicts:
-            return {"conflicts": conflicts, "conflictPullRequest": pull["number"]}
+            return {"conflicts": conflicts, "conflictPullRequest": pull["number"], "conflictStage": "pull_request",
+                    **({"lockfileReconciliation": lockfile} if lockfile else {})}
+        if merged and reconciled is not None:
+            reconciled.append({"conflictStage": "pull_request", "pullRequest": pull["number"]})
         tree = git("write-tree", cwd=checkout).stdout.strip()
         imported = git("commit-tree", tree, "-p", previous, "-m",
                        f"{pull['title']} (personal import #{pull['number']})", cwd=checkout).stdout.strip()
@@ -365,7 +546,7 @@ def changed_paths(repo, base, head):
     return [path for path in git("diff", "--name-only", "--no-renames", "-z", base, head, cwd=repo).stdout.split("\0") if path]
 
 
-def nightly_wait(repo, checkout, upstream, config, pulls, original, resolutions, stop):
+def nightly_wait(repo, checkout, upstream, config, pulls, original, resolutions, stop, policy):
     """NightlyWait evidence that an import stop only lacks upstream files a later official nightly adds.
 
     Any doubt keeps the conflict actionable. The diagnostic replays stay in disposable clones.
@@ -404,46 +585,118 @@ def nightly_wait(repo, checkout, upstream, config, pulls, original, resolutions,
             or any(touches(changed_paths(repo, other["baseSha"], other["headSha"])) for other in others)):
         return None
     with assembly_checkout(repo, pull["baseSha"], resolutions) as replay:
-        if import_pull_requests(replay, config, pulls[:pulls.index(pull) + 1], original):
+        if import_pull_requests(replay, config, pulls[:pulls.index(pull) + 1], original, policy):
             return None
     with assembly_checkout(repo, upstream, resolutions) as replay:
         git("--literal-pathspecs", "checkout", pull["baseSha"], "--", *paths, cwd=replay)
         tree = git("write-tree", cwd=replay).stdout.strip()
         prerequisites = git("commit-tree", tree, "-p", upstream, "-m", "Official prerequisites", cwd=replay).stdout.strip()
         git("reset", "--hard", prerequisites, cwd=replay)
-        if (import_pull_requests(replay, config, pulls, original)
-                or merge_delta(replay, config["prBaseline"], original)):
+        if (import_pull_requests(replay, config, pulls, original, policy)
+                or settle_lockfile(replay, merge_delta(replay, config["prBaseline"], original), policy)[0]):
             return None
     return {"pullRequest": pull["number"], "baseCommit": pull["baseSha"], "paths": paths}
 
 
+def assemble_into(repo, checkout, tag, upstream, original, config, pulls, resolutions):
+    """Replace the PR baseline, then merge the personal-only delta onto it, in a primed checkout."""
+    ordered = ordered_pull_requests(pulls)
+    policy = package_manager_policy(repo, config, ordered, upstream)
+    reconciled = []
+    stop = import_pull_requests(checkout, config, ordered, original, policy, reconciled)
+    if stop:
+        if waiting := nightly_wait(repo, checkout, upstream, config, ordered, original, resolutions, stop, policy):
+            return {"conflicts": [], "waiting": waiting}
+        return {**stop, **conflict_identity(checkout, stop["conflictPullRequest"])}
+    baseline = git("rev-parse", "HEAD", cwd=checkout).stdout.strip()
+    merged = merge_delta(checkout, config["prBaseline"], original)
+    conflicts, lockfile = settle_lockfile(checkout, merged, policy)
+    if conflicts:
+        return {"conflicts": conflicts, "conflictStage": "personal",
+                **({"lockfileReconciliation": lockfile} if lockfile else {}), **conflict_identity(checkout, None)}
+    if merged:
+        reconciled.append({"conflictStage": "personal"})
+    config.update(upstreamTag=tag, pullRequests=pulls, prBaseline=baseline)
+    (checkout / "personal-nightly.json").write_text(json.dumps(config, indent=2) + "\n")
+    git("add", "personal-nightly.json", cwd=checkout)
+    tree = git("write-tree", cwd=checkout).stdout.strip()
+    candidate = git("commit-tree", tree, "-p", original, "-p", baseline,
+                    "-m", f"chore: synchronize personal PRs with {tag}", cwd=checkout).stdout.strip()
+    git("update-ref", "refs/heads/candidate", candidate, cwd=checkout)
+    return {"conflicts": [], "candidate": candidate, **({"lockfileReconciliations": reconciled} if reconciled else {})}
+
+
 def assemble(repo, tag, config, pulls, resolutions):
-    """Replace the PR baseline, then merge the personal-only delta onto it."""
     if git("status", "--porcelain", cwd=repo).stdout:
         raise ValueError("PR synchronization requires a clean checkout")
     original = git("rev-parse", "HEAD", cwd=repo).stdout.strip()
     upstream = git("rev-parse", f"{tag}^{{commit}}", cwd=repo).stdout.strip()
-    ordered = ordered_pull_requests(pulls)
     with assembly_checkout(repo, upstream, resolutions) as checkout:
-        stop = import_pull_requests(checkout, config, ordered, original)
-        if stop:
-            if waiting := nightly_wait(repo, checkout, upstream, config, ordered, original, resolutions, stop):
-                return {"conflicts": [], "waiting": waiting}
-            return {**stop, **conflict_identity(checkout, stop["conflictPullRequest"])}
-        baseline = git("rev-parse", "HEAD", cwd=checkout).stdout.strip()
-        conflicts = merge_delta(checkout, config["prBaseline"], original)
-        if conflicts:
-            return {"conflicts": conflicts, **conflict_identity(checkout, None)}
-        config.update(upstreamTag=tag, pullRequests=pulls, prBaseline=baseline)
-        (checkout / "personal-nightly.json").write_text(json.dumps(config, indent=2) + "\n")
-        git("add", "personal-nightly.json", cwd=checkout)
-        tree = git("write-tree", cwd=checkout).stdout.strip()
-        candidate = git("commit-tree", tree, "-p", original, "-p", baseline,
-                        "-m", f"chore: synchronize personal PRs with {tag}", cwd=checkout).stdout.strip()
-        git("update-ref", "refs/heads/candidate", candidate, cwd=checkout)
-        git("fetch", str(checkout), "refs/heads/candidate", cwd=repo)
-        git("reset", "--hard", "FETCH_HEAD", cwd=repo)
-    return {"conflicts": []}
+        result = assemble_into(repo, checkout, tag, upstream, original, config, pulls, resolutions)
+        if result.pop("candidate", None):
+            git("fetch", str(checkout), "refs/heads/candidate", cwd=repo)
+            git("reset", "--hard", "FETCH_HEAD", cwd=repo)
+    return result
+
+
+def resolutions_fingerprint(resolutions):
+    return hashlib.sha256(json.dumps(resolutions, sort_keys=True).encode()).hexdigest()
+
+
+def ensure_commits(repo, url, commits):
+    """Fetch only missing exact commits, without creating or moving any ref."""
+    missing = sorted({sha for sha in commits
+                      if git("cat-file", "-e", f"{sha}^{{commit}}", cwd=repo, check=False).returncode})
+    if missing:
+        git("fetch", "--no-tags", "--no-write-fetch-head", url, *missing, cwd=repo)
+
+
+def reproduce(repo, status, resolutions, directory):
+    """Replay a recorded prepare snapshot in a kept clone, stopping where prepare stopped.
+
+    The clone keeps rerere enabled so a repair's resolutions can be exported with record.
+    """
+    directory = Path(directory).resolve()
+    if directory.exists():
+        raise ValueError(f"{directory} already exists")
+    fork = re.fullmatch(r"https://github\.com/([^/]+/[^/]+)/actions/runs/\d+", status["runUrl"])
+    pulls = status["pullRequests"]
+    if fork is None or status["inputs"]["pullRequests"] != pull_request_inputs(pulls):
+        raise ValueError("The status does not record a complete PR snapshot")
+    git("clone", "--quiet", "--no-checkout", "--no-tags", str(repo), str(directory))
+    ensure_commits(directory, f"https://github.com/{fork[1]}.git", [status["baseCommit"]])
+    config = json.loads(git("show", f"{status['baseCommit']}:personal-nightly.json", cwd=directory).stdout)
+    upstream_url = f"https://github.com/{config['upstreamRepository']}.git"
+    tag = status["upstreamTag"]
+    local = git("rev-parse", "--verify", "--quiet", f"refs/tags/{tag}^{{commit}}", cwd=repo, check=False)
+    if local.returncode == 0:
+        upstream = local.stdout.strip()
+    else:
+        refs = dict(line.split("\t")[::-1] for line in git(
+            "ls-remote", upstream_url, f"refs/tags/{tag}", f"refs/tags/{tag}^{{}}", cwd=directory).stdout.splitlines())
+        upstream = refs.get(f"refs/tags/{tag}^{{}}") or refs.get(f"refs/tags/{tag}")
+        if upstream is None:
+            raise ValueError(f"{tag} is not an upstream tag")
+    ensure_commits(directory, upstream_url, [upstream, *(pull[key] for pull in pulls for key in ("baseSha", "headSha"))])
+    prime_checkout(directory, upstream, resolutions)
+    git("config", "rerere.enabled", "true", cwd=directory)
+    result = assemble_into(directory, directory, tag, upstream, status["baseCommit"], config, pulls, resolutions)
+    if candidate := result.pop("candidate", None):
+        git("reset", "--hard", candidate, cwd=directory)
+        result["candidateCommit"] = candidate
+    return {"directory": str(directory), "upstreamCommit": upstream,
+            "resolutionsMatchStatus": status["inputs"].get("resolutions") == resolutions_fingerprint(resolutions),
+            **result}
+
+
+def record_resolutions(directory, resolutions):
+    """The recorded resolutions plus every conflict resolved with rerere in a repair checkout."""
+    updated = dict(resolutions)
+    cache = Path(directory) / ".git" / "rr-cache"
+    for entry in sorted(cache.iterdir()) if cache.is_dir() else []:
+        if re.fullmatch(r"[0-9a-f]{40}", entry.name) and all((entry / name).is_file() for name in ("preimage", "postimage")):
+            updated[entry.name] = {name: (entry / name).read_text() for name in ("preimage", "postimage")}
+    return updated
 
 
 def prepare(repo, tag, run_number, published_releases=(), pull_requests=None, resolutions=None):
@@ -628,7 +881,7 @@ def release_notes(repo, ref, version, personal_releases, upstream_releases):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["prepare", "status", "notes", "verify"])
+    parser.add_argument("command", choices=["prepare", "status", "notes", "verify", "reproduce", "record"])
     parser.add_argument("--tag")
     parser.add_argument("--run-number", default=os.environ.get("GITHUB_RUN_ID"))
     parser.add_argument("--phase", choices=["ready", "failed", "conflict", "superseded"])
@@ -639,8 +892,26 @@ def main():
     parser.add_argument("--version")
     parser.add_argument("--published-release", type=Path)
     parser.add_argument("--sync-prs", action="store_true")
+    parser.add_argument("--status", type=Path, help="reproduce: a recorded status.json")
+    parser.add_argument("--resolutions", type=Path, help="reproduce, record: a recorded resolutions.json")
+    parser.add_argument("--keep", type=Path, help="reproduce, record: the repair checkout directory")
+    parser.add_argument("--output", type=Path, help="record: where to write the updated resolutions.json")
     args = parser.parse_args()
     repo = Path.cwd()
+    if args.command in ("reproduce", "record"):
+        # Local repair tooling: reads the given files and writes only the kept checkout or output.
+        if not args.resolutions or not args.keep or (args.command == "reproduce") != bool(args.status) \
+                or (args.command == "record") != bool(args.output):
+            parser.error("reproduce requires --status, --resolutions, and --keep; record requires --resolutions, --keep, and --output")
+        resolutions = json.loads(args.resolutions.read_text())
+        if args.command == "reproduce":
+            print(json.dumps(reproduce(repo, json.loads(args.status.read_text()), resolutions, args.keep), indent=2))
+        else:
+            updated = record_resolutions(args.keep, resolutions)
+            args.output.write_text(json.dumps(updated, indent=2, sort_keys=True) + "\n")
+            print(json.dumps({"added": sorted(updated.keys() - resolutions.keys()),
+                              "resolutions": resolutions_fingerprint(updated)}, indent=2))
+        return
     status_path = Path(os.environ.get("RUNNER_TEMP", tempfile.gettempdir())) / "personal-nightly-status.json"
     if args.command == "verify":
         status = json.loads(status_path.read_text())
@@ -677,7 +948,7 @@ def main():
             resolutions = read_state(repo, "resolutions.json")
             # A newly recorded resolution can settle a conflict without any PR or branch change.
             inputs = {"upstreamTag": args.tag, "pullRequests": pull_request_inputs(pulls),
-                      "resolutions": hashlib.sha256(json.dumps(resolutions, sort_keys=True).encode()).hexdigest()}
+                      "resolutions": resolutions_fingerprint(resolutions)}
             forced = (os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
                       and os.environ.get("PERSONAL_NIGHTLY_FORCE") == "true")
             previous = read_state(repo, "status.json")

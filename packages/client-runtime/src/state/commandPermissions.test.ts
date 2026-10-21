@@ -16,6 +16,7 @@ import {
   EnvironmentId,
   ScheduledTaskId,
   WS_METHODS,
+  ORCHESTRATION_V2_WS_METHODS,
   type AuthSessionState,
 } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
@@ -345,4 +346,26 @@ it.effect("rejects protected unary and streamed RPCs outside a guarded command",
     expect(streamed._tag).toBe("EnvironmentAuthorizationError");
     expect(writes).toBe(0);
   }),
+);
+
+it.effect("requires the destination orchestration grant to launch a repair thread", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const registry = yield* setup;
+      const launch = createCommandPermissions(runtime, ORCHESTRATION_V2_WS_METHODS.launchThread);
+      registry.set(sessions(env), AsyncResult.success(grant(true)));
+      registry.set(sessions(other), AsyncResult.success(grant(false)));
+      expect(registry.get(launch.permissionAtom(env))).toBe(true);
+      yield* launch.authorize(registry, env);
+      expect(registry.get(launch.permissionAtom(other))).toBe(false);
+      expect((yield* launch.authorize(registry, other).pipe(Effect.flip)).requiredScope).toBe(
+        AuthOrchestrationOperateScope,
+      );
+      registry.set(sessions(env), AsyncResult.success(grant(false)));
+      expect(registry.get(launch.permissionAtom(env))).toBe(false);
+      expect((yield* launch.authorize(registry, env).pipe(Effect.flip))._tag).toBe(
+        "EnvironmentAuthorizationError",
+      );
+    }),
+  ),
 );

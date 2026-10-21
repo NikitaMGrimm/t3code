@@ -1,7 +1,8 @@
-import { personalUpdateMessage } from "@t3tools/shared/personalUpdate";
+import { personalUpdateMessage, personalUpdateRepairKey } from "@t3tools/shared/personalUpdate";
 import { TriangleAlertIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { usePersonalUpdateStatus } from "~/hooks/usePersonalUpdateStatus";
+import { PersonalNightlyRepairButton } from "./PersonalNightlyRepairButton";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { toastManager } from "./ui/toast";
 
@@ -17,8 +18,7 @@ export function PersonalUpdateNotification() {
       if (status.waiting || status.phase === "ready") notice.current = null;
       return;
     }
-    const attempt =
-      status.conflictIdentity ?? `${status.runUrl}:${status.sequence ?? status.phase}`;
+    const attempt = personalUpdateRepairKey(status);
     // Polling, Strict Mode, and unrelated PR changes must not reopen a dismissed notice.
     if (notice.current?.attempt === attempt) return;
     if (notice.current) toastManager.close(notice.current.id);
@@ -28,9 +28,12 @@ export function PersonalUpdateNotification() {
       description: (
         <>
           {personalUpdateMessage(status)}{" "}
-          <a href={status.runUrl} target="_blank" rel="noreferrer">
-            View update details
-          </a>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <a href={status.runUrl} target="_blank" rel="noreferrer">
+              View update details
+            </a>
+            <PersonalNightlyRepairButton status={status} />
+          </div>
         </>
       ),
       timeout: 10_000,
@@ -51,9 +54,12 @@ export function PersonalUpdateStatus() {
       <AlertTitle>{blocked ? "Personal nightly update stopped" : "Personal nightly"}</AlertTitle>
       <AlertDescription>
         {personalUpdateMessage(status)}{" "}
-        <a href={status.runUrl} target="_blank" rel="noreferrer">
-          View update details
-        </a>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <a href={status.runUrl} target="_blank" rel="noreferrer">
+            View update details
+          </a>
+          {blocked ? <PersonalNightlyRepairButton status={status} /> : null}
+        </div>
         {error ? <span> {error}</span> : null}
       </AlertDescription>
     </Alert>
