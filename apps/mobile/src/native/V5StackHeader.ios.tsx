@@ -240,9 +240,17 @@ export function V5StackHeader(props: {
   const searchPlacement = bottomSearch ? "integrated" : (searchOptions?.placement ?? "automatic");
   // UIKit re-places a visible search controller when its placement changes, but not one whose
   // column is covered; that one needs a new controller to place once the column shows again.
-  const [search, setSearch] = useState({ placement: searchPlacement, epoch: 0 });
-  if (search.placement !== searchPlacement)
-    setSearch({ placement: searchPlacement, epoch: search.epoch + (props.covered ? 1 : 0) });
+  // A hidden tab only sees the new placement as it returns, after its detail uncovered the list.
+  const covered = props.covered === true;
+  const [search, setSearch] = useState({ placement: searchPlacement, covered, epoch: 0 });
+  if (search.placement !== searchPlacement || search.covered !== covered)
+    setSearch({
+      placement: searchPlacement,
+      covered,
+      epoch:
+        search.epoch +
+        (search.placement !== searchPlacement && (search.covered || covered) ? 1 : 0),
+    });
   const autofocusRef = searchOptions?.ref ?? searchRef;
   const searchHasFocus = useRef(false);
   useEffect(() => {
