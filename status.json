@@ -5,10 +5,10 @@
   "conflicts": [
     "apps/web/src/components/ChatView.tsx"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39770673256",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39780513967",
   "releasedVersion": "0.1.2-nightly.20261021.1792629395092",
   "baseCommit": "c062a8fed2e6d756c3c6d5ca4929f7e6cd8469fc",
-  "sequence": 1792668435118,
+  "sequence": 1792672934997,
   "conflictPullRequest": 22788,
   "conflictStage": "pull_request",
   "conflictIdentity": "d47a34c6b402b846f91553b29f3895b4633d4747ba0c2171eb16bd0f4d8b759d",
@@ -52,7 +52,7 @@
       },
       {
         "number": 22788,
-        "headSha": "6f2d6c63e3f252651c0221c8a3dcf9d9f950dbbd",
+        "headSha": "9ec682fce8d5c70f386f6a43c3290dc9901e2a4a",
         "baseRef": "main"
       },
       {
@@ -161,7 +161,7 @@
     {
       "number": 22788,
       "title": "fix(web): hold chat position through streaming tool calls",
-      "headSha": "6f2d6c63e3f252651c0221c8a3dcf9d9f950dbbd",
+      "headSha": "9ec682fce8d5c70f386f6a43c3290dc9901e2a4a",
       "baseSha": "8d3b061121fe65669d5d43d011b48cd3027a4108",
       "headRef": "fix/issue-20366",
       "baseRef": "main",
