@@ -3,15 +3,15 @@
   "phase": "conflict",
   "upstreamTag": "v0.1.2-nightly.20261022.3512",
   "conflicts": [
-    "apps/web/src/components/chat/MessagesTimeline.browser.test.tsx"
+    "apps/web/src/components/ChatView.tsx"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39736685633",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39770673256",
   "releasedVersion": "0.1.2-nightly.20261021.1792629395092",
   "baseCommit": "c062a8fed2e6d756c3c6d5ca4929f7e6cd8469fc",
-  "sequence": 1792651950676,
+  "sequence": 1792668435118,
   "conflictPullRequest": 22788,
   "conflictStage": "pull_request",
-  "conflictIdentity": "80d625909787faff811b479f53405ad617219143ee7b081dfca13682354a7389",
+  "conflictIdentity": "d47a34c6b402b846f91553b29f3895b4633d4747ba0c2171eb16bd0f4d8b759d",
   "inputs": {
     "upstreamTag": "v0.1.2-nightly.20261022.3512",
     "pullRequests": [
@@ -52,7 +52,7 @@
       },
       {
         "number": 22788,
-        "headSha": "da7573a5fc4aea23b8ede26dfd743124a18998c3",
+        "headSha": "6f2d6c63e3f252651c0221c8a3dcf9d9f950dbbd",
         "baseRef": "main"
       },
       {
@@ -161,8 +161,8 @@
     {
       "number": 22788,
       "title": "fix(web): hold chat position through streaming tool calls",
-      "headSha": "da7573a5fc4aea23b8ede26dfd743124a18998c3",
-      "baseSha": "74541bab17270c35f4418d4e543d85628632ed8f",
+      "headSha": "6f2d6c63e3f252651c0221c8a3dcf9d9f950dbbd",
+      "baseSha": "8d3b061121fe65669d5d43d011b48cd3027a4108",
       "headRef": "fix/issue-20366",
       "baseRef": "main",
       "author": "juliusmarminge",
