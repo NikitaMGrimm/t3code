@@ -1,26 +1,19 @@
 {
   "schema": 1,
-  "phase": "ready",
-  "upstreamTag": "v0.1.2-nightly.20261021.3486",
-  "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39672810685",
-  "releasedVersion": "0.1.2-nightly.20261021.1792615433949",
-  "baseCommit": "0f8d3be08c24c54ab78eb361ed3e74baa26696e8",
-  "sequence": 1792615433949,
-  "lockfileReconciliations": [
-    {
-      "conflictStage": "pull_request",
-      "pullRequest": 22883
-    },
-    {
-      "conflictStage": "pull_request",
-      "pullRequest": 22893
-    }
+  "phase": "conflict",
+  "upstreamTag": "v0.1.2-nightly.20261021.3499",
+  "conflicts": [
+    "apps/web/src/components/chat/ChatComposer.tsx"
   ],
-  "candidateCommit": "adfb1d31de4cee8debaf76d049c400aef062627f",
-  "candidateVersion": "0.1.2-nightly.20261021.1792615433949",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39696857856",
+  "releasedVersion": "0.1.2-nightly.20261021.1792615433949",
+  "baseCommit": "adfb1d31de4cee8debaf76d049c400aef062627f",
+  "sequence": 1792627148970,
+  "conflictPullRequest": 17892,
+  "conflictStage": "pull_request",
+  "conflictIdentity": "aa83c4b0bddb0dd6297650193dae8e20231a4655772cb300451b4d3e633b8537",
   "inputs": {
-    "upstreamTag": "v0.1.2-nightly.20261021.3486",
+    "upstreamTag": "v0.1.2-nightly.20261021.3499",
     "pullRequests": [
       {
         "number": 17871,
