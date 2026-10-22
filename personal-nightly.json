@@ -2,7 +2,7 @@
   "repository": "NikitaMGrimm/t3code",
   "branch": "personal-nightly",
   "upstreamRepository": "pingdotgg/t3code",
-  "upstreamTag": "v0.1.2-nightly.20261022.3526",
+  "upstreamTag": "v0.1.2-nightly.20261022.3541",
   "pullRequests": [
     {
       "number": 17871,
@@ -151,8 +151,8 @@
     {
       "number": 23784,
       "title": "fix(shared): give attached threads a canonical read call",
-      "headSha": "93a6062a33727543ba57c1f2db4ed622e8eb263c",
-      "baseSha": "4eae8ae011e2e56ca20159c13f3fb8a2ac49a991",
+      "headSha": "1b39138c4592e945c596d0f8e221835d0b88adfe",
+      "baseSha": "22840ab943b8418744b48223411e46ba4fdcef1a",
       "headRef": "fix/thread-context-read-id",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -161,5 +161,5 @@
       "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "5073c61bc29c4332fac9f055db81bbf5d7225d53"
+  "prBaseline": "eff5c50a093e7a8539c5811da2f49804e77e9120"
 }
