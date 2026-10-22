@@ -38,6 +38,11 @@
         "baseRef": "main"
       },
       {
+        "number": 22788,
+        "headSha": "da7573a5fc4aea23b8ede26dfd743124a18998c3",
+        "baseRef": "main"
+      },
+      {
         "number": 22875,
         "headSha": "7552eae13ccf2d2ebadc25522b2e36ed1d0b97ec",
         "baseRef": "main"
@@ -53,7 +58,7 @@
         "baseRef": "main"
       }
     ],
-    "resolutions": "5b1c3333b85cba0317cc3a8c54b792bef581564a2508869b821411d192fdc13b"
+    "resolutions": "b793faa7a9d3d0825b965cf83fa8f7a9bdb9de1db17ca8ac609fd98ab238c964"
   },
-  "observedAt": 1792627197.8199704
+  "observedAt": 1792629444.7500367
 }
