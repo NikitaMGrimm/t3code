@@ -1,20 +1,20 @@
 {
   "schema": 1,
-  "phase": "ready",
+  "phase": "building",
   "upstreamTag": "v0.1.2-nightly.20261022.3526",
   "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39790524788",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39805349545",
   "releasedVersion": "0.1.2-nightly.20261022.1792677069177",
-  "baseCommit": "cccf4e41022d71e85e62349ac28582489179338c",
-  "sequence": 1792677069177,
+  "baseCommit": "509562a2ae9293209d05eb4db0de2369aed70e3c",
+  "sequence": 1792682989189,
   "lockfileReconciliations": [
     {
       "conflictStage": "pull_request",
       "pullRequest": 22893
     }
   ],
-  "candidateCommit": "509562a2ae9293209d05eb4db0de2369aed70e3c",
-  "candidateVersion": "0.1.2-nightly.20261022.1792677069177",
+  "candidateCommit": "9f573209a1b37f307bf4427b836481755320c936",
+  "candidateVersion": "0.1.2-nightly.20261022.1792682989189",
   "inputs": {
     "upstreamTag": "v0.1.2-nightly.20261022.3526",
     "pullRequests": [
@@ -71,6 +71,11 @@
       {
         "number": 22893,
         "headSha": "4e93d55e6cdde1a8ba54399238d8a3a8cfa77711",
+        "baseRef": "main"
+      },
+      {
+        "number": 23673,
+        "headSha": "3eca178e8017608d8290a24f1a560d881bec296d",
         "baseRef": "main"
       }
     ],
@@ -206,6 +211,18 @@
       "baseRef": "main",
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/22893",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 23673,
+      "title": "feat(web): optionally keep thread section dividers visible",
+      "headSha": "3eca178e8017608d8290a24f1a560d881bec296d",
+      "baseSha": "60b35a1ee02d717009ff4a3de34de285db9e8a60",
+      "headRef": "feat/sidebar-section-dividers",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/23673",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     }
