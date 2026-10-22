@@ -253,8 +253,9 @@ jobs:
           if [[ "${{ inputs.version }}" =~ -nightly\.[0-9]{8}\.[0-9]+$ ]]; then brand=nightly; fi
           node scripts/apply-web-brand-assets.ts "$brand" apps/server/dist/client
 
-      # Use the candidate's engines.node pin, already selected by Setup Vite+.
-      # Native builds inject into that Node; Windows targets download node.exe.
+      # Setup Vite+ selects the exact engines.node version from package.json.
+      # Native builds embed that executable; cross-target builds download the
+      # same version for their target.
       - name: Build CLI single-executable
         if: inputs.cli_archive
         shell: bash
