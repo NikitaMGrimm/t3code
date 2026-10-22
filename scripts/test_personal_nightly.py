@@ -1,9 +1,11 @@
 import importlib.util
+import hashlib
 import json
 import os
 import sys
 import tempfile
 import unittest
+import zlib
 from pathlib import Path
 from unittest.mock import patch
 
@@ -32,6 +34,30 @@ class NightlyIntegrationTests(unittest.TestCase):
     def commit(self, message):
         nightly.git("add", ".", cwd=self.repo)
         nightly.git("commit", "-m", message, cwd=self.repo)
+
+    def test_git_waits_for_automatic_housekeeping_before_cleanup(self):
+        nightly.git("config", "gc.auto", "1", cwd=self.repo)
+        nightly.git("config", "gc.autoDetach", "true", cwd=self.repo)
+        nightly.git("config", "maintenance.autoDetach", "true", cwd=self.repo)
+        # Git samples this shard when deciding whether gc.auto has been exceeded.
+        objects = self.repo / ".git" / "objects" / "17"
+        objects.mkdir(exist_ok=True)
+        blobs = []
+        for number in range(10000):
+            content = f"housekeeping {number}".encode()
+            blob = f"blob {len(content)}\0".encode() + content
+            oid = hashlib.sha1(blob).hexdigest()
+            if oid.startswith("17"):
+                (objects / oid[2:]).write_bytes(zlib.compress(blob))
+                blobs.append(oid)
+                if len(blobs) == 2:
+                    break
+        self.assertEqual(len(blobs), 2)
+        nightly.git("gc", "--auto", cwd=self.repo)
+        self.assertTrue(list((self.repo / ".git" / "objects" / "pack").glob("*.pack")))
+        self.assertFalse((self.repo / ".git" / "gc.pid").exists())
+        for oid in blobs:
+            self.assertIn("housekeeping", nightly.git("cat-file", "-p", oid, cwd=self.repo).stdout)
 
     def upstream(self, shared):
         nightly.git("checkout", "upstream", cwd=self.repo)

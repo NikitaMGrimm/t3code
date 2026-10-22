@@ -14,7 +14,9 @@ from pathlib import Path
 
 
 def git(*args, cwd=None, check=True, input=None):
-    return subprocess.run(["git", *args], cwd=cwd, check=check, input=input, text=True, capture_output=True)
+    # Wait for housekeeping before a caller can dispose of a temporary repository.
+    return subprocess.run(["git", "-c", "gc.autoDetach=false", "-c", "maintenance.autoDetach=false", *args],
+                          cwd=cwd, check=check, input=input, text=True, capture_output=True)
 
 
 def merge_nightly(repo, tag):
