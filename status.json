@@ -1,17 +1,20 @@
 {
   "schema": 1,
-  "phase": "conflict",
+  "phase": "building",
   "upstreamTag": "v0.1.2-nightly.20261021.3499",
-  "conflicts": [
-    "apps/web/src/components/chat/ChatComposer.tsx"
-  ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39696857856",
+  "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39700699745",
   "releasedVersion": "0.1.2-nightly.20261021.1792615433949",
-  "baseCommit": "adfb1d31de4cee8debaf76d049c400aef062627f",
-  "sequence": 1792627148970,
-  "conflictPullRequest": 17892,
-  "conflictStage": "pull_request",
-  "conflictIdentity": "aa83c4b0bddb0dd6297650193dae8e20231a4655772cb300451b4d3e633b8537",
+  "baseCommit": "34d05cab2c33c50f6a61babb0065cb7bc01806bf",
+  "sequence": 1792629395092,
+  "lockfileReconciliations": [
+    {
+      "conflictStage": "pull_request",
+      "pullRequest": 22893
+    }
+  ],
+  "candidateCommit": "c062a8fed2e6d756c3c6d5ca4929f7e6cd8469fc",
+  "candidateVersion": "0.1.2-nightly.20261021.1792629395092",
   "inputs": {
     "upstreamTag": "v0.1.2-nightly.20261021.3499",
     "pullRequests": [
@@ -51,6 +54,11 @@
         "baseRef": "main"
       },
       {
+        "number": 22788,
+        "headSha": "da7573a5fc4aea23b8ede26dfd743124a18998c3",
+        "baseRef": "main"
+      },
+      {
         "number": 22875,
         "headSha": "7552eae13ccf2d2ebadc25522b2e36ed1d0b97ec",
         "baseRef": "main"
@@ -66,7 +74,7 @@
         "baseRef": "main"
       }
     ],
-    "resolutions": "5b1c3333b85cba0317cc3a8c54b792bef581564a2508869b821411d192fdc13b"
+    "resolutions": "b793faa7a9d3d0825b965cf83fa8f7a9bdb9de1db17ca8ac609fd98ab238c964"
   },
   "pullRequests": [
     {
@@ -151,6 +159,18 @@
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/22522",
       "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 22788,
+      "title": "fix(web): hold chat position through streaming tool calls",
+      "headSha": "da7573a5fc4aea23b8ede26dfd743124a18998c3",
+      "baseSha": "74541bab17270c35f4418d4e543d85628632ed8f",
+      "headRef": "fix/issue-20366",
+      "baseRef": "main",
+      "author": "juliusmarminge",
+      "url": "https://github.com/pingdotgg/t3code/pull/22788",
+      "headRepository": "pingdotgg/t3code",
       "baseRepository": "pingdotgg/t3code"
     },
     {
