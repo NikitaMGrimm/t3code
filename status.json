@@ -1,20 +1,20 @@
 {
   "schema": 1,
-  "phase": "ready",
+  "phase": "building",
   "upstreamTag": "v0.1.2-nightly.20261022.3526",
   "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39805349545",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39839356313",
   "releasedVersion": "0.1.2-nightly.20261022.1792682989189",
-  "baseCommit": "509562a2ae9293209d05eb4db0de2369aed70e3c",
-  "sequence": 1792682989189,
+  "baseCommit": "9f573209a1b37f307bf4427b836481755320c936",
+  "sequence": 1792696898130,
   "lockfileReconciliations": [
     {
       "conflictStage": "pull_request",
       "pullRequest": 22893
     }
   ],
-  "candidateCommit": "9f573209a1b37f307bf4427b836481755320c936",
-  "candidateVersion": "0.1.2-nightly.20261022.1792682989189",
+  "candidateCommit": "3fb6cca928f2a800c57eae6a55aae2757131c681",
+  "candidateVersion": "0.1.2-nightly.20261022.1792696898130",
   "inputs": {
     "upstreamTag": "v0.1.2-nightly.20261022.3526",
     "pullRequests": [
@@ -76,6 +76,11 @@
       {
         "number": 23673,
         "headSha": "3eca178e8017608d8290a24f1a560d881bec296d",
+        "baseRef": "main"
+      },
+      {
+        "number": 23784,
+        "headSha": "93a6062a33727543ba57c1f2db4ed622e8eb263c",
         "baseRef": "main"
       }
     ],
@@ -223,6 +228,18 @@
       "baseRef": "main",
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/23673",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 23784,
+      "title": "fix(shared): give attached threads a canonical read call",
+      "headSha": "93a6062a33727543ba57c1f2db4ed622e8eb263c",
+      "baseSha": "4eae8ae011e2e56ca20159c13f3fb8a2ac49a991",
+      "headRef": "fix/thread-context-read-id",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/23784",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     }
