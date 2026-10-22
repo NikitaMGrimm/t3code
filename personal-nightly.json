@@ -2,7 +2,7 @@
   "repository": "NikitaMGrimm/t3code",
   "branch": "personal-nightly",
   "upstreamRepository": "pingdotgg/t3code",
-  "upstreamTag": "v0.1.2-nightly.20261021.3486",
+  "upstreamTag": "v0.1.2-nightly.20261021.3499",
   "pullRequests": [
     {
       "number": 17871,
@@ -89,6 +89,18 @@
       "baseRepository": "pingdotgg/t3code"
     },
     {
+      "number": 22788,
+      "title": "fix(web): hold chat position through streaming tool calls",
+      "headSha": "da7573a5fc4aea23b8ede26dfd743124a18998c3",
+      "baseSha": "74541bab17270c35f4418d4e543d85628632ed8f",
+      "headRef": "fix/issue-20366",
+      "baseRef": "main",
+      "author": "juliusmarminge",
+      "url": "https://github.com/pingdotgg/t3code/pull/22788",
+      "headRepository": "pingdotgg/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
       "number": 22875,
       "title": "fix(web): copied Markdown tables keep formula pipes",
       "headSha": "7552eae13ccf2d2ebadc25522b2e36ed1d0b97ec",
@@ -125,5 +137,5 @@
       "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "f0580f1d5f5e4c742f233acdeece2cb9cf6e7f45"
+  "prBaseline": "c7d2d38b77fe5beff5275289adea6287073c262d"
 }
