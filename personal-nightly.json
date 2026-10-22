@@ -135,7 +135,19 @@
       "url": "https://github.com/pingdotgg/t3code/pull/22893",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 23673,
+      "title": "feat(web): optionally keep thread section dividers visible",
+      "headSha": "3eca178e8017608d8290a24f1a560d881bec296d",
+      "baseSha": "60b35a1ee02d717009ff4a3de34de285db9e8a60",
+      "headRef": "feat/sidebar-section-dividers",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/23673",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "b52f4d122f732ffd02b3ec28fbb25cf0a6d13d75"
+  "prBaseline": "9e2773dac79f5291971ccd52cbb205da11d940b7"
 }
