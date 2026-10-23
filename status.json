@@ -7,10 +7,10 @@
     "apps/server/src/orchestration-v2/PullRequestWatchReactor.ts",
     "apps/server/src/orchestration-v2/pullRequestWatch.test.ts"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39922100782",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39969455360",
   "releasedVersion": "0.1.2-nightly.20261022.1792714417095",
   "baseCommit": "03caf5c3b46fa8baec675a82ea49fd6bf7ddab61",
-  "sequence": 1792742684964,
+  "sequence": 1792765516581,
   "conflictStage": "personal",
   "conflictIdentity": "3c67df06467479edcec9127c309c61a3b68d6e3b98bed1ad454c59d0b434119d",
   "inputs": {
@@ -79,6 +79,11 @@
       {
         "number": 23784,
         "headSha": "dce4af33f0c5318141f4cda166baa4d0a373a8f1",
+        "baseRef": "main"
+      },
+      {
+        "number": 24138,
+        "headSha": "bbc2db07af8ce668a1375c3e64c88bcedac0e558",
         "baseRef": "main"
       }
     ],
@@ -238,6 +243,18 @@
       "baseRef": "main",
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/23784",
+      "headRepository": "NikitaMGrimm/t3code",
+      "baseRepository": "pingdotgg/t3code"
+    },
+    {
+      "number": 24138,
+      "title": "fix(composer): steer instead of queueing during automatic compaction",
+      "headSha": "bbc2db07af8ce668a1375c3e64c88bcedac0e558",
+      "baseSha": "66ee628e0875b2b735b199f42e6151e347833637",
+      "headRef": "fix/steer-during-auto-compaction",
+      "baseRef": "main",
+      "author": "NikitaMGrimm",
+      "url": "https://github.com/pingdotgg/t3code/pull/24138",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     }
