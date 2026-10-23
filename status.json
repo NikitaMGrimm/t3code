@@ -1,22 +1,20 @@
 {
   "schema": 1,
-  "phase": "ready",
-  "upstreamTag": "v0.1.2-nightly.20261022.3541",
-  "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39876819669",
-  "releasedVersion": "0.1.2-nightly.20261022.1792714417095",
-  "baseCommit": "99ef2e0cbb83df46331bcd36b115b7775ef690ab",
-  "sequence": 1792714417095,
-  "lockfileReconciliations": [
-    {
-      "conflictStage": "pull_request",
-      "pullRequest": 22893
-    }
+  "phase": "conflict",
+  "upstreamTag": "v0.1.3-nightly.20261023.3553",
+  "conflicts": [
+    "apps/server/src/orchestration-v2/Orchestrator.ts",
+    "apps/server/src/orchestration-v2/PullRequestWatchReactor.ts",
+    "apps/server/src/orchestration-v2/pullRequestWatch.test.ts"
   ],
-  "candidateCommit": "03caf5c3b46fa8baec675a82ea49fd6bf7ddab61",
-  "candidateVersion": "0.1.2-nightly.20261022.1792714417095",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39886620243",
+  "releasedVersion": "0.1.2-nightly.20261022.1792714417095",
+  "baseCommit": "03caf5c3b46fa8baec675a82ea49fd6bf7ddab61",
+  "sequence": 1792720471785,
+  "conflictStage": "personal",
+  "conflictIdentity": "5413743246c51efe7f6016aac49661f927ee11eb9d3398562ee3fa95365994f5",
   "inputs": {
-    "upstreamTag": "v0.1.2-nightly.20261022.3541",
+    "upstreamTag": "v0.1.3-nightly.20261023.3553",
     "pullRequests": [
       {
         "number": 17871,
