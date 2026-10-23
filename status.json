@@ -1,20 +1,20 @@
 {
   "schema": 1,
-  "phase": "ready",
+  "phase": "building",
   "upstreamTag": "v0.1.2-nightly.20261022.3541",
   "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39848293335",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/39876819669",
   "releasedVersion": "0.1.2-nightly.20261022.1792700561075",
-  "baseCommit": "3fb6cca928f2a800c57eae6a55aae2757131c681",
-  "sequence": 1792700561075,
+  "baseCommit": "99ef2e0cbb83df46331bcd36b115b7775ef690ab",
+  "sequence": 1792714417095,
   "lockfileReconciliations": [
     {
       "conflictStage": "pull_request",
       "pullRequest": 22893
     }
   ],
-  "candidateCommit": "99ef2e0cbb83df46331bcd36b115b7775ef690ab",
-  "candidateVersion": "0.1.2-nightly.20261022.1792700561075",
+  "candidateCommit": "03caf5c3b46fa8baec675a82ea49fd6bf7ddab61",
+  "candidateVersion": "0.1.2-nightly.20261022.1792714417095",
   "inputs": {
     "upstreamTag": "v0.1.2-nightly.20261022.3541",
     "pullRequests": [
@@ -80,7 +80,7 @@
       },
       {
         "number": 23784,
-        "headSha": "1b39138c4592e945c596d0f8e221835d0b88adfe",
+        "headSha": "dce4af33f0c5318141f4cda166baa4d0a373a8f1",
         "baseRef": "main"
       }
     ],
@@ -234,7 +234,7 @@
     {
       "number": 23784,
       "title": "fix(shared): give attached threads a canonical read call",
-      "headSha": "1b39138c4592e945c596d0f8e221835d0b88adfe",
+      "headSha": "dce4af33f0c5318141f4cda166baa4d0a373a8f1",
       "baseSha": "22840ab943b8418744b48223411e46ba4fdcef1a",
       "headRef": "fix/thread-context-read-id",
       "baseRef": "main",
