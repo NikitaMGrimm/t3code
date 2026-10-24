@@ -3906,8 +3906,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   }
                   className="flex shrink-0 flex-nowrap items-center justify-end gap-2"
                 >
-                  {composerAttachButton}
                   <ComposerFooterPrimaryActions
+                    attachAction={composerAttachButton}
                     compact={isComposerResting || isComposerPrimaryActionsCompact}
                     canOperateThread={canOperateThread}
                     activeContextWindow={
