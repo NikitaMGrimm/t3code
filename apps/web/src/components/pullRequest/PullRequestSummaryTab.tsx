@@ -709,7 +709,7 @@ export function PullRequestSummaryTab({
                         </TooltipTrigger>
                         <TooltipPopup side="bottom">
                           {entry.outcome
-                            ? `${named} — ${
+                            ? `${named}: ${
                                 entry.stale
                                   ? pullRequestReviewOutcomeStaleLabel(entry.outcome)
                                   : pullRequestReviewOutcomeLabel(entry.outcome)

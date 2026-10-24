@@ -1,5 +1,6 @@
 import { ScrollToEndButton, WorkspaceFileDropOverlay } from "./chat/TimelineOverlays";
 import { usePasteToFocusComposer } from "./chat/usePasteToFocusComposer";
+import { announcedRun, isDetailBehindShell } from "./chat/threadActivityAnnouncement";
 import {
   deriveAvailableRevertTurnCounts,
   deriveThreadPendingBackgroundTasks,
@@ -83,6 +84,7 @@ import {
   workflowOpeningParentThreadId,
 } from "@t3tools/client-runtime/state/subagentRuntime";
 import { threadSupportsProviderHandoff } from "@t3tools/client-runtime/state/thread-workflows";
+import { isCompactCommandText } from "@t3tools/client-runtime/state/composer-dispatch";
 import { resolvePendingHandoff } from "@t3tools/client-runtime/handoff";
 import { HandoffRow } from "./chat/V2LifecycleRow";
 import {
@@ -1397,9 +1399,18 @@ export default function ChatView(props: ChatViewProps) {
       item.runId === activeRuntime?.activeRunId &&
       item.status === "running",
   );
+  const compactCommandIsActive = compactRequestIsActive && !compactionSettled;
   const isCompacting =
     (isSendBusy || phase === "connecting" || phase === "running") &&
-    (compactionRunning || (compactRequestIsActive && !compactionSettled));
+    (compactionRunning || compactCommandIsActive);
+  // Only an explicit compaction refuses steering. Automatic compaction runs
+  // inside an ordinary turn, which still accepts it.
+  const explicitCompactionIsActive =
+    compactCommandIsActive ||
+    (compactionRunning &&
+      latestServerUserItem?.type === "user_message" &&
+      latestServerUserItem.runId === activeRuntime?.activeRunId &&
+      isCompactCommandText(latestServerUserItem.text));
   const isWorking =
     phase === "running" ||
     isSendBusy ||
@@ -3280,11 +3291,22 @@ export default function ChatView(props: ChatViewProps) {
                 }
                 isCompacting={!paintOnlyDisplayedTimeline && isCompacting}
                 awaitingUser={
-                  !paintOnlyDisplayedTimeline &&
-                  (activePendingApproval !== null ||
-                    activePendingUserInput !== null ||
-                    // A secret request has no runtime request; the shell carries it.
-                    activeThreadShell?.hasPendingUserInput === true)
+                  paintOnlyDisplayedTimeline
+                    ? null
+                    : activePendingApproval !== null
+                      ? "approval"
+                      : activePendingUserInput !== null ||
+                          // A secret request has no runtime request; the shell carries it.
+                          activeThreadShell?.hasPendingUserInput === true
+                        ? "input"
+                        : null
+                }
+                awaitingRequestId={
+                  paintOnlyDisplayedTimeline
+                    ? null
+                    : (activePendingApproval?.requestId ??
+                      activePendingUserInput?.requestId ??
+                      null)
                 }
                 activeTurnStartedAt={paintOnlyDisplayedTimeline ? null : activeWorkStartedAt}
                 worktreeSetup={paintOnlyDisplayedTimeline ? null : worktreeSetup}
@@ -3321,6 +3343,15 @@ export default function ChatView(props: ChatViewProps) {
                 onScrollNodeChange={setTimelineScrollNode}
                 runs={paintOnlyDisplayedTimeline ? [] : (serverProjection?.runs ?? [])}
                 latestRun={paintOnlyDisplayedTimeline ? null : activeActivityRun}
+                announcedRun={
+                  paintOnlyDisplayedTimeline
+                    ? null
+                    : announcedRun(activeActivityRun, serverProjection?.runs ?? [])
+                }
+                detailBehindShell={
+                  !paintOnlyDisplayedTimeline &&
+                  isDetailBehindShell(activeLatestRun, activeThreadShell?.latestRun ?? null)
+                }
                 runningRunId={paintOnlyDisplayedTimeline ? null : activeRunningTurnId}
                 turnDiffSummaries={
                   paintOnlyDisplayedTimeline ? EMPTY_HELD_TURN_DIFF_SUMMARIES : turnDiffSummaries
@@ -3331,6 +3362,7 @@ export default function ChatView(props: ChatViewProps) {
                 routeThreadKey={displayedTimelineKey}
                 displayThreadKey={displayedTimelineKey}
                 paintOnly={paintOnlyDisplayedTimeline}
+                announceTurnStatus={!isProviderSubagent}
                 onOpenTurnDiff={
                   paintOnlyDisplayedTimeline ? noopHeldTurnDiff : onOpenTurnDiffStable
                 }
@@ -3507,7 +3539,7 @@ export default function ChatView(props: ChatViewProps) {
                                 isLocalDraftThread && activeProject === null
                               }
                               phase={phase}
-                              isCompacting={isCompacting}
+                              canSteer={!explicitCompactionIsActive}
                               canInterrupt={canInterruptRunningThread}
                               isConnecting={isConnecting}
                               isSendBusy={

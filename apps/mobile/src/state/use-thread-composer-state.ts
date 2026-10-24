@@ -81,6 +81,7 @@ import {
   useComposerDraftSettings,
 } from "./use-composer-drafts";
 import {
+  isCompactCommandText,
   resolveComposerDispatchMode,
   type ActiveTurnComposerAction,
 } from "@t3tools/client-runtime/state/composer-dispatch";
@@ -333,7 +334,11 @@ export function useThreadComposerState() {
     ? deriveThreadActivityRun(selectedThreadProjection.projection)
     : (selectedThreadShell?.latestRun ?? null);
 
-  const isCompacting = (() => {
+  const activeRunId =
+    selectedThreadRuntime?.activeRunId && threadRuntimeIsActive(selectedThreadRuntime)
+      ? selectedThreadRuntime.activeRunId
+      : null;
+  const compactCommandIsActive = (() => {
     const queuedCompact = selectedThreadQueuedMessages.some(
       (message) =>
         message.messageId === dispatchingQueuedMessageId &&
@@ -341,16 +346,7 @@ export function useThreadComposerState() {
         message.attachments.length === 0,
     );
     if (queuedCompact) return true;
-    const activeRunId = selectedThreadRuntime?.activeRunId;
-    if (!activeRunId || !threadRuntimeIsActive(selectedThreadRuntime)) return false;
-    if (
-      selectedThreadVisibleTurnItems.some(
-        ({ item }) =>
-          item.runId === activeRunId && item.type === "compaction" && item.status === "running",
-      )
-    ) {
-      return true;
-    }
+    if (!activeRunId) return false;
     const compactMessage = selectedThreadVisibleTurnItems.findLast(
       ({ item }) =>
         item.runId === activeRunId &&
@@ -369,8 +365,26 @@ export function useThreadComposerState() {
           item.status === "cancelled"),
     );
   })();
-  // A compacting turn cannot take steering input, so follow-ups queue meanwhile.
-  const canSteerActiveTurn = queueWorkflow?.canPromoteToSteer === true && !isCompacting;
+  const compactionRunning =
+    activeRunId !== null &&
+    selectedThreadVisibleTurnItems.some(
+      ({ item }) =>
+        item.runId === activeRunId && item.type === "compaction" && item.status === "running",
+    );
+  const isCompacting = compactCommandIsActive || compactionRunning;
+  // Only an explicit compaction refuses steering. Automatic compaction runs
+  // inside an ordinary turn, which still accepts it.
+  const explicitCompactionIsActive =
+    compactCommandIsActive ||
+    (compactionRunning &&
+      selectedThreadVisibleTurnItems.some(
+        ({ item }) =>
+          item.runId === activeRunId &&
+          item.type === "user_message" &&
+          isCompactCommandText(item.text),
+      ));
+  const canSteerActiveTurn =
+    queueWorkflow?.canPromoteToSteer === true && !explicitCompactionIsActive;
   // A stop or a restart holds the queue, completion wakes included, until it
   // is resumed; the queue sheet lists only the user's own messages.
   const queueHeld = queueWorkflow?.isHeld === true;
@@ -526,7 +540,10 @@ export function useThreadComposerState() {
 
   const onSendMessage = async (
     followUpOverride?: ActiveTurnComposerAction,
-    beforeDispatch?: () => Promise<boolean>,
+    beforeDispatch?: (
+      text: string,
+      hasAttachmentsOrContext: boolean,
+    ) => Promise<boolean | "responded">,
   ) => {
     if (
       selectedThreadShell &&
@@ -645,7 +662,11 @@ export function useThreadComposerState() {
     }
 
     if (beforeDispatch !== undefined) {
-      if (!(await beforeDispatch())) return null;
+      const response = await beforeDispatch(
+        text,
+        attachments.length > 0 || draft.context !== undefined,
+      );
+      if (!response) return null;
       // A context paste still landing, or any draft or settings change while approvals were
       // declined, means this snapshot is no longer what the user sent.
       if (appAtomRegistry.get(composerContextImportsAtom)[threadKey]) return null;
@@ -660,6 +681,10 @@ export function useThreadComposerState() {
         current.attachments.some((attachment, index) => attachment.id !== attachments[index]?.id)
       )
         return null;
+      if (response === "responded") {
+        clearComposerDraftContent(threadKey);
+        return null;
+      }
     }
 
     // Resolved here rather than at drain time: the outbox can deliver minutes
