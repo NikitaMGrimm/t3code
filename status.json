@@ -1,17 +1,20 @@
 {
   "schema": 1,
-  "phase": "conflict",
+  "phase": "building",
   "upstreamTag": "v0.1.3-nightly.20261024.3643",
-  "conflicts": [
-    "apps/web/src/components/chat/MessagesTimeline.browser.test.tsx"
-  ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40140871997",
+  "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40142032828",
   "releasedVersion": "0.1.3-nightly.20261024.1792877413183",
-  "baseCommit": "babdc2bc16aeb8391ac3c3f5500cf9dd2d998df5",
-  "sequence": 1792882792387,
-  "conflictPullRequest": 22788,
-  "conflictStage": "pull_request",
-  "conflictIdentity": "95ed10c524e7b8e24879e7dbfcdb0719af610891629b0cd89286701b552a3903",
+  "baseCommit": "b37dc80bdb263709d8788714c4af77bc303049a1",
+  "sequence": 1792883776574,
+  "lockfileReconciliations": [
+    {
+      "conflictStage": "pull_request",
+      "pullRequest": 22893
+    }
+  ],
+  "candidateCommit": "8a1756d32c25a617ae2c4a9760078d47a6315ae4",
+  "candidateVersion": "0.1.3-nightly.20261024.1792883776574",
   "inputs": {
     "upstreamTag": "v0.1.3-nightly.20261024.3643",
     "pullRequests": [
@@ -86,7 +89,7 @@
         "baseRef": "main"
       }
     ],
-    "resolutions": "616f95fed3d6c88f6ef7d36aed0d91146ed2365daf0cab961e3b0ea1a1bc0368"
+    "resolutions": "ab829453b4f62bad927612be2308f02ac1c71b98f63e3872a2429f300b1157c0"
   },
   "pullRequests": [
     {
