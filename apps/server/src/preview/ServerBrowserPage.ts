@@ -469,18 +469,21 @@ const readPageMetrics = async (cdp: CDPSession) => {
   );
 };
 
-// Scaled captures repaint live screencasts, so callers pause them. Clips use document offsets.
-export const captureViewport = async (
-  page: Page,
-  cdp: CDPSession,
-  options: {
-    readonly format: "png" | "jpeg";
-    readonly quality?: number;
-    readonly scale: number;
-    readonly viewport?: Viewport;
-    readonly offset?: { readonly x: number; readonly y: number } | undefined;
-  },
-) => {
+const CAPTURE_TIMEOUT_MS = 5_000;
+const NO_FRAME_MESSAGE =
+  "The page did not draw a frame within 5 seconds, so no screenshot was taken. Use preview_evaluate to read the page, or open the tab in the Browser panel and retry.";
+/** Captures Chromium has not answered yet; a page only draws one at a time. */
+const pendingCaptures = new WeakSet<Page>();
+
+type CaptureOptions = {
+  readonly format: "png" | "jpeg";
+  readonly quality?: number;
+  readonly scale: number;
+  readonly viewport?: Viewport;
+  readonly offset?: { readonly x: number; readonly y: number } | undefined;
+};
+
+const captureFrame = async (page: Page, cdp: CDPSession, options: CaptureOptions) => {
   let clip;
   if (options.scale < 1) {
     const viewport = options.viewport ?? page.viewportSize() ?? { width: 1280, height: 800 };
@@ -502,6 +505,31 @@ export const captureViewport = async (
     ...(clip ? { clip } : {}),
   });
   return data;
+};
+
+/**
+ * Scaled captures repaint live screencasts, so callers pause them. Clips use document offsets.
+ * A capture waits for the page's next frame. A desktop tab whose thread is not
+ * open draws none, so the capture gives up after a limit instead of holding
+ * the tab. A new capture is refused until Chromium answers the old one, which
+ * still owns the page's capture viewport.
+ */
+export const captureViewport = (
+  page: Page,
+  cdp: CDPSession,
+  options: CaptureOptions,
+): Promise<string> => {
+  const noFrame = () =>
+    new ServerBrowserOperationError("PreviewAutomationExecutionError", NO_FRAME_MESSAGE);
+  if (pendingCaptures.has(page)) return Promise.reject(noFrame());
+  pendingCaptures.add(page);
+  const captured = captureFrame(page, cdp, options).finally(() => pendingCaptures.delete(page));
+  void captured.catch(constVoid);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const limit = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(noFrame()), CAPTURE_TIMEOUT_MS);
+  });
+  return Promise.race([captured, limit]).finally(() => clearTimeout(timer));
 };
 
 type SnapshotInput = {
