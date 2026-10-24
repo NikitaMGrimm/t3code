@@ -22,6 +22,7 @@ import * as DeviceService from "./DeviceService.ts";
 import { repeatStillFrame } from "./mjpegStillFrame.ts";
 
 const ALLOWED_PATHS: ReadonlyArray<RegExp> = [
+  /^\/vendor\/iphone-x\/api\/(state|frame|input|control)$/,
   /^\/api\/devices$/,
   /^\/vendor\/serve-sim\/api$/,
   /^\/vendor\/serve-sim\/api\/screenshot$/,
@@ -35,6 +36,7 @@ const ALLOWED_PATHS: ReadonlyArray<RegExp> = [
 ];
 
 const MUTABLE_PATHS: ReadonlyArray<RegExp> = [
+  /^\/vendor\/iphone-x\/api\/(input|control)$/,
   /^\/vendor\/serve-sim\/api\/screenshot$/,
   // WebRTC signalling: opening and closing a view of the stream, so read scope.
   /^\/vendor\/serve-sim\/helper\/[^/]+\/webrtc\/(offer|close)$/,
@@ -179,6 +181,7 @@ const handler = Effect.gen(function* () {
     return HttpServerResponse.text("Method Not Allowed", { status: 405 });
   }
   const controlsDevice =
+    (!readOnly && hubPath.startsWith("/vendor/iphone-x/")) ||
     (upgrade && hubPath !== "/api/devices/ws") ||
     (!readOnly && /\/api\/(stream-(mode|settings)|fold)$/.test(hubPath));
   yield* authenticateMediaRequest(

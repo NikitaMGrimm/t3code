@@ -50,7 +50,11 @@ export function start(configuration: DeviceStreamConfiguration) {
   frame.setAttribute("role", "application");
   frame.setAttribute(
     "aria-label",
-    platform === "ios" ? "iOS Simulator screen" : "Android Emulator screen",
+    configuration.deviceId === "iphone-x"
+      ? "iPhone X screen"
+      : platform === "ios"
+        ? "iOS Simulator screen"
+        : "Android Emulator screen",
   );
   frame.tabIndex = 0;
   Object.assign(frame.style, {
@@ -83,6 +87,25 @@ export function start(configuration: DeviceStreamConfiguration) {
   frame.append(canvas, image);
   container.append(frame);
   document.body.replaceChildren(container, inputStatus);
+  const phoneControl =
+    configuration.deviceId === "iphone-x" ? document.createElement("button") : null;
+  if (phoneControl) {
+    phoneControl.textContent = "Take control";
+    Object.assign(phoneControl.style, {
+      position: "fixed",
+      top: "12px",
+      left: "12px",
+      zIndex: "10",
+      background: colors.buttonBackground,
+      color: colors.buttonForeground,
+      border: `1px solid ${colors.buttonBorder}`,
+      padding: "8px",
+    });
+    phoneControl.addEventListener("click", () =>
+      inputConnected ? client.releaseControl?.() : client.takeControl?.(),
+    );
+    document.body.append(phoneControl);
+  }
 
   let pointerId: number | null = null;
   let inputConnected = false;
@@ -145,8 +168,12 @@ export function start(configuration: DeviceStreamConfiguration) {
         canvas.style.display = "";
       },
       onUnauthorized: unauthorized,
-      onInputConnected: (connected) => {
+      onInputConnected: (connected, detail) => {
         inputConnected = connected;
+        if (phoneControl) {
+          phoneControl.textContent = connected ? "Release control" : "Take control";
+          inputStatus.textContent = detail ?? "Take control to interact with the phone.";
+        }
         inputStatus.style.display = streaming && !connected ? "block" : "none";
         post({ type: "input", connected });
       },

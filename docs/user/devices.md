@@ -1,6 +1,6 @@
 # Devices
 
-The Device panel shows a live iOS Simulator or Android Emulator next to a
+The Device panel shows a live iOS Simulator, Android Emulator, or configured iPhone X next to a
 thread, so you can watch an agent verify mobile work and tap the device
 yourself. Agents get the same device through `device_*` tools and the
 `agent-device` command line, which T3 Code sets up for them.
@@ -65,6 +65,31 @@ exposes Liquid Glass, color filters, VoiceOver, and sending a test push
 notification; Android adds orientation and toggling the network. The drawer
 only shows what the platform can do, and every control reflects the value read
 back from the device after a change.
+
+## Physical iPhone X
+
+The personal fork can connect the iPhone X already configured in
+`ios-device-lab`. On the environment server, install that package with its T3
+adapter and verify `ios-device-lab x status` succeeds using its existing SSH
+configuration. Set **Settings → Integrations → Physical iPhone X** to that
+installation's Python executable. Enable Devices, then choose **iPhone X** in
+the Device panel. This works on Windows without a Mac or Simulator.
+
+The viewer starts read-only. Choose **Take control** to tap, swipe, type printable
+ASCII, and press Home. Human takeover blocks agent input until you release
+control or leave it idle for 60 seconds. Another human viewer must release
+control before yours can take over. Only one thread can connect the phone at
+a time.
+
+Screenshots use the phone's original pixels. The screen refreshes as still
+images; it is slower than simulator video. Accessibility selectors, rotation,
+simulator settings, app installation, and reboot are unavailable in this adapter.
+Agents receive a phone-specific command when they use `device_open`.
+
+Choose **Disconnect phone**, or have the agent use `device_close`, to release
+the connection. Hiding or closing the viewer keeps it attached. Clear the
+Python setting or turn off Devices to stop the adapter. The existing phone
+setup stays in place; T3 installs no service on the phone.
 
 ## Agents and devices
 

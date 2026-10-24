@@ -36,6 +36,7 @@ import type { DeviceControls } from "./useDeviceControls";
 
 export function DeviceControlsRail(props: {
   platform: DevicePlatform;
+  physical?: boolean;
   handle: DeviceStreamHandle | null;
   view: DeviceViewControls;
   controls: DeviceControls;
@@ -114,7 +115,7 @@ export function DeviceControlsRail(props: {
               </MenuPopup>
             </Menu>
           </>
-        ) : (
+        ) : !props.physical ? (
           <RailButton
             tooltipSide={popupSide}
             label="Rotate device"
@@ -123,7 +124,7 @@ export function DeviceControlsRail(props: {
           >
             <RotateCcw />
           </RailButton>
-        )}
+        ) : null}
         <RailDivider />
         <RailButton
           tooltipSide={popupSide}
@@ -219,7 +220,7 @@ export function DeviceControlsRail(props: {
             <MenuSeparator />
             <MenuItem variant="destructive" onClick={props.onPowerOff}>
               <Power />
-              Power off device
+              {props.physical ? "Disconnect phone" : "Power off device"}
             </MenuItem>
           </MenuPopup>
         </Menu>

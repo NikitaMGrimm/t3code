@@ -6,6 +6,7 @@ export interface DeviceStreamConfiguration {
   readonly access: DeviceHubAccess;
   readonly platform: DevicePlatform;
   readonly deviceId: string;
+  readonly inputControllerId?: string;
   readonly colors: {
     readonly background: string;
     readonly foreground: string;

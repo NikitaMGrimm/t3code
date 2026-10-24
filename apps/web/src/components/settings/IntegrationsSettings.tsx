@@ -830,6 +830,7 @@ function DeviceIntegrationControls({
   agentAccessEnabled: boolean;
 }) {
   const canConfigure = useEnvironmentScope(environmentId, AuthSettingsWriteScope);
+  const scopedSettings = useScopedSettings();
   const { state, loaded } = useDeviceState(environmentId);
   const { scope, environments, connectedEnvironments } = useSettingsScope();
   const updateSettings = useUpdateScopedSettings();
@@ -1068,6 +1069,26 @@ function DeviceIntegrationControls({
           environmentId={environmentId}
         />
       ) : null}
+      <SettingsRow
+        title="Physical iPhone X"
+        description="Python executable with the configured ios-device-lab adapter installed. Leave empty to disconnect and remove the phone. Configure this on its connected environment."
+        serverScoped
+        settingKeys={["iphoneXDevicePython"]}
+        control={
+          <DraftInput
+            nativeInput
+            size="sm"
+            className="w-full sm:w-64"
+            aria-label="iPhone X Python executable"
+            placeholder="Path to python.exe"
+            disabled={!canConfigure || !environmentId || projectScope}
+            autoCapitalize="none"
+            spellCheck={false}
+            value={scopedSettings.iphoneXDevicePython}
+            onCommit={(value) => updateSettings({ iphoneXDevicePython: value.trim() })}
+          />
+        }
+      />
       <DeviceHostsSettings environmentId={environmentId} />
       {state.supportsEasHosts ? <EasDeviceHostsSettings environmentId={environmentId} /> : null}
     </>

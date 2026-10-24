@@ -182,6 +182,15 @@ const handlers = {
         hostId: device.hostId,
         deviceId: device.id,
       });
+      if (agent.customCommand)
+        return {
+          device,
+          agentDevice: {
+            command: agent.customCommand.command,
+            targetArgs: agent.customCommand.args,
+          },
+          quickStart: agent.customCommand.quickStart,
+        };
       const cloud = after.hosts.some((host) => host.id === device.hostId && host.kind === "eas");
       const targetArgs = [
         ...agentDeviceTargetArgs({ ...device, id: agent.agentDeviceId }),

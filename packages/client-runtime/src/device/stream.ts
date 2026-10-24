@@ -11,6 +11,7 @@ import * as Schema from "effect/Schema";
 import * as Option from "effect/Option";
 import { createCanvasFrameSink, type DeviceFrameSink } from "./frame.ts";
 import { simulatorAvcConfig } from "./avcConfig.ts";
+import { createIphoneXStream } from "./iphoneXStream.ts";
 import { type DeviceHubAccess, withDeviceHubQuery } from "./hubAccess.ts";
 import type { DevicePlatform } from "@t3tools/contracts";
 
@@ -117,6 +118,8 @@ export interface DeviceStreamTarget {
   readonly platform: DevicePlatform;
   readonly deviceId: string;
   readonly access: DeviceHubAccess;
+  /** Keep the physical phone viewer identity across access-ticket renewals. */
+  readonly inputControllerId?: string;
   /** Native iOS WebViews can use MJPEG without cross-origin fetch or secure-context support. */
   readonly preferMjpeg?: boolean;
   readonly panelId?: 1 | 3;
@@ -302,6 +305,8 @@ export class AvccDemuxer {
 }
 
 export interface DeviceStreamClient {
+  readonly takeControl?: () => void;
+  readonly releaseControl?: () => void;
   readonly start: () => void;
   readonly stop: () => void;
   /**
@@ -389,6 +394,8 @@ export function createDeviceStreamClient(
 ): DeviceStreamClient {
   const { access, platform, deviceId } = target;
   const sink = "present" in output ? output : createCanvasFrameSink(output);
+  if (platform === "ios" && deviceId === "iphone-x")
+    return createIphoneXStream(target, sink, events);
   const vendor = platform === "ios" ? "/vendor/serve-sim" : "/vendor/serve-emu";
   const device = encodeURIComponent(deviceId);
   const httpUrl = (path: string) =>

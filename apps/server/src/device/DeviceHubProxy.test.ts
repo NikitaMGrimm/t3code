@@ -76,6 +76,32 @@ const fixture = (
 };
 
 describe("device hub proxy", () => {
+  it.each(["input", "control"])("requires operate scope for physical phone %s", async (route) => {
+    const path = `http://t3.test/api/device-hub/vendor/iphone-x/api/${route}?hostId=iphone-x`;
+    const reader = fixture([AuthOrchestrationReadScope]);
+    expect((await reader.handler(new Request(path, { method: "POST", body: "{}" }))).status).toBe(
+      403,
+    );
+    expect(reader.requests).toEqual([]);
+    const operator = fixture([AuthOrchestrationOperateScope]);
+    const response = await operator.handler(new Request(path, { method: "POST", body: "{}" }));
+    expect(response.status).toBe(200);
+    await response.text();
+  });
+
+  it.each(["attach", "detach", "agent", "revoke-agent"])(
+    "never exposes phone lifecycle/credential route %s",
+    async (route) => {
+      const operator = fixture([AuthOrchestrationOperateScope]);
+      const response = await operator.handler(
+        new Request(`http://t3.test/api/device-hub/vendor/iphone-x/api/${route}`, {
+          method: "POST",
+        }),
+      );
+      expect(response.status).toBe(404);
+      expect(operator.requests).toEqual([]);
+    },
+  );
   it("releases the upstream response after forwarding its body and strips tickets", async () => {
     const { handler, requests, finalized } = fixture([AuthOrchestrationReadScope]);
     const response = await handler(

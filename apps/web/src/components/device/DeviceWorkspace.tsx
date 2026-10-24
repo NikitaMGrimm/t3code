@@ -98,6 +98,7 @@ export function DeviceWorkspace(props: {
             renderControls={(view) => (
               <DeviceControlsRail
                 platform={props.device.platform}
+                physical={props.device.physical}
                 handle={handle}
                 view={view}
                 controls={controls}

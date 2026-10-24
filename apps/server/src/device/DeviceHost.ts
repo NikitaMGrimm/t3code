@@ -7,6 +7,7 @@ import type {
   DevicePlatform,
   DevicePlatformAvailability,
   DeviceSummary,
+  ThreadId,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -80,6 +81,7 @@ export type HostDevice = Omit<DeviceSummary, "hostId">;
 /** Where a device is being opened from, for hosts whose devices depend on the project. */
 export interface DeviceOpenContext {
   readonly workspaceRoot?: string | undefined;
+  readonly threadId?: ThreadId | undefined;
 }
 
 export type AgentDaemonEndpoint = Pick<AgentDeviceEndpoint, "baseUrl" | "token">;
@@ -111,7 +113,22 @@ export interface DeviceOperations {
     context?: DeviceOpenContext,
   ) => Effect.Effect<string, DeviceOperationError | DeviceBootError | DeviceHostUnavailableError>;
   /** Prepares the stream of a device that is already booted. */
-  readonly attach: (device: HostDevice) => Effect.Effect<void, DeviceOperationError>;
+  readonly attach: (
+    device: HostDevice,
+    context?: DeviceOpenContext,
+  ) => Effect.Effect<void, DeviceOperationError>;
+  readonly detach?: (
+    deviceId: string,
+    threadId: ThreadId,
+  ) => Effect.Effect<void, DeviceOperationError>;
+  readonly agentCommand?: (threadId: ThreadId) => Effect.Effect<
+    {
+      readonly command: string;
+      readonly args: ReadonlyArray<string>;
+      readonly quickStart: string;
+    },
+    DeviceOperationError | DeviceHostUnavailableError
+  >;
   readonly shutdown: (device: {
     readonly id: string;
     readonly platform: DevicePlatform;

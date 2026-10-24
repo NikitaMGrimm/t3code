@@ -62,6 +62,7 @@ import * as EasDeviceHost from "./EasDeviceHost.ts";
 import { makeExpoApi, resolveExpoCredential } from "./ExpoApi.ts";
 import * as Exit from "effect/Exit";
 import * as LocalDeviceHost from "./LocalDeviceHost.ts";
+import * as IphoneXDeviceHost from "./IphoneXDeviceHost.ts";
 
 export const DEVICE_HUB_ROUTE_PREFIX = "/api/device-hub";
 
@@ -121,7 +122,15 @@ export class DeviceService extends Context.Service<
       hostId: DeviceHostId;
       deviceId: DeviceId;
     }) => Effect.Effect<
-      { readonly agentDeviceId: string; readonly args: ReadonlyArray<string> },
+      {
+        readonly agentDeviceId: string;
+        readonly args: ReadonlyArray<string>;
+        readonly customCommand?: {
+          readonly command: string;
+          readonly args: ReadonlyArray<string>;
+          readonly quickStart: string;
+        };
+      },
       DeviceError
     >;
     readonly state: Effect.Effect<DeviceServiceState>;
@@ -620,7 +629,7 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
           });
         }
       }
-      if (!device.booted && input.boot !== false) {
+      if (!ready.devices.detach && !device.booted && input.boot !== false) {
         const booting = { ...device, threadId: input.threadId };
         yield* publish((current) => ({
           ...current,
@@ -631,23 +640,25 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
             booting,
           ],
         }));
-        const bootedId = yield* ready.devices.boot(device, context).pipe(
-          Effect.ensuring(
-            publish((current) => ({
-              ...current,
-              bootingDevices: (current.bootingDevices ?? []).filter(
-                (entry) => entry.hostId !== booting.hostId || entry.id !== booting.id,
-              ),
-            })),
-          ),
-        );
+        const bootedId = yield* ready.devices
+          .boot(device, { ...context, threadId: input.threadId })
+          .pipe(
+            Effect.ensuring(
+              publish((current) => ({
+                ...current,
+                bootingDevices: (current.bootingDevices ?? []).filter(
+                  (entry) => entry.hostId !== booting.hostId || entry.id !== booting.id,
+                ),
+              })),
+            ),
+          );
         state = yield* refresh(ready);
         device = findDevice(state, host.id, bootedId) ?? findDevice(state, host.id, device.id);
         if (!device) {
           return yield* new DeviceNotFoundError({ hostId: host.id, deviceId: bootedId });
         }
-      } else if (device.booted) {
-        yield* ready.devices.attach(device);
+      } else if (!ready.devices.detach && device.booted) {
+        yield* ready.devices.attach(device, { ...context, threadId: input.threadId });
       }
       if (hosts.get(host.id) !== host)
         return yield* new DeviceHostUnavailableError({
@@ -671,8 +682,23 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
               hostLabel: host.label,
               reason: "Device support was turned off while the device was opening.",
             });
+          if (hosts.get(host.id) !== host)
+            return yield* new DeviceHostUnavailableError({
+              hostId: host.id,
+              reason: "Host configuration changed. Retry the operation.",
+            });
+          // An exclusive connection and its published session must change together.
+          if (ready.devices.detach)
+            yield* ready.devices.attach(device, { ...context, threadId: input.threadId });
           yield* publish((current) => ({
             ...current,
+            devices: ready.devices.detach
+              ? current.devices.map((entry) =>
+                  entry.hostId === host.id && entry.id === device.id
+                    ? { ...entry, booted: true }
+                    : entry,
+                )
+              : current.devices,
             sessions: [
               ...current.sessions.filter(
                 (existing) =>
@@ -720,21 +746,37 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
 
   const close: DeviceService["Service"]["close"] = Effect.fn("DeviceService.close")(
     function* (input) {
-      const { state } = yield* SynchronizedRef.get(stateRef);
-      const closing = state.sessions.filter(
-        (session) =>
-          session.threadId === input.threadId &&
-          (input.hostId === undefined || session.hostId === input.hostId) &&
-          (input.deviceId === undefined || session.deviceId === input.deviceId),
+      const shutdown = yield* lifecycleLock.withPermit(
+        Effect.gen(function* () {
+          const { state } = yield* SynchronizedRef.get(stateRef);
+          const closing = state.sessions.filter(
+            (session) =>
+              session.threadId === input.threadId &&
+              (input.hostId === undefined || session.hostId === input.hostId) &&
+              (input.deviceId === undefined || session.deviceId === input.deviceId),
+          );
+          const needsShutdown: Array<DeviceSession> = [];
+          yield* Effect.forEach(
+            closing,
+            (session) =>
+              Effect.gen(function* () {
+                const ready = yield* currentReadiness(session.hostId);
+                if (ready?.devices.detach)
+                  yield* ready.devices.detach(session.deviceId, session.threadId);
+                else needsShutdown.push(session);
+              }),
+            { discard: true },
+          );
+          yield* publish((current) => ({
+            ...current,
+            sessions: current.sessions.filter((session) => !closing.includes(session)),
+          }));
+          return needsShutdown;
+        }),
       );
-      if (closing.length === 0) return;
-      yield* publish((current) => ({
-        ...current,
-        sessions: current.sessions.filter((session) => !closing.includes(session)),
-      }));
       if (input.shutdown) {
         yield* Effect.forEach(
-          closing,
+          shutdown,
           (session) => shutdownDevice(session.hostId, session.deviceId, session.platform),
           { discard: true },
         );
@@ -778,6 +820,14 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
   const detail: DeviceService["Service"]["detail"] = Effect.fn("DeviceService.detail")(
     function* (input) {
       const { ready, device } = yield* resolveDevice(input.hostId, input.deviceId);
+      if (ready.hostId === IphoneXDeviceHost.IPHONE_X_HOST_ID)
+        return {
+          hostId: ready.hostId,
+          deviceId: device.id,
+          settings: {},
+          foregroundApp: null,
+          readAt: DateTime.formatIso(yield* DateTime.now),
+        };
       const read = yield* readDeviceDetail(ready, device.platform, device.id);
       return {
         hostId: ready.hostId,
@@ -842,6 +892,22 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
             reason:
               "Agent device access requires enabled device support, agent access, and an available simulator platform on this host.",
           });
+        if (ready.devices.agentCommand)
+          return yield* lifecycleLock.withPermit(
+            Effect.gen(function* () {
+              const consent = yield* readDeviceSettings;
+              if (!consent.enabled || !consent.agentAccessEnabled || hosts.get(host.id) !== host)
+                return yield* new DeviceHostUnavailableError({
+                  hostId: host.id,
+                  reason: "Agent device access or host configuration changed. Reopen the device.",
+                });
+              return {
+                agentDeviceId: input.deviceId,
+                args: [],
+                customCommand: yield* ready.devices.agentCommand!(input.threadId),
+              };
+            }),
+          );
         const { configPath, agentDeviceId } = yield* lifecycleLock.withPermit(
           Effect.gen(function* () {
             if (hosts.get(host.id) !== host)
@@ -1080,6 +1146,31 @@ export const make = Effect.gen(function* () {
     );
   });
   const changes = yield* settings.subscribeChanges;
+  let phone: { python: string; scope: Scope.Closeable } | undefined;
+  const reconcilePhone = Effect.fn("DeviceService.reconcilePhone")(function* (python: string) {
+    if (phone?.python === python || (!python && !phone)) return;
+    const previous = phone;
+    phone = undefined;
+    yield* service.withLifecycleLock(
+      Effect.sync(() => {
+        hosts.delete(IphoneXDeviceHost.IPHONE_X_HOST_ID);
+      }),
+    );
+    yield* service.refreshHosts;
+    if (previous) yield* Scope.close(previous.scope, Exit.void);
+    if (!python) return;
+    const phoneScope = yield* Scope.fork(scope);
+    const instance = yield* IphoneXDeviceHost.make(python, config.stateDir).pipe(
+      Effect.provideService(Scope.Scope, phoneScope),
+    );
+    yield* service.withLifecycleLock(
+      Effect.sync(() => {
+        hosts.set(instance.id, instance);
+      }),
+    );
+    phone = { python, scope: phoneScope };
+    yield* service.refreshHosts;
+  });
   // Settings keep EAS hosts apart from SSH hosts; an id both lists use stays the SSH host's.
   const configuredHosts = (value: {
     readonly deviceHosts: ReadonlyArray<SshDeviceHostConfig>;
@@ -1088,9 +1179,15 @@ export const make = Effect.gen(function* () {
     ...value.deviceHosts,
     ...value.easDeviceHosts.filter((host) => !value.deviceHosts.some((ssh) => ssh.id === host.id)),
   ];
-  yield* reconcile(configuredHosts(yield* settings.getSettings));
+  const initialSettings = yield* settings.getSettings;
+  yield* reconcile(configuredHosts(initialSettings));
+  yield* reconcilePhone(initialSettings.iphoneXDevicePython);
   yield* changes.pipe(
-    Stream.runForEach((value) => reconcile(configuredHosts(value))),
+    Stream.runForEach((value) =>
+      reconcile(configuredHosts(value)).pipe(
+        Effect.andThen(reconcilePhone(value.iphoneXDevicePython)),
+      ),
+    ),
     Effect.forkIn(scope),
   );
   yield* Effect.addFinalizer(() =>

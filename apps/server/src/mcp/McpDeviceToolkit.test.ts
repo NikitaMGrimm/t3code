@@ -235,3 +235,59 @@ it.effect("rejects unavailable agent access before booting or opening a device",
     ),
   );
 });
+
+it.effect("returns a physical phone command without installing the simulator CLI", () => {
+  const custom = Layer.mock(DeviceService.DeviceService)({
+    list: Effect.succeed(state),
+    state: Effect.succeed(state),
+    agentReadinessIfSupported: () => Effect.succeed(readiness),
+    open: (input) =>
+      Effect.succeed({
+        threadId: input.threadId,
+        hostId: "local",
+        deviceId: input.deviceId,
+        platform: input.platform,
+        openedAt: "2026-10-24T00:00:00Z",
+      }),
+    agentTarget: () =>
+      Effect.succeed({
+        agentDeviceId: "phone",
+        args: [],
+        customCommand: {
+          command: "python-phone",
+          args: ["-m", "phone", "--config", "/thread.json"],
+          quickStart: "Physical phone controls",
+        },
+      }),
+    agentCli: Effect.die("Physical device must not install a simulator launcher"),
+  });
+  return Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
+    const result = yield* server
+      .callTool({ name: "device_open", arguments: { platform: "ios" } })
+      .pipe(
+        Effect.provideService(McpInvocationContext.McpInvocationContext, invocation(["device"])),
+        Effect.provideService(McpSchema.McpServerClient, client),
+      );
+    expect(result.isError).toBe(false);
+    expect(result.structuredContent).toMatchObject({
+      agentDevice: {
+        command: "python-phone",
+        targetArgs: ["-m", "phone", "--config", "/thread.json"],
+      },
+      quickStart: "Physical phone controls",
+    });
+  }).pipe(
+    Effect.scoped,
+    Effect.provide(
+      McpHttpServer.layerDeviceToolkit.pipe(
+        Layer.provideMerge(McpServer.McpServer.layer),
+        Layer.provideMerge(McpToolAccessTestkit.liveThreadsLayer),
+        Layer.provide(custom),
+        Layer.provide(layerProjectsMock),
+        Layer.provide(ServerConfig.layerTest(process.cwd(), { prefix: "t3-mcp-phone-test-" })),
+        Layer.provide(NodeServices.layer),
+      ),
+    ),
+  );
+});

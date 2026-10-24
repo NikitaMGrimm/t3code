@@ -49,7 +49,12 @@ const fixture = Effect.fn("fixture")(function* (
     | DeviceHost.AgentDeviceStartError,
   inspectError = false,
   installTool?: Parameters<typeof DeviceService.makeWithHosts>[3],
-  options: { readonly endsDevices?: boolean } = {},
+  options: {
+    readonly endsDevices?: boolean;
+    readonly operations?: Partial<DeviceHost.DeviceOperations>;
+    readonly onStopAgent?: Effect.Effect<void>;
+    readonly onPlatformCheck?: Effect.Effect<void>;
+  } = {},
 ) {
   const settings = yield* Ref.make(DEFAULT_SERVER_SETTINGS);
   const starts: string[] = [];
@@ -61,6 +66,7 @@ const fixture = Effect.fn("fixture")(function* (
   const encoderResult = yield* Ref.make({ code: 0, stdout: " V....D libx264", stderr: "" });
   let booted = false;
   let shutDown = false;
+  let hostStarted = false;
   const http = HttpClient.make((request) =>
     Effect.gen(function* () {
       requests.push(request.url);
@@ -130,6 +136,7 @@ const fixture = Effect.fn("fixture")(function* (
         androidAvailable: Effect.succeed(true),
       }),
       ...(options.endsDevices ? { endsDevices: true } : {}),
+      ...options.operations,
     },
     helpers: { serveSimAxSettings: null, serveSimCli: null },
     run,
@@ -159,12 +166,14 @@ const fixture = Effect.fn("fixture")(function* (
       hubInstalled: true,
       agentDeviceInstalled: false,
     }),
-    platformAvailability: (platform) => Effect.succeed({ platform, available: true }),
+    platformAvailability: (platform) =>
+      (options.onPlatformCheck ?? Effect.void).pipe(Effect.as({ platform, available: true })),
     ensureReady: (onPhase) =>
       Effect.gen(function* () {
         if (runtimeFailure && runtimeFailure._tag !== "AgentDeviceStartError")
           return yield* runtimeFailure;
         starts.push("start");
+        hostStarted = true;
         yield* onPhase("installing", "Updating device hub from 0.9.0 to 0.10.1…");
         return ready;
       }),
@@ -172,17 +181,19 @@ const fixture = Effect.fn("fixture")(function* (
       Effect.gen(function* () {
         if (runtimeFailure) return yield* runtimeFailure;
         agentStarts.push("start");
+        hostStarted = true;
         yield* onPhase("starting");
         return {
           ...ready,
           agentDevice: { baseUrl: "http://agent.test", token: "test", entryPath: "/agent" },
         };
       }),
-    current: Effect.succeed(null),
+    current: Effect.sync(() => (hostStarted ? ready : null)),
     stopAgent: Effect.sync(() => {
       agentStops.push("stop");
-    }),
+    }).pipe(Effect.andThen(options.onStopAgent ?? Effect.void)),
     stop: Effect.sync(() => {
+      hostStarted = false;
       starts.push("stop");
     }),
   };
@@ -235,6 +246,185 @@ const fixture = Effect.fn("fixture")(function* (
 });
 
 describe("device setup consent", () => {
+  it.effect("revokes credentials after an overlapping custom credential issuance finishes", () =>
+    Effect.gen(function* () {
+      const entered = yield* Deferred.make<void>();
+      const release = yield* Deferred.make<void>();
+      const disabling = yield* Deferred.make<void>();
+      const events: string[] = [];
+      let valid = false;
+      const { service, devices } = yield* fixture(
+        Effect.void,
+        undefined,
+        false,
+        undefined,
+        false,
+        undefined,
+        {
+          onStopAgent: Effect.sync(() => {
+            valid = false;
+            events.push("revoke");
+          }),
+          operations: {
+            agentCommand: () =>
+              Effect.gen(function* () {
+                yield* Deferred.succeed(entered, undefined);
+                yield* Deferred.await(release);
+                valid = true;
+                events.push("issue");
+                return { command: "python", args: [], quickStart: "phone" };
+              }),
+          },
+        },
+      );
+      devices.push({
+        id: "phone",
+        name: "iPhone X",
+        platform: "ios",
+        version: "16.4.1",
+        physical: true,
+        booted: true,
+      });
+      yield* service.configure({ enabled: true, agentAccessEnabled: true });
+      const pending = yield* service
+        .agentTarget({ threadId: ThreadId.make("owner"), hostId: "local", deviceId: "phone" })
+        .pipe(Effect.result, Effect.forkChild);
+      yield* Deferred.await(entered);
+      const disabled = yield* Deferred.succeed(disabling, undefined).pipe(
+        Effect.andThen(service.configure({ agentAccessEnabled: false })),
+        Effect.forkChild,
+      );
+      yield* Deferred.await(disabling);
+      yield* Deferred.succeed(release, undefined);
+      yield* Fiber.join(pending);
+      yield* Fiber.join(disabled);
+      expect(events).toEqual(["issue", "revoke"]);
+      expect(valid).toBe(false);
+      expect((yield* service.state).agentAccessEnabled).toBe(false);
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect("finishes exclusive detach before a reopened session can attach", () =>
+    Effect.gen(function* () {
+      const detaching = yield* Deferred.make<void>();
+      const release = yield* Deferred.make<void>();
+      const reopening = yield* Deferred.make<void>();
+      const events: string[] = [];
+      let observeOpen = false;
+      let connected = false;
+      const { service, devices } = yield* fixture(
+        Effect.void,
+        undefined,
+        false,
+        undefined,
+        false,
+        undefined,
+        {
+          onPlatformCheck: Effect.suspend(() =>
+            observeOpen ? Deferred.succeed(reopening, undefined).pipe(Effect.asVoid) : Effect.void,
+          ),
+          operations: {
+            attach: () =>
+              Effect.sync(() => {
+                connected = true;
+                events.push("attach");
+              }),
+            detach: () =>
+              Effect.gen(function* () {
+                events.push("detach-enter");
+                yield* Deferred.succeed(detaching, undefined);
+                yield* Deferred.await(release);
+                connected = false;
+                events.push("detach-exit");
+              }),
+          },
+        },
+      );
+      devices.push({
+        id: "phone",
+        name: "iPhone X",
+        platform: "ios",
+        version: "16.4.1",
+        physical: true,
+        booted: true,
+      });
+      yield* service.configure({ enabled: true });
+      const input = {
+        threadId: ThreadId.make("owner"),
+        hostId: "local",
+        deviceId: "phone",
+        platform: "ios" as const,
+      };
+      yield* service.open(input);
+      const closing = yield* service.close(input).pipe(Effect.forkChild);
+      yield* Deferred.await(detaching);
+      observeOpen = true;
+      const opening = yield* service.open(input).pipe(Effect.forkChild);
+      yield* Deferred.await(reopening);
+      yield* Deferred.succeed(release, undefined);
+      yield* Fiber.join(closing);
+      yield* Fiber.join(opening);
+      expect(events).toEqual(["attach", "detach-enter", "detach-exit", "attach"]);
+      expect(connected).toBe(true);
+      expect((yield* service.state).sessions).toHaveLength(1);
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect(
+    "passes thread ownership to physical attachment, returns its custom command, and detaches on close",
+    () =>
+      Effect.gen(function* () {
+        const attached: Array<string | undefined> = [];
+        const detached: Array<string> = [];
+        const { service, devices } = yield* fixture(
+          Effect.void,
+          undefined,
+          false,
+          undefined,
+          false,
+          undefined,
+          {
+            operations: {
+              attach: (_device, context) =>
+                Effect.sync(() => {
+                  attached.push(context?.threadId);
+                }),
+              detach: (_id, thread) =>
+                Effect.sync(() => {
+                  detached.push(thread);
+                }),
+              agentCommand: () =>
+                Effect.succeed({
+                  command: "python",
+                  args: ["phone-command"],
+                  quickStart: "Phone instructions",
+                }),
+            },
+          },
+        );
+        devices.push({
+          id: "phone",
+          name: "iPhone X",
+          platform: "ios",
+          version: "16.4.1",
+          physical: true,
+          booted: true,
+        });
+        yield* service.configure({ enabled: true, agentAccessEnabled: true });
+        const threadId = ThreadId.make("physical-owner");
+        yield* service.open({ threadId, hostId: "local", deviceId: "phone", platform: "ios" });
+        expect(attached).toEqual([threadId]);
+        const target = yield* service.agentTarget({ threadId, hostId: "local", deviceId: "phone" });
+        expect(target.customCommand).toEqual({
+          command: "python",
+          args: ["phone-command"],
+          quickStart: "Phone instructions",
+        });
+        yield* service.close({ threadId, hostId: "local", deviceId: "phone" });
+        expect(detached).toEqual([threadId]);
+        expect(yield* service.sessionsForThread(threadId)).toEqual([]);
+      }),
+  );
   it.effect("exposes daemon startup diagnostics through agent readiness and host status", () =>
     Effect.gen(function* () {
       const startupError = new DeviceHost.AgentDeviceStartError({

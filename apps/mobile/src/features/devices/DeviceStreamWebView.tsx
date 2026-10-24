@@ -15,6 +15,7 @@ import type { DeviceStreamStatus } from "@t3tools/client-runtime/device/stream";
 
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { AppText } from "../../components/ui/AppText";
+import { uuidv4 } from "../../lib/uuid";
 
 import {
   deviceStreamBaseUrl,
@@ -41,11 +42,13 @@ export function DeviceStreamWebView({
   ...props
 }: DeviceStreamConfiguration & NativeStreamBridge) {
   const [attempt, setAttempt] = useState(0);
+  const [inputControllerId] = useState(uuidv4);
   const processRetried = useRef(false);
   const configuration = JSON.stringify({
     access: props.access,
     platform: props.platform,
     deviceId: props.deviceId,
+    inputControllerId,
     colors: props.colors,
   });
   return (

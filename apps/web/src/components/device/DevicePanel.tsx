@@ -24,8 +24,12 @@ import { DeviceSetup, deviceHubReadiness, isAndroidDiscoveryUncertain } from "./
 import { DeviceWorkspace } from "./DeviceWorkspace";
 import { PreviewPanelShell, type PreviewPanelMode } from "../preview/PreviewPanelShell";
 
-const platformLabel = (platform: DevicePlatform) =>
-  platform === "ios" ? "iOS Simulators" : "Android Emulators";
+const platformLabel = (platform: DevicePlatform, physical: boolean) =>
+  platform === "ios"
+    ? physical
+      ? "iOS devices and simulators"
+      : "iOS Simulators"
+    : "Android Emulators";
 
 const deviceKey = (device: Pick<DeviceSummary, "hostId" | "id">) =>
   `${device.hostId}\u0000${device.id}`;
@@ -273,7 +277,12 @@ export function DevicePanel(props: {
                       <section key={group.platform} className="space-y-3">
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Smartphone className="size-4 shrink-0" />
-                          <h3 className="font-medium">{platformLabel(group.platform)}</h3>
+                          <h3 className="font-medium">
+                            {platformLabel(
+                              group.platform,
+                              group.devices.some((device) => device.physical),
+                            )}
+                          </h3>
                         </div>
                         <DiscoveryList>
                           {group.devices.map((device) => (
@@ -289,14 +298,14 @@ export function DevicePanel(props: {
                                   {device.name}
                                 </span>
                                 <span className="truncate text-xs text-muted-foreground">
-                                  {`${state.hosts.find((host) => host.id === device.hostId)?.label} · ${device.version} · ${device.booted ? "Running" : "Stopped"}`}
+                                  {`${state.hosts.find((host) => host.id === device.hostId)?.label} · ${device.version} · ${device.booted ? "Running" : device.physical ? "Disconnected" : "Stopped"}`}
                                 </span>
                               </div>
                               <Button
                                 variant="outline"
                                 size="sm"
                                 disabled={pendingDeviceKey !== null}
-                                aria-label={`${device.booted ? "Open" : "Start"} ${device.name}`}
+                                aria-label={`${device.booted ? "Open" : device.physical ? "Connect" : "Start"} ${device.name}`}
                                 onClick={() => void selectDevice(deviceKey(device))}
                               >
                                 {pendingDeviceKey === deviceKey(device) ? (
@@ -306,7 +315,7 @@ export function DevicePanel(props: {
                                 ) : (
                                   <Play />
                                 )}
-                                {device.booted ? "Open" : "Start"}
+                                {device.booted ? "Open" : device.physical ? "Connect" : "Start"}
                               </Button>
                             </div>
                           ))}

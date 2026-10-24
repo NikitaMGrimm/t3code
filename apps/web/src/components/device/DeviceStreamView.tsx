@@ -1,7 +1,7 @@
 import type { DevicePlatform, EnvironmentId } from "@t3tools/contracts";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-import { cn } from "~/lib/utils";
+import { cn, randomUUID } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { refreshDeviceHubAccess, renewDeviceHubAccess, useDeviceHubAccess } from "~/state/device";
 import { createCanvasFrameSink } from "@t3tools/client-runtime/device/frame";
@@ -115,6 +115,7 @@ export function DeviceStreamView(props: {
     cancelPhoneInputRef.current = cancel;
   });
   const access = useDeviceHubAccess(props.environmentId, props.hostId);
+  const [inputControllerId] = useState(randomUUID);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const clientRef = useRef<DeviceStreamClient | null>(null);
   const [status, setStatus] = useState<DeviceStreamStatus>("connecting");
@@ -142,7 +143,7 @@ export function DeviceStreamView(props: {
       return;
     }
     const client = createDeviceStreamClient(
-      { platform: props.platform, deviceId: props.deviceId, access },
+      { platform: props.platform, deviceId: props.deviceId, access, inputControllerId },
       createCanvasFrameSink(canvas, () => frameListenerRef.current?.()),
       {
         onDuoControl: setDuoControl,
@@ -193,6 +194,7 @@ export function DeviceStreamView(props: {
     };
   }, [
     access,
+    inputControllerId,
     cancelPhoneInput,
     onHandle,
     onPhoneUnavailable,
@@ -326,6 +328,21 @@ export function DeviceStreamView(props: {
         props.allowPhoneView ? "bg-background" : "bg-black/90",
       )}
     >
+      {props.deviceId === "iphone-x" ? (
+        <div className="absolute left-3 top-3 z-30">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              inputState.connected
+                ? clientRef.current?.releaseControl?.()
+                : clientRef.current?.takeControl?.()
+            }
+          >
+            {inputState.connected ? "Release control" : "Take control"}
+          </Button>
+        </div>
+      ) : null}
       {props.renderControls ? (
         <DeviceControlsSlot
           renderControls={props.renderControls}
@@ -385,7 +402,7 @@ export function DeviceStreamView(props: {
         )}
         tabIndex={0}
         role="application"
-        aria-label={`${props.platform === "ios" ? "iOS Simulator" : "Android Emulator"} screen`}
+        aria-label={`${props.deviceId === "iphone-x" ? "iPhone X" : props.platform === "ios" ? "iOS Simulator" : "Android Emulator"} screen`}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return;
           if (event.metaKey && !["r", "R"].includes(event.key)) return;
@@ -531,7 +548,14 @@ export function DeviceStreamView(props: {
         {status === "streaming" && !inputState.connected ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-2">
             <span className="rounded-md bg-background/85 px-2 py-1 text-xs text-muted-foreground">
-              Input disconnected{inputState.detail ? ` (${inputState.detail})` : ""}, reconnecting…
+              {props.deviceId === "iphone-x" ? (
+                (inputState.detail ?? "Take control to interact.")
+              ) : (
+                <>
+                  Input disconnected{inputState.detail ? ` (${inputState.detail})` : ""},
+                  reconnecting…
+                </>
+              )}
             </span>
           </div>
         ) : null}
