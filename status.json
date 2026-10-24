@@ -1,17 +1,20 @@
 {
   "schema": 1,
-  "phase": "conflict",
+  "phase": "building",
   "upstreamTag": "v0.1.3-nightly.20261024.3617",
-  "conflicts": [
-    "apps/server/src/preview/ServerBrowser.test.ts"
-  ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40084180916",
+  "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40099233921",
   "releasedVersion": "0.1.3-nightly.20261023.1792803772481",
-  "baseCommit": "060ec48c97d4c5aef6b5583b2a1fdb9205b16361",
-  "sequence": 1792836032190,
-  "conflictPullRequest": 17871,
-  "conflictStage": "pull_request",
-  "conflictIdentity": "b000eeaf8854125251c9dac7af23816e959b4d2af3716348ba0e92ac5a080bc9",
+  "baseCommit": "ad898487b6d5e84ff15b322e00e8a722eeb5b346",
+  "sequence": 1792849302611,
+  "lockfileReconciliations": [
+    {
+      "conflictStage": "pull_request",
+      "pullRequest": 22893
+    }
+  ],
+  "candidateCommit": "f37d2821a93d096a7aaaeef3773e741fb4840464",
+  "candidateVersion": "0.1.3-nightly.20261024.1792849302611",
   "inputs": {
     "upstreamTag": "v0.1.3-nightly.20261024.3617",
     "pullRequests": [
@@ -86,7 +89,7 @@
         "baseRef": "main"
       }
     ],
-    "resolutions": "8ce29105e937926aedbec8a9faa0c8550e518a1cdff80d073b5118c87b37f8c4"
+    "resolutions": "616f95fed3d6c88f6ef7d36aed0d91146ed2365daf0cab961e3b0ea1a1bc0368"
   },
   "pullRequests": [
     {
