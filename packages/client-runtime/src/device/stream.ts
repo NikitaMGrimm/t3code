@@ -315,6 +315,7 @@ export interface DeviceStreamClient {
   readonly setMjpegImage: (image: HTMLImageElement | null) => void;
   /** Normalized 0..1 coordinates in the displayed frame. */
   readonly sendTouch: (phase: "begin" | "move" | "end", x: number, y: number) => void;
+  readonly cancelTouch?: () => void;
   readonly sendKey: (event: KeyboardEvent, phase: "down" | "up") => void;
   /** Android only: iOS input is HID key codes, which cannot carry arbitrary text. */
   readonly sendText: (text: string) => void;

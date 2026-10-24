@@ -403,6 +403,12 @@ export function DeviceStreamView(props: {
         tabIndex={0}
         role="application"
         aria-label={`${props.deviceId === "iphone-x" ? "iPhone X" : props.platform === "ios" ? "iOS Simulator" : "Android Emulator"} screen`}
+        onBlur={() => {
+          if (clientRef.current?.cancelTouch) {
+            pointerActive.current = false;
+            clientRef.current.cancelTouch();
+          }
+        }}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return;
           if (event.metaKey && !["r", "R"].includes(event.key)) return;
@@ -452,7 +458,14 @@ export function DeviceStreamView(props: {
             if (!pointerActive.current) return;
             pointerActive.current = false;
             const { x, y } = normalizedPoint(event);
-            clientRef.current?.sendTouch("end", x, y);
+            if (clientRef.current?.cancelTouch) clientRef.current.cancelTouch();
+            else clientRef.current?.sendTouch("end", x, y);
+          }}
+          onLostPointerCapture={() => {
+            if (pointerActive.current && clientRef.current?.cancelTouch) {
+              pointerActive.current = false;
+              clientRef.current.cancelTouch();
+            }
           }}
         >
           <canvas
