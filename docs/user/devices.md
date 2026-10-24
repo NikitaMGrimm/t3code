@@ -68,6 +68,15 @@ back from the device after a change.
 
 ## Physical iPhone X
 
+Agents can inspect the foreground app's accessibility elements and activate a
+control by its returned reference. With the current `ios-device-lab` adapter
+and its accessibility helper installed, the device command supports `ax snapshot`,
+`ax press SNAPSHOT REF`, and `ax set-value SNAPSHOT REF TEXT`. Text replacement
+supports Unicode and reports whether the field's value was read back exactly.
+References expire after 30 seconds and are consumed by an action. Navigation,
+other input, and control handoffs require a fresh snapshot. Apps expose different
+amounts of accessibility information; screenshots and touch input remain available.
+
 The personal fork can connect the iPhone X already configured in
 `ios-device-lab`. On the environment server, install that package with its T3
 adapter and verify `ios-device-lab x status` succeeds using its existing SSH
@@ -82,8 +91,8 @@ control before yours can take over. Only one thread can connect the phone at
 a time.
 
 Screenshots use the phone's original pixels. The screen refreshes as still
-images; it is slower than simulator video. Accessibility selectors, rotation,
-simulator settings, app installation, and reboot are unavailable in this adapter.
+images; it is slower than simulator video. Rotation, simulator settings, app
+installation, and reboot are unavailable in this adapter.
 Agents receive a phone-specific command when they use `device_open`.
 
 Choose **Disconnect phone**, or have the agent use `device_close`, to release
