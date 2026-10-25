@@ -304,6 +304,8 @@ def import_bindings(text, named_only=False):
         if declaration is None:
             return bindings, position
         clause, _, module = declaration.groups()
+        if "\\" in module:
+            return None
         position = declaration.end()
         if clause is None:
             if named_only:
@@ -359,8 +361,16 @@ def additive_imports(base, ours, theirs):
     groups = {}
     for module, imported, kind in (left | right).values():
         groups.setdefault((module, kind == "type"), []).append(("type " if kind == "inline" else "") + imported)
-    return "".join(f"import {'type ' if is_type else ''}{{ {', '.join(names)} }} from {json.dumps(module)};\n"
-                   for (module, is_type), names in groups.items())
+    merged = "".join(f"import {'type ' if is_type else ''}{{ {', '.join(names)} }} from {json.dumps(module, ensure_ascii=False)};\n"
+                     for (module, is_type), names in groups.items())
+    parsed = import_bindings(merged, named_only=True)
+    if parsed is None:
+        return None
+    combined = parsed[0]
+    # Import evaluation order can initialize test setup; keep both sides' ordering constraints.
+    if any([name for name in combined if name in side] != list(side) for side in (left, right)):
+        return None
+    return merged
 
 
 def reconcile_test_imports(checkout, path):

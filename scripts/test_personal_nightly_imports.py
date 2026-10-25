@@ -85,6 +85,20 @@ class ImportConflictTests(unittest.TestCase):
         self.assertEqual(conflicts, ['example.test.ts'])
         self.assertIn('<<<<<<<', text)
 
+    def test_refuses_to_move_setup_after_an_existing_module(self):
+        base = 'import { a } from "a";\nimport { b } from "b";\n\nrun();\n'
+        ours = base.replace('{ a }', '{ a, left }')
+        theirs = base.replace('import { b }', 'import { setup } from "setup";\nimport { b, right }')
+        conflicts, text = self.merge(base, ours, theirs)
+        self.assertEqual(conflicts, ['example.test.ts'])
+        self.assertIn('<<<<<<<', text)
+
+    def test_escaped_module_specifiers_are_left_for_manual_resolution(self):
+        base = 'import { a } from "./fo\\u006f";\n\nrun();\n'
+        conflicts, text = self.merge(base, base.replace('{ a }', '{ a, left }'), base.replace('{ a }', '{ a, right }'))
+        self.assertEqual(conflicts, ['example.test.ts'])
+        self.assertIn('<<<<<<<', text)
+
     def test_runtime_files_still_require_manual_resolution(self):
         base = 'import { common } from "x";\n\nrun();\n'
         conflicts, _ = self.merge(base, base.replace('common', 'common, left'), base.replace('common', 'common, right'), 'example.ts')
