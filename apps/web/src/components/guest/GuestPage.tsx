@@ -396,7 +396,6 @@ function GuestThread({
     composerTimelineInset: 0,
     routeThreadKey: threadKey,
     activeThreadKey: threadKey,
-    activeThreadId: undefined,
     // Not a server thread: new turns follow the end instead of anchoring near the top.
     isServerThread: false,
     serverProjection: null,
@@ -445,6 +444,7 @@ function GuestThread({
       <div className="relative min-h-0 flex-1">
         <MessagesTimeline
           listRef={listRef}
+          onScrollNodeChange={follow.setTimelineScrollNode}
           timelineEntries={entries}
           isWorking={isWorking}
           activeTurnInProgress={isWorking}

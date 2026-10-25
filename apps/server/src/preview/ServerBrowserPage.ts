@@ -453,13 +453,13 @@ const readPageMetrics = async (cdp: CDPSession) => {
   );
 };
 
-// Scaled captures repaint live screencasts, so callers pause them. Clips use document offsets.
 const CAPTURE_TIMEOUT_MS = 5_000;
 const NO_FRAME_MESSAGE =
   "The page did not draw a frame within 5 seconds, so no screenshot was taken. Use preview_evaluate to read the page, or open the tab in the Browser panel and retry.";
 /** Captures Chromium has not answered yet; a page only draws one at a time. */
 const pendingCaptures = new WeakMap<Page, object>();
 
+// Scaled captures repaint live screencasts, so callers pause them. Clips use document offsets.
 const captureFrame = async (
   page: Page,
   cdp: CDPSession,
@@ -495,11 +495,8 @@ const captureFrame = async (
 };
 
 /**
- * Scaled captures repaint live screencasts, so callers pause them. Clips use document offsets.
- * A capture waits for the page's next frame. A desktop tab whose thread is not
- * open draws none, so the capture gives up after a limit instead of holding
- * the tab. A new capture is refused until Chromium answers the old one, which
- * still owns the page's capture viewport.
+ * A timed-out capture still owns Chromium's capture viewport. Refuse another capture until
+ * Chromium answers or the caller retires its CDP session.
  */
 export const captureViewport = (
   page: Page,

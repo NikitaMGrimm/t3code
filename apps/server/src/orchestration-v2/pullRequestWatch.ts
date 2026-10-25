@@ -295,7 +295,7 @@ export function pullRequestWatchMessage(news: ReadonlyArray<PullRequestWatchNews
     ...ordered.map((item) => item.text),
     ...(ordered.some((item) => item.watching)
       ? [
-          "Look into each item and act on it as your task requires. These PRs stay linked and watched, so do not link, watch, or list them again. T3 Code wakes you on the next change, so end your turn when you are done. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.",
+          "Look into each item and act on it as your task requires. For PRs that are still watched, do not link, watch, or list them again. T3 Code wakes you on their next change, so end your turn when you are done. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.",
         ]
       : []),
   ].join("\n\n");

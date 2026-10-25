@@ -472,6 +472,11 @@ describe("pullRequestWatchMessage", () => {
     );
     // The closing instruction is said once, and only while a watch is still on.
     assert.equal(message.text.split("unwatch_pull_request").length, 2);
+    assert.include(message.text, "T3 Code stopped watching after");
+    assert.include(
+      message.text,
+      "For PRs that are still watched, do not link, watch, or list them again.",
+    );
     assert.notInclude(pullRequestWatchMessage([closed, news(9, exhausted)]).text, "unwatch");
     // The same number in two repositories is told apart on the timeline.
     assert.equal(

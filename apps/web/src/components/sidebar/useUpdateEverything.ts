@@ -39,15 +39,8 @@ const UPDATE_RESTART_DELAY_MS = 5_000;
 export type ReportLocalUpdateError = (title: string, description: string) => void;
 
 /**
- * The remote half of the sidebar update button: outdated providers on every
- * connected machine, and servers behind the version this client runs or is
- * about to install (`localUpdateVersion`). Personal servers appear only once
- * the personal release feed confirms that version. `run` performs the whole
- * pass, including this app's own download and install when given. It updates
- * quietly, tracks each machine in the run state, and reports one summary toast
- * at the end. This app relaunches once every server restarts into its update,
- * after a short countdown the user can postpone. The summary then waits for the
- * relaunch, and servers still restarting are followed after it.
+ * Personal server updates wait for the fork's release feed. Providers update before servers,
+ * and this app restarts last; save the summary across that restart.
  */
 export function useUpdateEverything(localUpdateVersion: string | null) {
   const { status } = usePersonalUpdateStatus();
