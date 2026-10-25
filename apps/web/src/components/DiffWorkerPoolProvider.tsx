@@ -4,7 +4,7 @@ import DiffsWorker from "@pierre/diffs/worker/worker.js?worker";
 import * as Schema from "effect/Schema";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useStableCallback } from "../hooks/useStableCallback";
-import { useTheme } from "../hooks/useTheme";
+import { useRenderedAppearance } from "../hooks/useTheme";
 import { resolveDiffThemeName, type DiffThemeName } from "../lib/diffRendering";
 import { PREFERRED_HIGHLIGHTER } from "../lib/syntaxHighlighting";
 
@@ -125,11 +125,8 @@ function DiffWorkerReady({ children }: { children?: ReactNode }) {
   );
 }
 
-export function DiffWorkerPoolProvider({ children }: { children?: ReactNode }) {
-  const { resolvedTheme } = useTheme();
-  const diffThemeName = resolveDiffThemeName(resolvedTheme);
+export function useDiffWorkerPool(diffThemeName: DiffThemeName) {
   const [workerPoolSize] = useState(resolveDiffWorkerPoolSize);
-  // A new subscribe identity makes React release and reacquire the shared pool on every render.
   const subscribe = useStableCallback((onStoreChange: () => void) => {
     if (typeof window === "undefined") return () => {};
     const entry = acquireDiffWorkerPool(diffThemeName, workerPoolSize);
@@ -144,11 +141,17 @@ export function DiffWorkerPoolProvider({ children }: { children?: ReactNode }) {
       }, DIFF_WORKER_IDLE_TTL_MS);
     };
   });
-  const workerPool = useSyncExternalStore(
+  return useSyncExternalStore(
     subscribe,
     () => sharedWorkerPool?.pool,
     () => undefined,
   );
+}
+
+export function DiffWorkerPoolProvider({ children }: { children?: ReactNode }) {
+  const resolvedTheme = useRenderedAppearance();
+  const diffThemeName = resolveDiffThemeName(resolvedTheme);
+  const workerPool = useDiffWorkerPool(diffThemeName);
 
   return (
     <WorkerPoolContext value={workerPool}>
