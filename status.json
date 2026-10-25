@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "phase": "building",
+  "phase": "failed",
   "upstreamTag": "v0.1.3-nightly.20261024.3643",
   "conflicts": [],
   "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40145098040",
