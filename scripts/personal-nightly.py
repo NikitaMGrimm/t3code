@@ -410,7 +410,7 @@ def reconcile_test_imports(checkout, path):
     return True
 
 
-def merge_delta(repo, base, head, keep_deleted=lambda path: False):
+def merge_delta(repo, base, head, keep_deleted=lambda path: False, import_tests=None):
     """Give ort an explicit merge base without importing a PR's upstream history."""
     current_tree = git("rev-parse", "HEAD^{tree}", cwd=repo).stdout.strip()
     incoming_tree = git("rev-parse", f"{head}^{{tree}}", cwd=repo).stdout.strip()
@@ -427,7 +427,16 @@ def merge_delta(repo, base, head, keep_deleted=lambda path: False):
     kept = [path for path in conflicts if deleted_here(repo, path) and keep_deleted(path)]
     if kept:
         git("rm", "--quiet", "--", *kept, cwd=repo)
-    return [path for path in conflicts if path not in kept and not reconcile_test_imports(repo, path)]
+    remaining = []
+    for path in conflicts:
+        if path in kept:
+            continue
+        if reconcile_test_imports(repo, path):
+            if import_tests is not None:
+                import_tests.append(path)
+        else:
+            remaining.append(path)
+    return remaining
 
 
 def deleted_here(repo, path):
@@ -625,7 +634,7 @@ def assembly_checkout(repo, start, resolutions):
         yield checkout
 
 
-def import_pull_requests(checkout, config, pulls, original, policy, reconciled=None):
+def import_pull_requests(checkout, config, pulls, original, policy, reconciled=None, import_tests=None):
     included = {pull["number"] for pull in config.get("pullRequests", [])}
     for pull in pulls:
         previous = git("rev-parse", "HEAD", cwd=checkout).stdout.strip()
@@ -638,7 +647,7 @@ def import_pull_requests(checkout, config, pulls, original, policy, reconciled=N
         tooling = release_tooling_changes(checkout, config, pull)
         if tooling:
             return {"conflicts": tooling, "conflictPullRequest": pull["number"], "conflictStage": "pull_request"}
-        merged = merge_delta(checkout, pull["baseSha"], pull["headSha"], reviewed_deletion)
+        merged = merge_delta(checkout, pull["baseSha"], pull["headSha"], reviewed_deletion, import_tests)
         conflicts, lockfile = settle_lockfile(checkout, merged, policy)
         if conflicts:
             return {"conflicts": conflicts, "conflictPullRequest": pull["number"], "conflictStage": "pull_request",
@@ -728,14 +737,14 @@ def assemble_into(repo, checkout, tag, upstream, original, config, pulls, resolu
     """Replace the PR baseline, then merge the personal-only delta onto it, in a primed checkout."""
     ordered = ordered_pull_requests(pulls)
     policy = package_manager_policy(repo, config, ordered, upstream)
-    reconciled = []
-    stop = import_pull_requests(checkout, config, ordered, original, policy, reconciled)
+    reconciled, import_tests = [], []
+    stop = import_pull_requests(checkout, config, ordered, original, policy, reconciled, import_tests)
     if stop:
         if waiting := nightly_wait(repo, checkout, upstream, config, ordered, original, resolutions, stop, policy):
             return {"conflicts": [], "waiting": waiting}
         return {**stop, **conflict_identity(checkout, stop["conflictPullRequest"])}
     baseline = git("rev-parse", "HEAD", cwd=checkout).stdout.strip()
-    merged = merge_delta(checkout, config["prBaseline"], original)
+    merged = merge_delta(checkout, config["prBaseline"], original, import_tests=import_tests)
     conflicts, lockfile = settle_lockfile(checkout, merged, policy)
     if conflicts:
         return {"conflicts": conflicts, "conflictStage": "personal",
@@ -749,7 +758,8 @@ def assemble_into(repo, checkout, tag, upstream, original, config, pulls, resolu
     candidate = git("commit-tree", tree, "-p", original, "-p", baseline,
                     "-m", f"chore: synchronize personal PRs with {tag}", cwd=checkout).stdout.strip()
     git("update-ref", "refs/heads/candidate", candidate, cwd=checkout)
-    return {"conflicts": [], "candidate": candidate, **({"lockfileReconciliations": reconciled} if reconciled else {})}
+    return {"conflicts": [], "candidate": candidate, "resolvedTestImports": sorted(set(import_tests)),
+            **({"lockfileReconciliations": reconciled} if reconciled else {})}
 
 
 def assemble(repo, tag, config, pulls, resolutions):
@@ -1005,9 +1015,42 @@ def release_notes(repo, ref, version, personal_releases, upstream_releases):
     return "\n".join(lines).rstrip() + "\n"
 
 
+def verify_import_tests(repo, status):
+    """Automatically merged imports must pass their package's types and the actual test runner."""
+    paths = status.get("resolvedTestImports", [])
+    if not isinstance(paths, list) or any(not isinstance(path, str) for path in paths):
+        raise ValueError("resolvedTestImports must be a list of test paths")
+    repo = Path(repo).resolve()
+    packages, unit, browser = set(), [], []
+    for path in sorted(set(paths)):
+        file = (repo / path).resolve()
+        if (path.startswith("-") or not file.is_relative_to(repo) or not file.is_file()
+                or not re.search(r"\.(?:test|spec)\.[cm]?[jt]sx?$", path)):
+            raise ValueError(f"Not a candidate test file: {path}")
+        git("ls-files", "--error-unmatch", "--", path, cwd=repo)
+        package = next((parent for parent in file.parents
+                        if parent != repo and parent.is_relative_to(repo) and (parent / "package.json").is_file()), None)
+        if package is None:
+            raise ValueError(f"No workspace package for test: {path}")
+        packages.add(package.relative_to(repo).as_posix())
+        if ".browser." in file.name:
+            if package != repo / "apps/web":
+                raise ValueError(f"No browser test runner for: {path}")
+            browser.append("./" + file.relative_to(package).as_posix())
+        else:
+            unit.append("./" + file.relative_to(repo).as_posix())
+    for package in sorted(packages):
+        subprocess.run(["vp", "run", "--filter", f"./{package}", "typecheck"], cwd=repo, check=True)
+    # One invocation per file: a passing batch can silently exclude another filter.
+    for path in unit:
+        subprocess.run(["vp", "test", "run", path], cwd=repo, check=True)
+    for path in browser:
+        subprocess.run(["vp", "test", "run", "--project", "browser", path], cwd=repo / "apps/web", check=True)
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["prepare", "status", "notes", "verify", "reproduce", "record"])
+    parser.add_argument("command", choices=["prepare", "status", "notes", "verify", "reproduce", "record", "verify-imports"])
     parser.add_argument("--tag")
     parser.add_argument("--run-number", default=os.environ.get("GITHUB_RUN_ID"))
     parser.add_argument("--phase", choices=["ready", "failed", "conflict", "superseded"])
@@ -1024,6 +1067,11 @@ def main():
     parser.add_argument("--output", type=Path, help="record: where to write the updated resolutions.json")
     args = parser.parse_args()
     repo = Path.cwd()
+    if args.command == "verify-imports":
+        if not args.status:
+            parser.error("verify-imports requires --status")
+        verify_import_tests(repo, json.loads(args.status.read_text()))
+        return
     if args.command in ("reproduce", "record"):
         # Local repair tooling: reads the given files and writes only the kept checkout or output.
         if not args.resolutions or not args.keep or (args.command == "reproduce") != bool(args.status) \
