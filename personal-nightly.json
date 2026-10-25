@@ -2,7 +2,7 @@
   "repository": "NikitaMGrimm/t3code",
   "branch": "personal-nightly",
   "upstreamRepository": "pingdotgg/t3code",
-  "upstreamTag": "v0.1.3-nightly.20261024.3643",
+  "upstreamTag": "v0.1.3-nightly.20261025.3669",
   "pullRequests": [
     {
       "number": 17871,
@@ -14,18 +14,6 @@
       "author": "TDanks2000",
       "url": "https://github.com/pingdotgg/t3code/pull/17871",
       "headRepository": "TDanks2000/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 17892,
-      "title": "fix(web): attach button no longer shifts when the Compact chip toggles",
-      "headSha": "263670f2239d6118a60b4413c571fe8446d48627",
-      "baseSha": "fb990765a49414a5bfbdc73365455fc8b5fbe691",
-      "headRef": "fix/composer-compact-chip-order",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/17892",
-      "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     },
     {
@@ -139,8 +127,8 @@
     {
       "number": 23673,
       "title": "feat(web): optionally keep thread section dividers visible",
-      "headSha": "3eca178e8017608d8290a24f1a560d881bec296d",
-      "baseSha": "60b35a1ee02d717009ff4a3de34de285db9e8a60",
+      "headSha": "143154d864ccdf5a08efe078bd05b1f73737e8c9",
+      "baseSha": "056b4457cc687b053e15f1fc89afb900078a127e",
       "headRef": "feat/sidebar-section-dividers",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -173,5 +161,5 @@
       "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "91ab80732433e39ca8e6c31cbf4a9dbf287b4839"
+  "prBaseline": "51460c2f109479ecd9aa59278060b3d290edc978"
 }
