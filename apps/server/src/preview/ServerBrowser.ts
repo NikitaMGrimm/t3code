@@ -677,7 +677,7 @@ const make = Effect.gen(function* () {
   };
 
   const desktopRenders = (snapshot: PreviewSessionSnapshot) =>
-    desktopChannel.available
+    desktopChannel.available && snapshot.serverPageMode !== "headless"
       ? Effect.runPromise(
           desktopChannel.awaitAttached(
             { threadId: snapshot.threadId, tabId: snapshot.tabId },
@@ -708,13 +708,41 @@ const make = Effect.gen(function* () {
     }
   };
 
-  const createTab = async (snapshot: PreviewSessionSnapshot): Promise<ServerTab> => {
-    const adopted = adoptedPages.get(tabKey(snapshot.threadId, snapshot.tabId));
-    adoptedPages.delete(tabKey(snapshot.threadId, snapshot.tabId));
-    const desktop =
-      adopted === undefined && (await desktopRenders(snapshot))
-        ? await connectDesktop(snapshot)
-        : null;
+  const currentSnapshot = async (threadId: string, tabId: string) => {
+    const { sessions } = await Effect.runPromise(
+      manager.list({ threadId: ThreadId.make(threadId) }),
+    );
+    const snapshot = sessions.find(
+      (session) => session.tabId === tabId && session.runtime === "server",
+    );
+    if (!snapshot) throw new ServerBrowserTabNotFoundError({ threadId, tabId });
+    return snapshot;
+  };
+
+  const createTab = async (requestedSnapshot: PreviewSessionSnapshot): Promise<ServerTab> => {
+    const key = tabKey(requestedSnapshot.threadId, requestedSnapshot.tabId);
+    const adopted = adoptedPages.get(key);
+    adoptedPages.delete(key);
+    // An older opened event may be processed after a failed headless launch or a close.
+    const fresh = await currentSnapshot(requestedSnapshot.threadId, requestedSnapshot.tabId).catch(
+      async (cause: unknown) => {
+        await adopted?.page.close().catch(constVoid);
+        throw cause;
+      },
+    );
+    let snapshot = fresh;
+    const native = adopted === undefined && (await desktopRenders(snapshot));
+    if (adopted === undefined) {
+      // Publish before launching headless so every client releases the independent native guest.
+      snapshot = await Effect.runPromise(
+        manager.setServerPageMode({
+          threadId: ThreadId.make(snapshot.threadId),
+          tabId: snapshot.tabId,
+          mode: native ? "native" : "headless",
+        }),
+      );
+    }
+    const desktop = native ? await connectDesktop(snapshot) : null;
     const isolatedContext =
       adopted === undefined &&
       desktop === null &&
@@ -871,8 +899,8 @@ const make = Effect.gen(function* () {
     // Popups become tabs and keep `window.opener`, so sign-in popups can report back.
     page.on("popup", (popup) => void adoptPopup(tab, popup));
     // Playwright cannot reload a crashed page, so it must leave the tab list.
-    const key = tabKey(tab.threadId, tab.tabId);
-    if (closedPendingTabs.delete(key)) {
+    const { sessions } = await Effect.runPromise(manager.list({ threadId: tab.threadId }));
+    if (closedPendingTabs.delete(key) || !sessions.some((session) => session.tabId === tab.tabId)) {
       await control.close().catch(constVoid);
       if (desktop) await desktop.close().catch(constVoid);
       else await page.close().catch(constVoid);
@@ -1190,6 +1218,7 @@ const make = Effect.gen(function* () {
         threadId: opener.threadId,
         ...(/^https?:/i.test(url) ? { url } : {}),
         runtime: "server",
+        ...(!opener.desktop ? { serverPageMode: "headless" as const } : {}),
         ...(opener.profileId === undefined ? {} : { profileId: opener.profileId }),
         ...(opener.control.agentId === null
           ? {}
@@ -1369,6 +1398,7 @@ const make = Effect.gen(function* () {
       url: url === "about:blank" ? null : url,
       title: null,
       loading: tab.loading,
+      serverPageMode: tab.desktop ? ("native" as const) : ("headless" as const),
       control: {
         owner: tabOwner(tab),
         ownedByCaller: tab.control.agentId === agentSessionId,
@@ -1389,6 +1419,7 @@ const make = Effect.gen(function* () {
           owner: tabOwner(candidate),
           ownedByCaller: candidate.control.agentId === agentSessionId,
           visible: candidate.viewers.size > 0,
+          serverPageMode: candidate.desktop ? ("native" as const) : ("headless" as const),
           ...(candidate.profileId === undefined ? {} : { profileId: candidate.profileId }),
         })),
       ...profileStatus(),
@@ -2298,7 +2329,7 @@ const make = Effect.gen(function* () {
         try: () => tab.page.context().newCDPSession(tab.page),
         catch: (cause) => new ServerBrowserLaunchError({ cause }),
       }),
-        (session) => Effect.promise(() => session.detach().catch(constVoid)),
+      (session) => Effect.promise(() => session.detach().catch(constVoid)),
     );
     const quality = Math.min(100, Math.max(1, Math.round(input.quality)));
     // Chromium may drop the final frame during a burst; send a still when it settles.
@@ -2306,15 +2337,17 @@ const make = Effect.gen(function* () {
     let mayHaveDropped = false;
     let motion = false;
     const recentFrames: Array<number> = [];
-      let disconnected = false;
+    let disconnected = false;
+    // Retiring the session abandons its pending still, freeing the page for other captures.
+    const retired = new AbortController();
     let screencastParams = Promise.resolve();
     let screencastScale = 1;
     const startScreencast = (scale: number) => {
       screencastScale = scale;
       screencastParams = screencastParams.then(async () => {
-          if (disconnected || tab.capturing > 0) return;
+        if (disconnected || tab.capturing > 0) return;
         await session.send("Page.stopScreencast").catch(constVoid);
-          if (disconnected) return;
+        if (disconnected) return;
         await session
           .send("Page.startScreencast", {
             format: "jpeg",
@@ -2337,12 +2370,12 @@ const make = Effect.gen(function* () {
         if (next._tag === "frame") runFork(next.ack);
         // State a stalled viewer cannot miss replaces its backlog. It runs
         // synchronously so an older replacement can never land after a newer one.
-          else if (
-            next._tag === "gone" ||
-            next._tag === "reconnect" ||
-            next._tag === "control" ||
-            next._tag === "fileChooser"
-          ) {
+        else if (
+          next._tag === "gone" ||
+          next._tag === "reconnect" ||
+          next._tag === "control" ||
+          next._tag === "fileChooser"
+        ) {
           const dropped = Effect.runSyncExit(Queue.clear(output));
           if (dropped._tag === "Failure") return;
           Queue.offerUnsafe(output, next);
@@ -2354,36 +2387,35 @@ const make = Effect.gen(function* () {
       },
       pause: () => {
         screencastParams = screencastParams.then(() =>
-            disconnected
-              ? undefined
-              : session.send("Page.stopScreencast").then(constVoid, constVoid),
+          disconnected ? undefined : session.send("Page.stopScreencast").then(constVoid, constVoid),
         );
         return screencastParams;
       },
       resume: () => startScreencast(screencastScale),
-        disconnect: () => {
-          disconnected = true;
-          tab.viewers.delete(viewer);
-          viewer.push({ _tag: "reconnect" });
-          void session.detach().catch(constVoid);
-          runFork(
-            Effect.promise(async () => {
-              const releasing = tab.control.disconnect(viewer.id, () => {
-                // The viewer session is stalled; release held input through the tab instead.
-                let timer: ReturnType<typeof setTimeout> | undefined;
-                const deadline = new Promise<void>((resolve) => {
-                  timer = setTimeout(resolve, VIEWER_INPUT_RELEASE_TIMEOUT_MS);
-                });
-                return Promise.race([releaseViewerInput(viewer, tab.cdp), deadline]).finally(() =>
-                  clearTimeout(timer),
-                );
+      disconnect: () => {
+        disconnected = true;
+        retired.abort();
+        tab.viewers.delete(viewer);
+        viewer.push({ _tag: "reconnect" });
+        void session.detach().catch(constVoid);
+        runFork(
+          Effect.promise(async () => {
+            const releasing = tab.control.disconnect(viewer.id, () => {
+              // The viewer session is stalled; release held input through the tab instead.
+              let timer: ReturnType<typeof setTimeout> | undefined;
+              const deadline = new Promise<void>((resolve) => {
+                timer = setTimeout(resolve, VIEWER_INPUT_RELEASE_TIMEOUT_MS);
               });
-              broadcastControl(tab);
-              reportLiveTabs();
-              await releasing;
-            }),
-          );
-        },
+              return Promise.race([releaseViewerInput(viewer, tab.cdp), deadline]).finally(() =>
+                clearTimeout(timer),
+              );
+            });
+            broadcastControl(tab);
+            reportLiveTabs();
+            await releasing;
+          }),
+        );
+      },
       scrolledAt: 0,
       requestedSize: null,
     };
@@ -2394,7 +2426,8 @@ const make = Effect.gen(function* () {
       }),
       () =>
         Effect.promise(async () => {
-            disconnected = true;
+          disconnected = true;
+          retired.abort();
           await tab.control.disconnect(viewer.id, () => releaseViewerInput(viewer, session));
           tab.viewers.delete(viewer);
           broadcastControl(tab);
@@ -2419,11 +2452,13 @@ const make = Effect.gen(function* () {
           }, SNAPSHOT_TIMEOUT_MS);
         });
         return Promise.race([
-          ServerBrowserPage.captureViewport(tab.page, session, {
-            format: "jpeg",
-            quality,
-            scale: 1,
-          }),
+          // This deadline, not the agent's frame limit, bounds a still: it retires a stalled session.
+          ServerBrowserPage.captureViewport(
+            tab.page,
+            session,
+            { format: "jpeg", quality, scale: 1 },
+            retired.signal,
+          ),
           deadline,
         ]).finally(() => clearTimeout(timer));
       }).catch(() => null);
@@ -2438,7 +2473,7 @@ const make = Effect.gen(function* () {
     );
     let screencastStarted = false;
     session.on("Page.screencastFrame", (frame) => {
-        if (disconnected) return;
+      if (disconnected) return;
       screencastStarted = true;
       if (framesInFlight > 0) mayHaveDropped = true;
       framesInFlight += 1;
@@ -2491,7 +2526,7 @@ const make = Effect.gen(function* () {
       output,
       input: (raw: unknown) =>
         Effect.promise(async () => {
-            if (disconnected || !viewer.canOperate) return;
+          if (disconnected || !viewer.canOperate) return;
           const message = asRecord(raw);
           if (!message) return;
           try {
@@ -2557,7 +2592,8 @@ const make = Effect.gen(function* () {
         const snapshot = sessions.find(
           (session) => session.tabId === key.tabId && session.runtime === "server",
         );
-        if (snapshot) yield* Effect.promise(() => ensureTab(snapshot).catch(constVoid));
+        if (snapshot && snapshot.serverPageMode !== "headless")
+          yield* Effect.promise(() => ensureTab(snapshot).catch(constVoid));
       }).pipe(Effect.ignore),
     ),
     Effect.forkScoped,
