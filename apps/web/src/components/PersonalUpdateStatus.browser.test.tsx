@@ -146,6 +146,7 @@ it("keeps dismissed failures quiet across polling and shows a failed rerun of th
       expect(document.body.textContent).toContain(
         "Nightly update has merge conflicts: apps/web/src/components/ChatView.tsx",
       );
+      expect(document.body.textContent).toContain("Checks have not run.");
       expect(detailsLink()?.href).toBe(status.runUrl);
 
       await update({ phase: "ready", conflicts: [] });

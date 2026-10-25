@@ -98,6 +98,26 @@ it("identifies PR and personal overlay conflicts without breaking older status f
   expect(personalUpdateMessage(decodePersonalUpdateStatus(status))).toContain("merge conflicts:");
 });
 
+it("distinguishes assembly conflicts in tests from failed checks", () => {
+  const message = personalUpdateMessage(
+    decodePersonalUpdateStatus({
+      ...status,
+      conflictPullRequest: 22788,
+      conflicts: ["apps/web/MessagesTimeline.browser.test.tsx", "apps/server/preview.test.ts"],
+    }),
+  );
+  expect(message).toContain("merge conflicts importing PR #22788 in test files");
+  expect(message).toContain("Checks have not run.");
+  const mixed = personalUpdateMessage(
+    decodePersonalUpdateStatus({ ...status, conflicts: ["example.test.ts", "example.ts"] }),
+  );
+  expect(mixed).not.toContain("in test files");
+  expect(mixed).toContain("Checks have not run.");
+  expect(personalUpdateMessage(decodePersonalUpdateStatus({ ...status, phase: "failed" }))).toBe(
+    "Nightly checks or packaging failed. Your current build is kept.",
+  );
+});
+
 it("retains the exact failure snapshot in an agent repair and uses stable conflict identity", () => {
   const recorded = {
     ...status,

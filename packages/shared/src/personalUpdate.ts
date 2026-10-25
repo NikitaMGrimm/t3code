@@ -67,8 +67,12 @@ export function personalUpdateMessage(status: PersonalUpdateStatus): string {
     return `Waiting for an official nightly with the upstream changes #${status.waiting.pullRequest} needs. Your current build is kept.`;
   }
   switch (status.phase) {
-    case "conflict":
-      return `Nightly update has merge conflicts${status.conflictPullRequest ? ` importing PR #${status.conflictPullRequest}` : status.conflictStage === "personal" ? " applying your personal changes" : ""}: ${status.conflicts.join(", ")}. Your current build is kept.`;
+    case "conflict": {
+      const testsOnly =
+        status.conflicts.length > 0 &&
+        status.conflicts.every((path) => /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(path));
+      return `Nightly update has merge conflicts${status.conflictPullRequest ? ` importing PR #${status.conflictPullRequest}` : status.conflictStage === "personal" ? " applying your personal changes" : ""}${testsOnly ? " in test files" : ""}: ${status.conflicts.join(", ")}. Checks have not run. Your current build is kept.`;
+    }
     case "failed":
       return "Nightly checks or packaging failed. Your current build is kept.";
     case "building":

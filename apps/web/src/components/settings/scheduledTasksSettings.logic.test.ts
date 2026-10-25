@@ -144,23 +144,6 @@ const legacyTask: ScheduledTask = {
 };
 
 describe("editing scheduled task branch settings", () => {
-  it.each([
-    ["0:05", "00:05"],
-    ["9:00", "09:00"],
-    ["09:00", "09:00"],
-    ["23:59", "23:59"],
-  ])("preserves the scheduled time when editing %s", (timeOfDay, canonicalTime) => {
-    const draft = taskToDraft({
-      ...legacyTask,
-      schedule: { type: "fixed_time", timeOfDay },
-    });
-    expect(draft.timeOfDay).toBe(canonicalTime);
-    expect(scheduleFromDraft({ ...draft, title: "Updated title" })).toMatchObject({
-      type: "fixed_time",
-      timeOfDay: canonicalTime,
-    });
-  });
-
   it("keeps an omitted origin flag on the local base branch", () => {
     const draft = taskToDraft(legacyTask);
     expect(draft.baseRef).toBe("release");

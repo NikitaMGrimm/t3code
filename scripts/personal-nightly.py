@@ -286,6 +286,120 @@ def release_tooling_changes(repo, config, pull):
     return [path for path in changed.split("\0") if RELEASE_TOOLING.match(path)]
 
 
+IDENTIFIER = r"[A-Za-z_$][A-Za-z0-9_$]*"
+IMPORT = re.compile(r"import\s+(?:([^;\"']*?)\s+from\s+)?([\"'])([^\"'\n]+)\2\s*;", re.DOTALL)
+TRIVIA = re.compile(r"(?:\s+|//[^\n]*(?:\n|$)|/\*.*?\*/)*", re.DOTALL)
+IMPORT_CONFLICT = re.compile(
+    r"^<<<<<<< ours\n(.*?)^\|\|\|\|\|\|\| base\n(.*?)^=======\n(.*?)^>>>>>>> theirs\n",
+    re.MULTILINE | re.DOTALL,
+)
+
+
+def import_bindings(text, named_only=False):
+    """Read the initial import declarations; unsupported syntax is left for a person."""
+    bindings, position = {}, 0
+    while True:
+        position = (re.compile(r"\s*") if named_only else TRIVIA).match(text, position).end()
+        declaration = IMPORT.match(text, position)
+        if declaration is None:
+            return bindings, position
+        clause, _, module = declaration.groups()
+        position = declaration.end()
+        if clause is None:
+            if named_only:
+                return None
+            continue
+        clause = clause.strip()
+        type_only = clause.startswith("type ")
+        if type_only:
+            clause = clause[5:].strip()
+        names = []
+        if not clause.startswith("{"):
+            if named_only:
+                return None
+            first, separator, rest = clause.partition(",")
+            namespace = re.fullmatch(r"\*\s+as\s+(" + IDENTIFIER + r")", first.strip())
+            if namespace and not separator:
+                names.append((namespace[1], "*", "type" if type_only else "value"))
+            elif re.fullmatch(IDENTIFIER, first.strip()):
+                names.append((first.strip(), "default", "type" if type_only else "value"))
+            else:
+                return None
+            clause = rest.strip() if separator else ""
+        if clause:
+            if not clause.startswith("{") or not clause.endswith("}"):
+                return None
+            members = clause[1:-1].strip().removesuffix(",").split(",")
+            for member in members:
+                match = re.fullmatch(r"\s*(type\s+)?(" + IDENTIFIER + r")(?:\s+as\s+(" + IDENTIFIER + r"))?\s*", member)
+                if match is None or (named_only and match[3]):
+                    return None
+                names.append((match[3] or match[2], match[2], "type" if type_only else "inline" if match[1] else "value"))
+        for local, imported, kind in names:
+            if local in bindings:
+                return None
+            bindings[local] = (module, imported, kind)
+
+
+def additive_imports(base, ours, theirs):
+    sides = []
+    for side in (base, ours, theirs):
+        parsed = import_bindings(side, named_only=True)
+        if parsed is None or parsed[1] != len(side):
+            return None
+        sides.append(parsed[0])
+    original, left, right = sides
+    if not left or not right or any(left.get(name) != value or right.get(name) != value
+                                   for name, value in original.items()):
+        return None
+    if any(name in left and left[name] != value for name, value in right.items()):
+        return None
+    if any([name for name in side if name in original] != list(original) for side in (left, right)):
+        return None
+    groups = {}
+    for module, imported, kind in (left | right).values():
+        groups.setdefault((module, kind == "type"), []).append(("type " if kind == "inline" else "") + imported)
+    return "".join(f"import {'type ' if is_type else ''}{{ {', '.join(names)} }} from {json.dumps(module)};\n"
+                   for (module, is_type), names in groups.items())
+
+
+def reconcile_test_imports(checkout, path):
+    """Only additive named imports at the top of an existing test file can be combined."""
+    if not re.search(r"\.(?:test|spec)\.[cm]?[jt]sx?$", path):
+        return False
+    entries = git("ls-files", "--unmerged", "-z", "--", path, cwd=checkout).stdout.split("\0")
+    modes = [entry.split()[0] for entry in entries if entry]
+    if len(modes) != 3 or len(set(modes)) != 1 or modes[0] not in ("100644", "100755"):
+        return False
+    sides = [git("show", f":{stage}:{path}", cwd=checkout).stdout for stage in (1, 2, 3)]
+    with tempfile.TemporaryDirectory(prefix="t3-nightly-imports-") as directory:
+        files = [Path(directory) / name for name in ("base", "ours", "theirs")]
+        for file, side in zip(files, sides):
+            file.write_text(side)
+        merged = git("merge-file", "--stdout", "--diff3", "-L", "ours", "-L", "base", "-L", "theirs",
+                     str(files[1]), str(files[0]), str(files[2]), cwd=checkout, check=False)
+    if not 0 < merged.returncode < 128:
+        return False
+    result, remaining = "", merged.stdout
+    while conflict := IMPORT_CONFLICT.search(remaining):
+        prefix = result + remaining[:conflict.start()]
+        parsed = import_bindings(prefix)
+        if parsed is None or parsed[1] != len(prefix):
+            return False
+        ours, base, theirs = conflict.groups()
+        combined = additive_imports(base, ours, theirs)
+        if combined is None:
+            return False
+        result = prefix + combined
+        remaining = remaining[conflict.end():]
+    result += remaining
+    if re.search(r"^(?:<{7}|\|{7}|={7}|>{7})", result, re.MULTILINE) or import_bindings(result) is None:
+        return False
+    (Path(checkout) / path).write_text(result)
+    git("add", "--", path, cwd=checkout)
+    return True
+
+
 def merge_delta(repo, base, head, keep_deleted=lambda path: False):
     """Give ort an explicit merge base without importing a PR's upstream history."""
     current_tree = git("rev-parse", "HEAD^{tree}", cwd=repo).stdout.strip()
@@ -293,7 +407,7 @@ def merge_delta(repo, base, head, keep_deleted=lambda path: False):
     current = git("commit-tree", current_tree, "-p", base, "-m", "Assembly base", cwd=repo).stdout.strip()
     incoming = git("commit-tree", incoming_tree, "-p", base, "-m", "Assembly delta", cwd=repo).stdout.strip()
     git("reset", "--hard", current, cwd=repo)
-    # Reuse only exact conflict resolutions recorded by Git; new conflicts still stop.
+    # Reuse recorded resolutions before considering additive test imports.
     result = git("-c", "rerere.enabled=true", "-c", "rerere.autoupdate=true", "merge",
                  "--no-commit", "--no-ff", incoming, cwd=repo, check=False)
     conflicts = git("diff", "--name-only", "--diff-filter=U", cwd=repo).stdout.splitlines()
@@ -303,7 +417,7 @@ def merge_delta(repo, base, head, keep_deleted=lambda path: False):
     kept = [path for path in conflicts if deleted_here(repo, path) and keep_deleted(path)]
     if kept:
         git("rm", "--quiet", "--", *kept, cwd=repo)
-    return [path for path in conflicts if path not in kept]
+    return [path for path in conflicts if path not in kept and not reconcile_test_imports(repo, path)]
 
 
 def deleted_here(repo, path):
