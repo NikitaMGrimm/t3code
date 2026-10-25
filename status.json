@@ -1,31 +1,26 @@
 {
   "schema": 1,
-  "phase": "ready",
+  "phase": "building",
   "upstreamTag": "v0.1.3-nightly.20261024.3643",
   "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40142032828",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40145098040",
   "releasedVersion": "0.1.3-nightly.20261024.1792883776574",
-  "baseCommit": "b37dc80bdb263709d8788714c4af77bc303049a1",
-  "sequence": 1792883776574,
+  "baseCommit": "8a1756d32c25a617ae2c4a9760078d47a6315ae4",
+  "sequence": 1792886531336,
   "lockfileReconciliations": [
     {
       "conflictStage": "pull_request",
       "pullRequest": 22893
     }
   ],
-  "candidateCommit": "8a1756d32c25a617ae2c4a9760078d47a6315ae4",
-  "candidateVersion": "0.1.3-nightly.20261024.1792883776574",
+  "candidateCommit": "9ae7db2d0ba6693b4c3dfc08dcc44a48ae61c3ac",
+  "candidateVersion": "0.1.3-nightly.20261024.1792886531336",
   "inputs": {
     "upstreamTag": "v0.1.3-nightly.20261024.3643",
     "pullRequests": [
       {
         "number": 17871,
         "headSha": "3bd2412b0c3910e38df27c9f84ff992acd89d129",
-        "baseRef": "main"
-      },
-      {
-        "number": 17892,
-        "headSha": "263670f2239d6118a60b4413c571fe8446d48627",
         "baseRef": "main"
       },
       {
@@ -102,18 +97,6 @@
       "author": "TDanks2000",
       "url": "https://github.com/pingdotgg/t3code/pull/17871",
       "headRepository": "TDanks2000/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 17892,
-      "title": "fix(web): attach button no longer shifts when the Compact chip toggles",
-      "headSha": "263670f2239d6118a60b4413c571fe8446d48627",
-      "baseSha": "fb990765a49414a5bfbdc73365455fc8b5fbe691",
-      "headRef": "fix/composer-compact-chip-order",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/17892",
-      "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     },
     {
