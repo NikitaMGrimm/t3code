@@ -54,7 +54,7 @@
       },
       {
         "number": 23673,
-        "headSha": "10ab50c50f5d3bf12db99d602f5e7e915b5ee1f3",
+        "headSha": "143154d864ccdf5a08efe078bd05b1f73737e8c9",
         "baseRef": "main"
       },
       {
@@ -70,5 +70,5 @@
     ],
     "resolutions": "ab829453b4f62bad927612be2308f02ac1c71b98f63e3872a2429f300b1157c0"
   },
-  "observedAt": 1792906690.318047
+  "observedAt": 1792923611.1035016
 }
