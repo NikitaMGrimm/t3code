@@ -1,20 +1,19 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.3-nightly.20261024.3643",
+  "upstreamTag": "v0.1.3-nightly.20261025.3655",
   "conflicts": [
-    "apps/web/src/components/Sidebar.tsx",
-    "apps/web/src/components/settings/SettingsPanels.tsx"
+    "apps/server/src/mcp/PreviewAutomationBroker.ts"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40154749541",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40166185240",
   "releasedVersion": "0.1.3-nightly.20261024.1792883776574",
   "baseCommit": "8a1756d32c25a617ae2c4a9760078d47a6315ae4",
-  "sequence": 1792895476754,
-  "conflictPullRequest": 23673,
+  "sequence": 1792906632618,
+  "conflictPullRequest": 17871,
   "conflictStage": "pull_request",
-  "conflictIdentity": "6bbc95d6958acf80b3bd40349302bf99f9c179d8c7d3c96cc6c0d9c12c3e7844",
+  "conflictIdentity": "9124847f1c9a4c71bb95a259260c5d34c131d006eba6903a13467d860d8756b3",
   "inputs": {
-    "upstreamTag": "v0.1.3-nightly.20261024.3643",
+    "upstreamTag": "v0.1.3-nightly.20261025.3655",
     "pullRequests": [
       {
         "number": 17871,
