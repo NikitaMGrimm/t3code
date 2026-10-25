@@ -1,4 +1,4 @@
-import { memo, type MouseEventHandler, type PointerEventHandler, type ReactNode } from "react";
+import { memo, type MouseEventHandler, type PointerEventHandler } from "react";
 import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, Minimize2Icon, PlayIcon } from "lucide-react";
 import { CornerUpRight, ListPlus } from "lucide";
 import { MorphIcon } from "~/components/MorphIcon";
@@ -53,8 +53,6 @@ interface ComposerPrimaryActionsProps {
   compactBeforeSendTokens?: number | null;
   keepFullHistory?: boolean;
   onToggleKeepFullHistory?: () => void;
-  /** Controls shown before the primary action. The Compact chip renders ahead of them. */
-  leadingActions?: ReactNode;
 }
 
 const formatPendingPrimaryActionLabel = (input: {
@@ -110,7 +108,6 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   compactBeforeSendTokens = null,
   keepFullHistory = false,
   onToggleKeepFullHistory,
-  leadingActions,
 }: ComposerPrimaryActionsProps) {
   const pointerFocusProps = preserveComposerFocusOnPointerDown
     ? { onPointerDown: preventPointerFocus }
@@ -129,15 +126,6 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   const isSendDisabled = !canOperateThread || sendDisabledReason !== null;
   const stageBackdropVariant = useSidebarStageBackdropVariant(
     environmentIdentificationMode === "artwork",
-  );
-  // Every branch returns this one fragment shape so React keeps the leading controls
-  // mounted when a branch changes, including when the Compact chip appears or goes away.
-  const withLeadingActions = (action: ReactNode, chip: ReactNode = null) => (
-    <>
-      {chip}
-      {leadingActions}
-      {action}
-    </>
   );
 
   const renderStopGenerationButton = (insidePendingAction: boolean) => (
@@ -168,7 +156,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   );
 
   if (pendingAction) {
-    return withLeadingActions(
+    return (
       <div className={cn("flex items-center justify-end", compact ? "gap-1.5" : "gap-2")}>
         {canInterrupt ? renderStopGenerationButton(true) : null}
         {pendingAction.questionIndex > 0 ? (
@@ -213,13 +201,13 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
             questionIndex: pendingAction.questionIndex,
           })}
         </button>
-      </div>,
+      </div>
     );
   }
 
   if (showPlanFollowUpPrompt && (promptHasText || !canResume)) {
     if (promptHasText) {
-      return withLeadingActions(
+      return (
         <button
           type="submit"
           className={cn(messageActionPillClassName, "h-9 sm:h-8", compact ? "px-3" : "px-4")}
@@ -227,11 +215,11 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
           disabled={isSendBusy || isSendDisabled || isConnecting || isEnvironmentUnavailable}
         >
           {isConnecting || isSendBusy ? "Sending..." : "Refine"}
-        </button>,
+        </button>
       );
     }
 
-    return withLeadingActions(
+    return (
       <div data-chat-composer-implement-actions="true" className="flex items-center justify-end">
         <button
           type="submit"
@@ -271,12 +259,12 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
             </MenuItem>
           </MenuPopup>
         </Menu>
-      </div>,
+      </div>
     );
   }
 
   if (canInterrupt && !hasSendableContent && !isEditingQueuedMessage) {
-    return withLeadingActions(renderStopGenerationButton(false));
+    return renderStopGenerationButton(false);
   }
 
   const showResume = canResume && !hasSendableContent && !isEditingQueuedMessage;
@@ -371,43 +359,43 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
       <TooltipPopup>{submitTooltip}</TooltipPopup>
     </Tooltip>
   );
-  if (compactTokens === null) return withLeadingActions(submit);
+  if (compactTokens === null) return submit;
 
-  // The chip's label changes width when toggled, so it leads the composer's right-aligned
-  // actions: only its own left edge moves, and the actions beside the send button stay put.
-  return withLeadingActions(
-    submit,
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <button
-            type="button"
-            className={cn(
-              "flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-xs tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-64 sm:h-8 [&_svg]:pointer-events-none [&_svg]:size-3.5",
-              keepFullHistory
-                ? "border-border text-muted-foreground hover:text-foreground"
-                : "border-warning/40 text-warning hover:bg-warning/8",
-            )}
-            {...pointerFocusProps}
-            aria-pressed={!keepFullHistory}
-            aria-label={`Compact ${compactTokens} tokens of history before sending`}
-            disabled={!canOperateThread}
-            onClick={onToggleKeepFullHistory}
-          />
-        }
-      >
-        <Minimize2Icon aria-hidden="true" />
-        {keepFullHistory ? "Full" : "Compact"}
-        <span>{compactTokens}</span>
-      </TooltipTrigger>
-      <TooltipPopup>
-        <div>
-          {keepFullHistory
-            ? `Next send keeps all ${compactTokens} tokens.`
-            : `Next send compacts ${compactTokens} tokens first.`}
-        </div>
-        <div>{keepFullHistory ? "Click to compact first" : "Click to keep full history"}</div>
-      </TooltipPopup>
-    </Tooltip>,
+  return (
+    <div data-chat-composer-compact-send="true" className="flex items-center gap-2">
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              className={cn(
+                "flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-xs tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-64 sm:h-8 [&_svg]:pointer-events-none [&_svg]:size-3.5",
+                keepFullHistory
+                  ? "border-border text-muted-foreground hover:text-foreground"
+                  : "border-warning/40 text-warning hover:bg-warning/8",
+              )}
+              {...pointerFocusProps}
+              aria-pressed={!keepFullHistory}
+              aria-label={`Compact ${compactTokens} tokens of history before sending`}
+              disabled={!canOperateThread}
+              onClick={onToggleKeepFullHistory}
+            />
+          }
+        >
+          <Minimize2Icon aria-hidden="true" />
+          {keepFullHistory ? "Full" : "Compact"}
+          <span>{compactTokens}</span>
+        </TooltipTrigger>
+        <TooltipPopup>
+          <div>
+            {keepFullHistory
+              ? `Next send keeps all ${compactTokens} tokens.`
+              : `Next send compacts ${compactTokens} tokens first.`}
+          </div>
+          <div>{keepFullHistory ? "Click to compact first" : "Click to keep full history"}</div>
+        </TooltipPopup>
+      </Tooltip>
+      {submit}
+    </div>
   );
 });

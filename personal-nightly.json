@@ -17,18 +17,6 @@
       "baseRepository": "pingdotgg/t3code"
     },
     {
-      "number": 17892,
-      "title": "fix(web): attach button no longer shifts when the Compact chip toggles",
-      "headSha": "263670f2239d6118a60b4413c571fe8446d48627",
-      "baseSha": "fb990765a49414a5bfbdc73365455fc8b5fbe691",
-      "headRef": "fix/composer-compact-chip-order",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/17892",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
       "number": 18873,
       "title": "fix(preview): keep one browser page across thread switches",
       "headSha": "b9fa58f765e44c374c2bfbffaa07f9d0f240b102",
@@ -173,5 +161,5 @@
       "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "91ab80732433e39ca8e6c31cbf4a9dbf287b4839"
+  "prBaseline": "ac5fbf96be2ef820218cdaff2174591df97b4b7f"
 }
