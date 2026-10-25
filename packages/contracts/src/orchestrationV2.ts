@@ -341,8 +341,7 @@ export const OrchestrationV2ProviderCapabilities = Schema.Struct({
   context: OrchestrationV2ContextCapabilities,
   checkpointing: OrchestrationV2CheckpointCapabilities,
   identity: OrchestrationV2IdentityCapabilities,
-  // Events persisted before this field existed decode to the weaker
-  // client-boundary guarantee so replay never overclaims enforcement.
+  // Replay defaults old events to the weaker client-boundary guarantee.
   runtimePolicy: OrchestrationV2RuntimePolicyCapabilities.pipe(
     Schema.withDecodingDefault(Effect.succeed({ enforcement: "client-boundary" as const })),
   ),
@@ -374,11 +373,9 @@ export const OrchestrationV2LimitRecoveryUpdate = Schema.Struct({
 export type OrchestrationV2LimitRecoveryUpdate = typeof OrchestrationV2LimitRecoveryUpdate.Type;
 
 /**
- * How often the user opens a thread, for search ranking. `score` is an open
- * count that halves every two weeks, as of `openedAt`. `picks` holds the last
- * few palette queries that picked the thread, folded to lowercase, newest
- * first, each with when it was picked. Times are epoch milliseconds: ranking
- * does arithmetic on them.
+ * `score` is an open count that halves every two weeks, as of `openedAt`.
+ * `picks` stores lowercase palette queries, newest first.
+ * Times are epoch milliseconds for ranking arithmetic.
  */
 export const OrchestrationV2ThreadOpens = Schema.Struct({
   openedAt: Schema.Finite,
@@ -467,10 +464,7 @@ export const OrchestrationV2AppThread = Schema.Struct({
 });
 export type OrchestrationV2AppThread = typeof OrchestrationV2AppThread.Type;
 
-/**
- * The provider owns its conversation, so it cannot take messages; T3 delegate_task children
- * (`creationSource: "mcp"`) can.
- */
+/** Provider-native children cannot receive messages; T3 delegate_task children can. */
 export function isProviderNativeSubagentThread(
   thread: Pick<OrchestrationV2AppThread, "lineage" | "creationSource">,
 ): boolean {
@@ -702,22 +696,14 @@ export const OrchestrationV2ExecutionNode = Schema.Struct({
 });
 export type OrchestrationV2ExecutionNode = typeof OrchestrationV2ExecutionNode.Type;
 
-/**
- * The plan grows while the run executes: a phase a script only reaches at runtime joins the list
- * when it starts, so a client must treat the list as append-only rather than as a fixed arc
- * declared up front.
- */
+/** Append-only: phases discovered at runtime join when they start. */
 export const OrchestrationV2WorkflowPhase = Schema.Struct({
   index: NonNegativeInt,
   title: TrimmedNonEmptyString,
 });
 export type OrchestrationV2WorkflowPhase = typeof OrchestrationV2WorkflowPhase.Type;
 
-/**
- * Timestamps are epoch milliseconds rather than `DateTimeUtc` because only the top-level entity
- * fields are remapped for the JSON wire shape (see `OrchestrationV2SubagentJson`), so a nested
- * `DateTimeUtc` would never be encoded.
- */
+/** Nested timestamps use epoch milliseconds; only top-level DateTimeUtc fields are remapped for JSON. */
 export const OrchestrationV2WorkflowAgent = Schema.Struct({
   index: NonNegativeInt,
   label: TrimmedNonEmptyString,
@@ -757,6 +743,16 @@ export const OrchestrationV2SubagentWorkflow = Schema.Struct({
 });
 export type OrchestrationV2SubagentWorkflow = typeof OrchestrationV2SubagentWorkflow.Type;
 
+/**
+ * Wire-only. Set for clients that opted in with `acceptDedupedBodies` or `dedupeBodies=1` when the
+ * marked field was blanked because the client already holds the same value: in the record it
+ * received earlier on the same response or stream. Restore with
+ * `@t3tools/shared/orchestrationV2DedupedBodies` before use; never store or forward a marked
+ * value. Clients that opted in restore only these fields, so blanking another field needs a new
+ * opt-in.
+ */
+const DedupedBodyMarker = Schema.optionalKey(Schema.Literal(true));
+
 export const OrchestrationV2Subagent = Schema.Struct({
   id: NodeId,
   threadId: ThreadId,
@@ -791,6 +787,9 @@ export const OrchestrationV2Subagent = Schema.Struct({
   startedAt: Schema.NullOr(Schema.DateTimeUtc),
   completedAt: Schema.NullOr(Schema.DateTimeUtc),
   updatedAt: Schema.DateTimeUtc,
+  /** Same as this subagent's previous record on this stream: its snapshot or `subagent.updated`. */
+  promptOmitted: DedupedBodyMarker,
+  resultOmitted: DedupedBodyMarker,
 });
 export type OrchestrationV2Subagent = typeof OrchestrationV2Subagent.Type;
 
@@ -871,7 +870,6 @@ function kindUnionWithFallback<
       encode: SchemaGetter.forbidden(() => "Unknown kinds are decode-only."),
     }),
   );
-  // Members are tried in order, so the fallback must come last.
   return Schema.Union([...members, unknownKind]);
 }
 
@@ -1057,10 +1055,7 @@ export const OrchestrationV2ProviderTurn = Schema.Struct({
 });
 export type OrchestrationV2ProviderTurn = typeof OrchestrationV2ProviderTurn.Type;
 
-/**
- * A Codex goal keeps one run open across several native turns, so an attempt's first turn is not
- * always its last.
- */
+/** Codex goals can span multiple native turns within one attempt. */
 export function latestProviderTurnForAttempt<
   Turn extends Pick<OrchestrationV2ProviderTurn, "runAttemptId" | "ordinal">,
 >(
@@ -1108,12 +1103,7 @@ const SubagentNotificationSource = Schema.Struct({
 });
 const CommandNotificationSource = Schema.Struct({ kind: Schema.Literal("command") });
 
-/**
- * Sources are stored and sent in the shape clients before `subagent` and `command` existed decode,
- * since they reject a kind they do not know: a command is `background_command`, and a subagent is
- * `background_task` with `work: "subagent"`, a field those clients ignore. Encoding picks the first
- * member that fits, so those come first.
- */
+/** Encode legacy background_command/background_task shapes first so older clients accept command/subagent sources. */
 export const OrchestrationV2NotificationSource = kindUnionWithFallback(
   [
     Schema.Struct({
@@ -1328,9 +1318,7 @@ const OrchestrationV2ProviderFailureMessage = TrimmedNonEmptyString.check(
 );
 const OrchestrationV2ProviderFailureCode = TrimmedNonEmptyString.check(Schema.isMaxLength(128));
 
-/**
- * Producers must redact credentials before constructing this value.
- */
+/** Producers must redact credentials before construction. */
 export const OrchestrationV2ProviderFailure = Schema.Struct({
   class: OrchestrationV2ProviderFailureClass,
   message: OrchestrationV2ProviderFailureMessage,
@@ -1429,6 +1417,8 @@ export const OrchestrationV2TurnItem = Schema.Union([
     workflowScript: OrchestrationV2ConversationMessage.fields.workflowScript,
     inputIntent: OrchestrationV2UserMessageInputIntent,
     text: Schema.String,
+    /** Same as the text of message `messageId`. */
+    textOmitted: DedupedBodyMarker,
     context: Schema.optional(OrchestrationMessageContext),
     attachments: Schema.Array(ChatAttachment),
   }),
@@ -1437,6 +1427,7 @@ export const OrchestrationV2TurnItem = Schema.Union([
     type: Schema.Literal("assistant_message"),
     messageId: MessageId,
     text: Schema.String,
+    textOmitted: DedupedBodyMarker,
     attachments: Schema.optional(Schema.Array(ChatAttachment)),
     streaming: Schema.Boolean,
   }),
@@ -1520,6 +1511,8 @@ export const OrchestrationV2TurnItem = Schema.Union([
     checkpointId: CheckpointId,
     scopeId: CheckpointScopeId,
     files: Schema.Array(OrchestrationV2CheckpointFileSummary),
+    /** Same as the files of checkpoint `checkpointId`. */
+    filesOmitted: DedupedBodyMarker,
   }),
   Schema.Struct({
     ...OrchestrationV2TurnItemBaseFields,
@@ -1607,6 +1600,9 @@ export const OrchestrationV2TurnItem = Schema.Union([
     prompt: Schema.String,
     progress: Schema.optional(Schema.String),
     result: Schema.NullOr(Schema.String),
+    /** Same as the prompt and result of subagent `subagentId`. */
+    promptOmitted: DedupedBodyMarker,
+    resultOmitted: DedupedBodyMarker,
   }),
   Schema.Struct({
     ...OrchestrationV2TurnItemBaseFields,
@@ -1927,10 +1923,7 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
   pendingGuestMessageCount: Schema.optional(NonNegativeInt),
   latestVisibleMessage: Schema.NullOr(OrchestrationV2LatestVisibleMessageSummary),
   latestUserMessageAt: Schema.NullOr(Schema.DateTimeUtc),
-  /**
-   * The last message the user wrote. Wakes and agent messages also use the
-   * user role, so they move latestUserMessageAt but not this.
-   */
+  /** Excludes wakes and agent messages that advance latestUserMessageAt through the user role. */
   latestUserAuthoredMessageAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
   hasActionableProposedPlan: Schema.Boolean,
   pendingBackgroundTasks: Schema.optional(Schema.Array(OrchestrationV2PendingBackgroundTask)).pipe(
@@ -2749,11 +2742,7 @@ export const OrchestrationV2Command = Schema.Union([
     threadId: ThreadId,
     settledAt: Schema.optional(Schema.DateTimeUtc),
   }),
-  /**
-   * Rejected when the thread changed after `snapshotAt` or carries any explicit
-   * settled override, so automatic settlement can never race a user action or
-   * clobber an explicit un-settle.
-   */
+  /** Rejects changes since snapshotAt or any explicit settled override to preserve user actions. */
   Schema.Struct({
     type: Schema.Literal("thread.auto-settle"),
     commandId: CommandId,
@@ -2836,7 +2825,7 @@ export const OrchestrationV2Command = Schema.Union([
     /** Reject unless no message or run has landed on this thread. */
     expectedEmpty: Schema.optional(Schema.Boolean),
     limitRecovery: Schema.optional(Schema.NullOr(OrchestrationV2LimitRecoveryUpdate)),
-    /** Link (object) or unlink (null) a pull request (#8160); absent leaves it unchanged. */
+    /** Link (object) or unlink (null) a pull request; absent leaves it unchanged. */
     linkedPullRequest: Schema.optional(Schema.NullOr(ThreadLinkedPullRequest)),
   }),
   Schema.Struct({
@@ -3050,8 +3039,7 @@ export const OrchestrationV2Command = Schema.Union([
     threadId: ThreadId,
     runId: RunId,
     text: Schema.String,
-    // Full replacement list. Absent = leave the message's attachments as-is,
-    // so pre-attachment clients editing text keep the original attachments.
+    // Replaces all attachments; absent preserves them for older clients editing text.
     attachments: Schema.optional(Schema.Array(ChatAttachment)),
   }),
   Schema.Struct({
@@ -3110,8 +3098,7 @@ export const OrchestrationV2Command = Schema.Union([
     runtimeMode: RuntimeMode,
     interactionMode: ProviderInteractionMode,
     workspaceStrategy: Schema.optional(OrchestrationV2ThreadLaunchWorkspaceStrategy),
-    // Omitted behaves as "settled_only" (no wake while the parent has a live
-    // run); producers that want fire-and-forget wakes must set "always".
+    // Defaults to settled_only; fire-and-forget wakes require always.
     completionWake: Schema.optional(Schema.Literals(["always", "settled_only"])),
     createdAt: Schema.optional(Schema.DateTimeUtc),
   }),
@@ -3154,11 +3141,7 @@ export const OrchestrationV2Command = Schema.Union([
 ]);
 export type OrchestrationV2Command = typeof OrchestrationV2Command.Type;
 
-/**
- * Commands only the server dispatches. They stay out of
- * `OrchestrationV2Command`, the `dispatchCommand` payload, so no client can
- * send them.
- */
+// Excluded from dispatchCommand so only the server can send these.
 const OrchestrationV2InternalCommand = Schema.Union([
   // Guest share commands the server issues after checking T3 Connect and the guest token.
   Schema.Struct({
@@ -3283,16 +3266,8 @@ export const OrchestrationV2SubscribeCommandOutputInput = Schema.Struct({
 export type OrchestrationV2SubscribeCommandOutputInput =
   typeof OrchestrationV2SubscribeCommandOutputInput.Type;
 
-/**
- * Output of one command row, separate from the thread stream so it is never
- * persisted as events and only reaches clients that show the row expanded.
- * `replace` carries the whole bounded tail (first frame, or after the client
- * fell behind); `append` extends it. Text is terminal output, not display
- * text: `replace` carries the cleaned tail plus the cursor and style escapes
- * needed to resume, and `append` carries raw chunks. Clients must feed both
- * through `appendTerminalOutput` from `@t3tools/shared/terminalOutput`.
- * The stream ends after a frame with `running: false`.
- */
+/** Unpersisted stream for expanded rows: replace resets the bounded tail, append extends it, and running:false ends it.
+ * Feed both through @t3tools/shared/terminalOutput appendTerminalOutput to preserve cursor and style escapes. */
 export const OrchestrationV2CommandOutputFrame = Schema.Struct({
   kind: Schema.Literals(["replace", "append"]),
   text: Schema.String,
@@ -3424,26 +3399,22 @@ export const OrchestrationV2SubscribeThreadInput = Schema.Struct({
   requestCompletionMarker: Schema.optionalKey(Schema.Boolean),
   acceptBoundedSnapshot: Schema.optionalKey(Schema.Boolean),
   acceptCompactTurnItems: Schema.optionalKey(Schema.Boolean),
+  /** The client restores `*Omitted` bodies from records it already holds. */
+  acceptDedupedBodies: Schema.optionalKey(Schema.Boolean),
 });
 export type OrchestrationV2SubscribeThreadInput = typeof OrchestrationV2SubscribeThreadInput.Type;
 
 export const OrchestrationV2ThreadDetailSnapshot = Schema.Struct({
   snapshotSequence: NonNegativeInt,
   projection: OrchestrationV2ThreadProjection,
-  /**
-   * When present with hasMoreHistory/cursor, the projection is a bounded window and must not be
-   * treated as a complete timeline.
-   */
+  /** With hasMoreHistory/cursor, this projection is a bounded window, not a complete timeline. */
   historyCursor: Schema.optionalKey(Schema.NullOr(TrimmedNonEmptyString)),
   hasMoreHistory: Schema.optionalKey(Schema.Boolean),
   latestLocalTurnOrdinal: Schema.optionalKey(Schema.NullOr(NonNegativeInt)),
 });
 export type OrchestrationV2ThreadDetailSnapshot = typeof OrchestrationV2ThreadDetailSnapshot.Type;
 
-/**
- * `historyCursor` is opaque; clients must not parse it. Resume live events with `afterSequence =
- * snapshotSequence`.
- */
+/** Keep historyCursor opaque; resume events with afterSequence = snapshotSequence. */
 export const OrchestrationV2ThreadBoundedSnapshot = Schema.Struct({
   snapshotSequence: NonNegativeInt,
   projection: OrchestrationV2ThreadProjection,
@@ -3484,12 +3455,7 @@ export function isKnownOrchestrationV2EventType(type: string): boolean {
   return knownDomainEventTypes.has(type);
 }
 
-/**
- * A thread event whose type this build does not know, or a turn-item.updated
- * carrying a turn item type it does not know. Newer servers add both; older
- * clients decode them to this case and skip them, still advancing their resume
- * cursor, instead of failing the whole subscription.
- */
+// Skip unknown event or turn-item types while advancing the resume cursor.
 const OrchestrationV2UnknownThreadStreamEvent = Schema.Struct({
   kind: Schema.Literal("event"),
   sequence: NonNegativeInt,
@@ -3540,7 +3506,6 @@ export const OrchestrationV2ThreadStreamItem = Schema.Union([
     sequence: NonNegativeInt,
     event: OrchestrationV2DomainEvent,
   }),
-  // After the known arm: union members are tried in order.
   OrchestrationV2UnknownThreadStreamEvent,
 ]);
 export type OrchestrationV2ThreadStreamItem = typeof OrchestrationV2ThreadStreamItem.Type;
