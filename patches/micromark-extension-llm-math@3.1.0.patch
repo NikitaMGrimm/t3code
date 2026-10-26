@@ -237,7 +237,7 @@ diff --git a/dev/lib/math-text.js b/dev/lib/math-text.js
 +++ b/dev/lib/math-text.js
 @@ -10 +10 @@
 -import {markdownLineEnding} from 'micromark-util-character'
-+import {asciiAlpha, markdownLineEnding} from 'micromark-util-character'
++import {markdownLineEnding, markdownLineEndingOrSpace} from 'micromark-util-character'
 @@ -42,6 +42,13 @@
      let size
      /** @type {Token} */
@@ -317,7 +317,7 @@ diff --git a/dev/lib/math-text.js b/dev/lib/math-text.js
 +        if (code !== null && code >= codes.digit0 && code <= codes.digit9) {
 +          return nok(code)
 +        }
-+        if (charBeforeClose === codes.comma && !openWhitespace && (asciiAlpha(code) || code === codes.underscore)) {
++        if (charBeforeClose === codes.comma && !openWhitespace && code !== codes.eof && !markdownLineEndingOrSpace(code) && !/[.,;:)\]}]/.test(String.fromCharCode(code))) {
 +          return nok(code)
 +        }
 +        // Check if closing sequence has matching whitespace pattern
