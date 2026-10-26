@@ -1,19 +1,20 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.3-nightly.20261026.3710",
+  "upstreamTag": "v0.1.3-nightly.20261026.3717",
   "conflicts": [
-    "apps/mobile/src/components/MediaVideoPlayer.tsx"
+    "apps/server/src/mcp/PreviewAutomationBroker.ts",
+    "apps/server/src/preview/ServerBrowser.ts"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40287536708",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40301756847",
   "releasedVersion": "0.1.3-nightly.20261026.1792997612285",
   "baseCommit": "4b9d1bfba0e9b4c17e7db347a181c70d1602e1f4",
-  "sequence": 1793000611889,
-  "conflictPullRequest": 21894,
+  "sequence": 1793007814497,
+  "conflictPullRequest": 17871,
   "conflictStage": "pull_request",
-  "conflictIdentity": "90854ce5103150054558a91c473abd674d001ce874137ce6c68a39a801028502",
+  "conflictIdentity": "01d19f5fa0eed42322831c5a137ce8031ad06942d0fe39413caecb806bec4e69",
   "inputs": {
-    "upstreamTag": "v0.1.3-nightly.20261026.3710",
+    "upstreamTag": "v0.1.3-nightly.20261026.3717",
     "pullRequests": [
       {
         "number": 17871,
