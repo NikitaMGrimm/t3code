@@ -1,7 +1,7 @@
 import { useIsFocused } from "@react-navigation/native";
 import { useEvent } from "expo";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AppState, Pressable, View } from "react-native";
 
 import { AppActivityIndicator } from "./ui/AppActivityIndicator";
@@ -14,12 +14,14 @@ import { loadVideoThumbnail } from "../lib/videoThumbnails";
 import { type MediaActionsSource } from "../lib/mediaActionsSource";
 import { useFullscreenVideoOpen, useMediaAudioSessionHold } from "../lib/videoAudioSession";
 import { MediaActionsMenu } from "./MediaActionsMenu";
+import { createAudioPlaybackSession } from "../lib/audioSession";
 
 function LoadedMediaVideo(props: {
   readonly uri: string;
   readonly resolvePlaybackUri?: () => Promise<string | null>;
   readonly playRequested: boolean;
   readonly paused: boolean;
+  readonly onPlaybackStart?: () => void;
 }) {
   const focused = useIsFocused();
   const fullscreenVideoOpen = useFullscreenVideoOpen();
@@ -33,6 +35,38 @@ function LoadedMediaVideo(props: {
     player.staysActiveInBackground = false;
     player.bufferOptions = { preferredForwardBufferDuration: 5 };
   });
+  const playback = useMemo(() => createAudioPlaybackSession(player, true), [player]);
+  const previousPlaybackRequested = useRef(false);
+  const onPlaybackStart = useEffectEvent(() => props.onPlaybackStart?.());
+  useEffect(() => {
+    const subscription = player.addListener("playingChange", ({ isPlaying }) => {
+      if (isPlaying && !active.current && !fullscreen.current) playback.pause();
+      else playback.playingChanged(isPlaying);
+    });
+    const requested = player.addListener("playbackRequestedChange", ({ isPlaybackRequested }) => {
+      const wasPlaybackRequested = previousPlaybackRequested.current;
+      previousPlaybackRequested.current = isPlaybackRequested;
+      if (!isPlaybackRequested) {
+        if (playback.requested) playback.pause();
+      } else if (!active.current && !fullscreen.current) playback.pause();
+      else {
+        if (!wasPlaybackRequested) onPlaybackStart();
+        playback.playingChanged(true);
+      }
+    });
+    const ended = player.addListener("playToEnd", () => playback.pause());
+    const failed = player.addListener("statusChange", ({ status }) => {
+      if (status === "error") playback.pause();
+    });
+    return () => {
+      subscription.remove();
+      requested.remove();
+      ended.remove();
+      failed.remove();
+      playback.pause();
+      previousPlaybackRequested.current = false;
+    };
+  }, [player, playback]);
   const { status } = useEvent(player, "statusChange", { status: player.status });
   const { isPlaying } = useEvent(player, "playingChange", { isPlaying: player.playing });
   useMediaAudioSessionHold(isPlaying);
@@ -40,21 +74,22 @@ function LoadedMediaVideo(props: {
     const uri = props.resolvePlaybackUri ? await props.resolvePlaybackUri() : props.uri;
     if (signal.aborted) return;
     if (uri === null) throw new Error("Video unavailable");
-    player.pause();
+    playback.pause();
+    previousPlaybackRequested.current = false;
     await player.replaceAsync({ uri, contentType: "progressive" });
-    if (!signal.aborted && props.playRequested && active.current) player.play();
+    if (!signal.aborted && props.playRequested && active.current) await playback.play();
   });
 
   useEffect(() => {
     active.current = focused && !paused && AppState.currentState === "active";
-    if (!focused || paused || (!active.current && !fullscreen.current)) player.pause();
+    if (!focused || paused || (!active.current && !fullscreen.current)) playback.pause();
     // RN reports both leaving the app and Android fullscreen as background; native handling distinguishes them.
     const subscription = AppState.addEventListener("change", (state) => {
       active.current = focused && !paused && state === "active";
-      if (state === "inactive" || (state === "background" && !fullscreen.current)) player.pause();
+      if (state === "inactive" || (state === "background" && !fullscreen.current)) playback.pause();
     });
     return () => subscription.remove();
-  }, [focused, player, paused]);
+  }, [focused, playback, paused]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -69,6 +104,7 @@ function LoadedMediaVideo(props: {
       },
     );
     return () => controller.abort();
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A play request or Retry (attempt) reloads the source into the same player.
   }, [player, props.playRequested, attempt]);
 
   return (
@@ -121,6 +157,7 @@ interface MediaVideoPlayerProps {
   readonly fitToVideo?: boolean;
   readonly autoPlay?: boolean;
   readonly paused?: boolean;
+  readonly onPlaybackStart?: () => void;
   readonly actionsSource?: MediaActionsSource;
 }
 
@@ -168,6 +205,7 @@ function MediaVideoPlayerContent(props: MediaVideoPlayerProps) {
           resolvePlaybackUri={props.resolvePlaybackUri}
           playRequested={!props.expanded || props.autoPlay === true}
           paused={(props.paused ?? false) || mediaActions.sharing}
+          onPlaybackStart={props.onPlaybackStart}
         />
       ) : (
         <MediaActionsMenu media={mediaActions} inModal={props.expanded} style={{ flex: 1 }}>
@@ -180,7 +218,10 @@ function MediaVideoPlayerContent(props: MediaVideoPlayerProps) {
             accessibilityState={{ disabled: props.uri === null || props.unavailable === true }}
             // Stays pressable so the long-press menu still opens on a failed or unsigned tile.
             onPress={() => {
-              if (props.uri !== null && !props.unavailable) setPlaybackUri(props.uri);
+              if (props.uri !== null && !props.unavailable) {
+                props.onPlaybackStart?.();
+                setPlaybackUri(props.uri);
+              }
             }}
             className="flex-1 items-center justify-center px-4"
           >

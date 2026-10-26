@@ -2,7 +2,7 @@
   "repository": "NikitaMGrimm/t3code",
   "branch": "personal-nightly",
   "upstreamRepository": "pingdotgg/t3code",
-  "upstreamTag": "v0.1.3-nightly.20261025.3682",
+  "upstreamTag": "v0.1.3-nightly.20261026.3710",
   "pullRequests": [
     {
       "number": 17871,
@@ -55,8 +55,8 @@
     {
       "number": 21894,
       "title": "fix(mobile): file preview videos keep their own aspect ratio",
-      "headSha": "d1bfc628a4fd10c9cca33ff6649d371341fea750",
-      "baseSha": "598298cc3c56ef6943301944d6986578f6b7d587",
+      "headSha": "fd8b545314b8d9038a0bb6eabecf9ea51154b16f",
+      "baseSha": "1646a471409d977eec983cf43277144e606dba84",
       "headRef": "fix/mobile-file-preview-video-aspect",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -127,8 +127,8 @@
     {
       "number": 23673,
       "title": "feat(web): optionally keep thread section dividers visible",
-      "headSha": "143154d864ccdf5a08efe078bd05b1f73737e8c9",
-      "baseSha": "056b4457cc687b053e15f1fc89afb900078a127e",
+      "headSha": "ea71e4c09f81b7599a868a4cefb0a521d26c3a3a",
+      "baseSha": "3de45c6254345f968fbdc64db7b149bf4f429855",
       "headRef": "feat/sidebar-section-dividers",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -139,8 +139,8 @@
     {
       "number": 23784,
       "title": "fix(shared): give attached threads a canonical read call",
-      "headSha": "dce4af33f0c5318141f4cda166baa4d0a373a8f1",
-      "baseSha": "22840ab943b8418744b48223411e46ba4fdcef1a",
+      "headSha": "b4e9ceafae3497b1ddc3934356887ab5c98315e0",
+      "baseSha": "f88b33a16de988f86782343b348631d11432ddf2",
       "headRef": "fix/thread-context-read-id",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -151,8 +151,8 @@
     {
       "number": 24138,
       "title": "fix(composer): steer instead of queueing during automatic compaction",
-      "headSha": "bbc2db07af8ce668a1375c3e64c88bcedac0e558",
-      "baseSha": "66ee628e0875b2b735b199f42e6151e347833637",
+      "headSha": "3878e0fef2ad395d7acbd947a80e7bc8143674d0",
+      "baseSha": "738fd087076623e159b677e1f87ffe23d2bc7e88",
       "headRef": "fix/steer-during-auto-compaction",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -161,5 +161,5 @@
       "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "8b7bc17139b592427a5a261feeb0f9786430bf50"
+  "prBaseline": "5228f9a3a1d04ecf9f4fa9d1d0aa00e3950bb9de"
 }
