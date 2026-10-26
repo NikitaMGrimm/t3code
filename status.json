@@ -3,15 +3,15 @@
   "phase": "conflict",
   "upstreamTag": "v0.1.3-nightly.20261025.3692",
   "conflicts": [
-    "apps/web/src/components/chat/ChatComposer.tsx"
+    "packages/contracts/src/settings.ts"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40251049877",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40258841285",
   "releasedVersion": "0.1.3-nightly.20261025.1792954980635",
   "baseCommit": "5048c592801c2d86d78bad6f44bdceadb7db2f24",
-  "sequence": 1792975654177,
-  "conflictPullRequest": 24138,
+  "sequence": 1792981404056,
+  "conflictPullRequest": 23673,
   "conflictStage": "pull_request",
-  "conflictIdentity": "cf0259ed2bad363d87a0db6d3bcca51a491d124803181199815ff5684a6e1388",
+  "conflictIdentity": "fffa57270bfbb50d71c0f37bb3a159aea5e38d2b34064af208dda2c8782d95a2",
   "inputs": {
     "upstreamTag": "v0.1.3-nightly.20261025.3692",
     "pullRequests": [
@@ -67,7 +67,7 @@
       },
       {
         "number": 23673,
-        "headSha": "e1e3be494cd083db495826cb93901151c5ccdcdc",
+        "headSha": "ea71e4c09f81b7599a868a4cefb0a521d26c3a3a",
         "baseRef": "main"
       },
       {
@@ -207,8 +207,8 @@
     {
       "number": 23673,
       "title": "feat(web): optionally keep thread section dividers visible",
-      "headSha": "e1e3be494cd083db495826cb93901151c5ccdcdc",
-      "baseSha": "1646a471409d977eec983cf43277144e606dba84",
+      "headSha": "ea71e4c09f81b7599a868a4cefb0a521d26c3a3a",
+      "baseSha": "3de45c6254345f968fbdc64db7b149bf4f429855",
       "headRef": "feat/sidebar-section-dividers",
       "baseRef": "main",
       "author": "NikitaMGrimm",
