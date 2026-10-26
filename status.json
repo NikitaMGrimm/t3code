@@ -3,15 +3,15 @@
   "phase": "conflict",
   "upstreamTag": "v0.1.3-nightly.20261025.3692",
   "conflicts": [
-    "apps/web/src/components/chat/ComposerPrimaryActions.tsx",
-    "apps/web/src/components/chat/UsageLimitRecoveryBanner.tsx"
+    "apps/web/src/components/chat/ChatComposer.tsx"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40244769073",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40250156502",
   "releasedVersion": "0.1.3-nightly.20261025.1792954980635",
   "baseCommit": "5048c592801c2d86d78bad6f44bdceadb7db2f24",
-  "sequence": 1792970791107,
-  "conflictStage": "personal",
-  "conflictIdentity": "151394c30cd14d66ebddfb36692f8cb8685d2ded3aafc249c521ee28088b41b4",
+  "sequence": 1792974978682,
+  "conflictPullRequest": 24138,
+  "conflictStage": "pull_request",
+  "conflictIdentity": "cf0259ed2bad363d87a0db6d3bcca51a491d124803181199815ff5684a6e1388",
   "inputs": {
     "upstreamTag": "v0.1.3-nightly.20261025.3692",
     "pullRequests": [
@@ -77,7 +77,7 @@
       },
       {
         "number": 24138,
-        "headSha": "bbc2db07af8ce668a1375c3e64c88bcedac0e558",
+        "headSha": "580495a21e5e9b76c3eb0f9dc5c75a15458fefbc",
         "baseRef": "main"
       }
     ],
@@ -231,8 +231,8 @@
     {
       "number": 24138,
       "title": "fix(composer): steer instead of queueing during automatic compaction",
-      "headSha": "bbc2db07af8ce668a1375c3e64c88bcedac0e558",
-      "baseSha": "66ee628e0875b2b735b199f42e6151e347833637",
+      "headSha": "580495a21e5e9b76c3eb0f9dc5c75a15458fefbc",
+      "baseSha": "03df289735527354a500c8e8cf371c11d4c75d3c",
       "headRef": "fix/steer-during-auto-compaction",
       "baseRef": "main",
       "author": "NikitaMGrimm",
