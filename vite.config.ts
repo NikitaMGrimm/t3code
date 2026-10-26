@@ -216,6 +216,16 @@ export default defineConfig({
       perf: "warn",
     },
     rules: {
+      "eslint/no-new": "error",
+      "unicorn/no-useless-spread": "error",
+      "eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
+      ],
+      "eslint/no-unsafe-optional-chaining": "error",
+      "eslint/no-unneeded-ternary": "error",
+      "unicorn/no-useless-fallback-in-spread": "error",
+      "unicorn/require-module-specifiers": "error",
       "unicorn/no-array-sort": "off",
       "unicorn/consistent-function-scoping": "off",
       "oxc/no-map-spread": "off",
@@ -584,6 +594,10 @@ export default defineConfig({
         // Directives hide bailouts from mobile's compiler-coverage check; retain hooks until its allowlist is empty.
         files: ["apps/mobile/src/**/*.{ts,tsx}"],
         rules: { "t3code/no-manual-memo": ["error", { allowMemoHooks: true }] },
+      },
+      {
+        files: ["apps/web/src/**", "apps/mobile/src/**", "packages/*/src/**"],
+        rules: { "t3code/react-effect-budget": "error" },
       },
       {
         // React Compiler caches use* functions only if they call a hook.
