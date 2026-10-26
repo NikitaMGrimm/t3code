@@ -1,24 +1,18 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.3-nightly.20261026.3707",
+  "upstreamTag": "v0.1.3-nightly.20261026.3710",
   "conflicts": [
-    "apps/desktop/src/preview/DesktopBrowserHost.ts",
-    "apps/desktop/src/preview/Manager.ts",
-    "apps/server/src/preview/ServerBrowser.test.ts",
-    "apps/server/src/preview/ServerBrowserPage.ts",
-    "apps/web/src/components/preview/usePreviewBridge.test.ts",
-    "apps/web/src/components/preview/usePreviewBridge.ts"
+    "apps/web/src/routes/__root.tsx"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40269329689",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40272543945",
   "releasedVersion": "0.1.3-nightly.20261025.1792954980635",
-  "baseCommit": "5048c592801c2d86d78bad6f44bdceadb7db2f24",
-  "sequence": 1792988970587,
-  "conflictPullRequest": 18873,
-  "conflictStage": "pull_request",
-  "conflictIdentity": "6343473d7241b38fa1282802a61861d7fd6d83cea75250055185784795fa6241",
+  "baseCommit": "f0f4877302509d9bf9c7937e8ad7c580378c4a30",
+  "sequence": 1792991244154,
+  "conflictStage": "personal",
+  "conflictIdentity": "6006197dbb1625ec738343e48c1e4f2e3596dd82230f174f3ab0ec5fddc2f4ba",
   "inputs": {
-    "upstreamTag": "v0.1.3-nightly.20261026.3707",
+    "upstreamTag": "v0.1.3-nightly.20261026.3710",
     "pullRequests": [
       {
         "number": 17871,
@@ -86,7 +80,7 @@
         "baseRef": "main"
       }
     ],
-    "resolutions": "a4537c472c2281668444929100282e057a3c299225050d4d628dfca537103154"
+    "resolutions": "0fd026254d8e398204f3680aa24d627ec7820a18b9861f502348e760f48b9495"
   },
   "pullRequests": [
     {
