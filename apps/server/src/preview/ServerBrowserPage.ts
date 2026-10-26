@@ -496,7 +496,8 @@ const captureFrame = async (
 
 /**
  * A timed-out capture still owns Chromium's capture viewport. Refuse another capture until
- * Chromium answers or the caller retires its CDP session.
+ * Chromium answers, the caller retires its CDP session, or the main frame navigates, since a
+ * new document answers nothing pending from the old one.
  */
 export const captureViewport = (
   page: Page,
@@ -515,13 +516,16 @@ export const captureViewport = (
   pendingCaptures.set(page, token);
   // A late answer to an abandoned capture must not release a newer capture's guard.
   const release = () => {
+    retired?.removeEventListener("abort", release);
+    cdp.off("Page.frameNavigated", navigated);
     if (pendingCaptures.get(page) === token) pendingCaptures.delete(page);
   };
+  const navigated = ({ frame }: { frame: { parentId?: string } }) => {
+    if (!frame.parentId) release();
+  };
   retired?.addEventListener("abort", release, { once: true });
-  const captured = captureFrame(page, cdp, options).finally(() => {
-    retired?.removeEventListener("abort", release);
-    release();
-  });
+  cdp.on("Page.frameNavigated", navigated);
+  const captured = captureFrame(page, cdp, options).finally(release);
   void captured.catch(constVoid);
   if (retired) return captured;
   let timer: ReturnType<typeof setTimeout> | undefined;

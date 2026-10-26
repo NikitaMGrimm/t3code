@@ -1181,8 +1181,6 @@ export interface DesktopPreviewBridge {
   };
   onStateChange: (listener: (tabId: string, state: DesktopPreviewTabState) => void) => () => void;
   onPointerEvent: (listener: (event: DesktopPreviewPointerEvent) => void) => () => void;
-  /** The server waits for a frame of this hidden tab; keep it drawing for the capture limit. */
-  onFrameRequest: (listener: (tabId: string) => void) => () => void;
   onOpenLink: (listener: (event: DesktopPreviewOpenLinkEvent) => void) => () => void;
 }
 

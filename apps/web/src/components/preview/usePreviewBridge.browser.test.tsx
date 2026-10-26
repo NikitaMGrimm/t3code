@@ -1,8 +1,10 @@
 import { EnvironmentId, ThreadId, type DesktopPreviewTabState } from "@t3tools/contracts";
 import * as Option from "effect/Option";
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
+
+import { useBrowserSurfaceStore } from "~/browser/browserSurfaceStore";
+
+import { render } from "../../../test/render";
 
 const mocks = vi.hoisted(() => ({
   mode: undefined as "native" | "headless" | undefined,
@@ -44,14 +46,16 @@ const threadRef = {
   environmentId: EnvironmentId.make("environment-1"),
   threadId: ThreadId.make("thread-1"),
 };
-let root: Root | undefined;
 
 function BridgeHarness() {
   usePreviewBridge({ threadRef, tabId: "tab-1", runtimeTabId: "native-tab-1", serverDriven: true });
   return null;
 }
 
-function state(navStatus: DesktopPreviewTabState["navStatus"]): DesktopPreviewTabState {
+function state(
+  navStatus: DesktopPreviewTabState["navStatus"],
+  capturing = false,
+): DesktopPreviewTabState {
   return {
     tabId: "tab-1",
     webContentsId: 1,
@@ -64,6 +68,7 @@ function state(navStatus: DesktopPreviewTabState["navStatus"]): DesktopPreviewTa
     audioMuted: false,
     audible: false,
     controller: "none",
+    capturing,
     favicon: {
       dataUrl: "data:image/png;base64,AAAA",
       pageUrl: "https://example.com/",
@@ -73,33 +78,16 @@ function state(navStatus: DesktopPreviewTabState["navStatus"]): DesktopPreviewTa
   };
 }
 
-async function mount() {
-  root = createRoot(document.body.appendChild(document.createElement("div")));
-  await act(async () => root!.render(<BridgeHarness />));
-}
-
-async function unmount() {
-  await act(async () => root?.unmount());
-  root = undefined;
-}
-
-beforeEach(() => {
+function mount(mode?: "native" | "headless") {
   vi.clearAllMocks();
-  mocks.mode = undefined;
+  mocks.mode = mode;
   mocks.listener = null;
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-});
-
-afterEach(async () => {
-  await unmount();
-  document.body.replaceChildren();
-  vi.unstubAllGlobals();
-});
+  return render(<BridgeHarness />, { router: false });
+}
 
 describe("native bridge lifetime", () => {
   it("drops late native state when the server switches this tab to headless", async () => {
-    mocks.mode = "native";
-    await mount();
+    await using screen = await mount("native");
     mocks.listener?.(
       "native-tab-1",
       state({ kind: "Loading", url: "https://example.com/", title: "" }),
@@ -119,20 +107,34 @@ describe("native bridge lifetime", () => {
     expect(mocks.applyDesktopState).toHaveBeenLastCalledWith(threadRef, "tab-1", null);
     expect(mocks.reportStatus).not.toHaveBeenCalled();
 
-    await unmount();
+    await screen.unmount();
     expect(mocks.unsubscribe).toHaveBeenCalledTimes(1);
     expect(mocks.applyDesktopState).toHaveBeenLastCalledWith(threadRef, "tab-1", null);
   });
 
   it("clears the native overlay on headless unmount even without another native event", async () => {
-    await mount();
+    await using screen = await mount();
     mocks.listener?.(
       "native-tab-1",
       state({ kind: "Loading", url: "https://example.com/", title: "" }),
     );
     mocks.mode = "headless";
-    await unmount();
+    await screen.unmount();
     expect(mocks.unsubscribe).toHaveBeenCalledTimes(1);
     expect(mocks.applyDesktopState).toHaveBeenLastCalledWith(threadRef, "tab-1", null);
+  });
+
+  it("keeps the guest painting only while the host captures it", async () => {
+    const activity = () => useBrowserSurfaceStore.getState().activityByTabId["native-tab-1"];
+    await using screen = await mount("native");
+    const loading = { kind: "Loading", url: "https://example.com/", title: "" } as const;
+    mocks.listener?.("native-tab-1", state(loading, true));
+    expect(activity()).toBe(1);
+    mocks.listener?.("native-tab-1", state(loading, false));
+    expect(activity()).toBeUndefined();
+    mocks.listener?.("native-tab-1", state(loading, true));
+    // A guest whose bridge goes away while capturing must not keep painting.
+    await screen.unmount();
+    expect(activity()).toBeUndefined();
   });
 });
