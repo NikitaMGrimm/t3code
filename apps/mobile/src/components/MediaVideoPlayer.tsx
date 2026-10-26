@@ -1,8 +1,7 @@
-import { useIsFocused } from "@react-navigation/native";
 import { useEvent } from "expo";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AppState, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { AppActivityIndicator } from "./ui/AppActivityIndicator";
 import { AppText } from "./ui/AppText";
@@ -12,7 +11,7 @@ import { useMediaActions } from "../state/mediaActions";
 import { fitVideoFrame } from "../lib/videoFrameFit";
 import { loadVideoThumbnail } from "../lib/videoThumbnails";
 import { type MediaActionsSource } from "../lib/mediaActionsSource";
-import { useFullscreenVideoOpen, useMediaAudioSessionHold } from "../lib/videoAudioSession";
+import { useMediaVideoPlayback } from "../lib/useMediaVideoPlayback";
 import { MediaActionsMenu } from "./MediaActionsMenu";
 import { createAudioPlaybackSession } from "../lib/audioSession";
 
@@ -21,13 +20,9 @@ function LoadedMediaVideo(props: {
   readonly resolvePlaybackUri?: () => Promise<string | null>;
   readonly playRequested: boolean;
   readonly paused: boolean;
+  readonly visible: boolean;
   readonly onPlaybackStart?: () => void;
 }) {
-  const focused = useIsFocused();
-  const fullscreenVideoOpen = useFullscreenVideoOpen();
-  const paused = props.paused || fullscreenVideoOpen;
-  const active = useRef(focused && AppState.currentState === "active");
-  const fullscreen = useRef(false);
   const [attempt, setAttempt] = useState(0);
   // Expo's Android player also reports completed playback as idle.
   const [loadState, setLoadState] = useState<"pending" | "complete" | "error">("pending");
@@ -36,6 +31,8 @@ function LoadedMediaVideo(props: {
     player.bufferOptions = { preferredForwardBufferDuration: 5 };
   });
   const playback = useMemo(() => createAudioPlaybackSession(player, true), [player]);
+  const { active, fullscreen, createPlayRequest, onFullscreenEnter, onFullscreenExit } =
+    useMediaVideoPlayback(player, props, playback);
   const previousPlaybackRequested = useRef(false);
   const onPlaybackStart = useEffectEvent(() => props.onPlaybackStart?.());
   useEffect(() => {
@@ -66,30 +63,18 @@ function LoadedMediaVideo(props: {
       playback.pause();
       previousPlaybackRequested.current = false;
     };
-  }, [player, playback]);
+  }, [active, fullscreen, player, playback]);
   const { status } = useEvent(player, "statusChange", { status: player.status });
-  const { isPlaying } = useEvent(player, "playingChange", { isPlaying: player.playing });
-  useMediaAudioSessionHold(isPlaying);
   const loadSource = useEffectEvent(async (signal: AbortSignal) => {
+    const playIfUninterrupted = createPlayRequest();
     const uri = props.resolvePlaybackUri ? await props.resolvePlaybackUri() : props.uri;
     if (signal.aborted) return;
     if (uri === null) throw new Error("Video unavailable");
     playback.pause();
     previousPlaybackRequested.current = false;
     await player.replaceAsync({ uri, contentType: "progressive" });
-    if (!signal.aborted && props.playRequested && active.current) await playback.play();
+    if (!signal.aborted && props.playRequested) await playIfUninterrupted();
   });
-
-  useEffect(() => {
-    active.current = focused && !paused && AppState.currentState === "active";
-    if (!focused || paused || (!active.current && !fullscreen.current)) playback.pause();
-    // RN reports both leaving the app and Android fullscreen as background; native handling distinguishes them.
-    const subscription = AppState.addEventListener("change", (state) => {
-      active.current = focused && !paused && state === "active";
-      if (state === "inactive" || (state === "background" && !fullscreen.current)) playback.pause();
-    });
-    return () => subscription.remove();
-  }, [focused, playback, paused]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -117,12 +102,8 @@ function LoadedMediaVideo(props: {
         nativeControls
         contentFit="contain"
         fullscreenOptions={{ enable: true }}
-        onFullscreenEnter={() => {
-          fullscreen.current = true;
-        }}
-        onFullscreenExit={() => {
-          fullscreen.current = false;
-        }}
+        onFullscreenEnter={onFullscreenEnter}
+        onFullscreenExit={onFullscreenExit}
         allowsPictureInPicture={false}
       />
       {loadState === "error" || (loadState === "complete" && status === "error") ? (
@@ -152,6 +133,7 @@ interface MediaVideoPlayerProps {
   readonly name: string;
   readonly thumbnailKey: string;
   readonly thumbnailVisible?: boolean;
+  readonly visible?: boolean;
   readonly unavailable?: boolean;
   readonly expanded?: boolean;
   /** Fill the parent and size the frame to the video's shape instead of a fixed 16:9 slot. */
@@ -206,6 +188,7 @@ function MediaVideoPlayerContent(props: MediaVideoPlayerProps) {
           resolvePlaybackUri={props.resolvePlaybackUri}
           playRequested={!props.expanded || props.autoPlay === true}
           paused={(props.paused ?? false) || mediaActions.sharing}
+          visible={props.visible ?? true}
           onPlaybackStart={props.onPlaybackStart}
         />
       ) : (
