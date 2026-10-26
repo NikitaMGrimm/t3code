@@ -127,6 +127,11 @@ describe("chat math parsing", () => {
       "Pay $5,$10 now.",
       "Run $browser then $deploy on it.",
       "Set $HOME before running.",
+      "Set $HOME,$PATH before running.",
+      "Set $HOME, $PATH before running.",
+      "Set $HOME,$_PATH before running.",
+      "Set $home,$path before running.",
+      "Pay $1,000,$2,000 now.",
     ]) {
       expect(formulas(prose), prose).toEqual([]);
       expect(text(prose), prose).toBe(prose);
