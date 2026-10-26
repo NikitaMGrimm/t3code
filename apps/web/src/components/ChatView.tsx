@@ -86,7 +86,7 @@ import {
   workflowOpeningParentThreadId,
 } from "@t3tools/client-runtime/state/subagentRuntime";
 import { threadSupportsProviderHandoff } from "@t3tools/client-runtime/state/thread-workflows";
-import { isCompactCommandText } from "@t3tools/client-runtime/state/composer-dispatch";
+import { isExplicitCompactionActive } from "@t3tools/client-runtime/state/composer-dispatch";
 import { resolvePendingHandoff } from "@t3tools/client-runtime/handoff";
 import { HandoffRow } from "./chat/V2LifecycleRow";
 import {
@@ -1367,14 +1367,15 @@ export default function ChatView(props: ChatViewProps) {
   const isCompacting =
     (isSendBusy || phase === "connecting" || phase === "running") &&
     (compactionRunning || compactCommandIsActive);
-  // Only an explicit compaction refuses steering. Automatic compaction runs
-  // inside an ordinary turn, which still accepts it.
-  const explicitCompactionIsActive =
-    compactCommandIsActive ||
-    (compactionRunning &&
-      latestServerUserItem?.type === "user_message" &&
-      latestServerUserItem.runId === activeRuntime?.activeRunId &&
-      isCompactCommandText(latestServerUserItem.text));
+  const activeRunUserItem = serverVisibleTurnItems.find(
+    ({ item }) => item.type === "user_message" && item.runId === activeRuntime?.activeRunId,
+  )?.item;
+  const explicitCompactionIsActive = isExplicitCompactionActive({
+    compactCommandIsActive,
+    compactionRunning,
+    activeRunUserMessageText:
+      activeRunUserItem?.type === "user_message" ? activeRunUserItem.text : undefined,
+  });
   const isWorking =
     phase === "running" ||
     isSendBusy ||

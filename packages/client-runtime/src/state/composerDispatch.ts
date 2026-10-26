@@ -15,13 +15,17 @@ export function resolveComposerDispatchMode(input: {
   return defaultAction;
 }
 
-/**
- * Whether a run's user message asks for an explicit compaction. Its running
- * compaction refuses steering, unlike automatic compaction inside an ordinary
- * turn. Pi and Claude also compact for `/compact <instructions>`.
- */
-export function isCompactCommandText(text: string): boolean {
-  return /^\/compact(?:\s|$)/i.test(text.trim());
+// Automatic compaction keeps accepting input; only explicit compaction blocks it.
+export function isExplicitCompactionActive(input: {
+  readonly compactCommandIsActive: boolean;
+  readonly compactionRunning: boolean;
+  readonly activeRunUserMessageText: string | undefined;
+}): boolean {
+  return (
+    input.compactCommandIsActive ||
+    (input.compactionRunning &&
+      /^\/compact(?:\s|$)/i.test(input.activeRunUserMessageText?.trim() ?? ""))
+  );
 }
 
 export function alternateComposerDispatchAction(

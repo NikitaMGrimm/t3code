@@ -1,12 +1,64 @@
 import { expect, it } from "vite-plus/test";
 
-import { isCompactCommandText } from "./composerDispatch.ts";
+import { isExplicitCompactionActive, resolveComposerDispatchMode } from "./composerDispatch.ts";
 
-it("recognizes explicit compaction commands, with or without instructions", () => {
-  expect(isCompactCommandText("/compact")).toBe(true);
-  expect(isCompactCommandText("  /COMPACT  ")).toBe(true);
-  expect(isCompactCommandText("/compact keep the debugging notes")).toBe(true);
-  expect(isCompactCommandText("/compactify")).toBe(false);
-  expect(isCompactCommandText("please /compact")).toBe(false);
-  expect(isCompactCommandText("Also end your reply with PINEAPPLE.")).toBe(false);
+it("allows steering during automatic compaction and preserves Queue and alternate dispatch", () => {
+  const canSteer = !isExplicitCompactionActive({
+    compactCommandIsActive: false,
+    compactionRunning: true,
+    activeRunUserMessageText: "Read the code",
+  });
+  expect(resolveComposerDispatchMode({ running: true, alternateModifier: false, canSteer })).toBe(
+    "steer",
+  );
+  expect(resolveComposerDispatchMode({ running: true, alternateModifier: true, canSteer })).toBe(
+    "queue",
+  );
+  expect(
+    resolveComposerDispatchMode({
+      running: true,
+      alternateModifier: false,
+      activeTurnDefault: "queue",
+      canSteer,
+    }),
+  ).toBe("queue");
+});
+
+it("blocks steering only for a pending compact command or a running explicit compaction", () => {
+  expect(
+    isExplicitCompactionActive({
+      compactCommandIsActive: true,
+      compactionRunning: false,
+      activeRunUserMessageText: undefined,
+    }),
+  ).toBe(true);
+  for (const text of ["/compact", "  /COMPACT  ", "/compact keep the debugging notes"]) {
+    const canSteer = !isExplicitCompactionActive({
+      compactCommandIsActive: false,
+      compactionRunning: true,
+      activeRunUserMessageText: text,
+    });
+    expect(resolveComposerDispatchMode({ running: true, alternateModifier: false, canSteer })).toBe(
+      "queue",
+    );
+    expect(resolveComposerDispatchMode({ running: true, alternateModifier: true, canSteer })).toBe(
+      "queue",
+    );
+    expect(
+      isExplicitCompactionActive({
+        compactCommandIsActive: false,
+        compactionRunning: false,
+        activeRunUserMessageText: text,
+      }),
+    ).toBe(false);
+  }
+  for (const text of ["/compactify", "please /compact", undefined]) {
+    expect(
+      isExplicitCompactionActive({
+        compactCommandIsActive: false,
+        compactionRunning: true,
+        activeRunUserMessageText: text,
+      }),
+    ).toBe(false);
+  }
 });

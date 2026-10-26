@@ -81,7 +81,7 @@ import {
   useComposerDraftSettings,
 } from "./use-composer-drafts";
 import {
-  isCompactCommandText,
+  isExplicitCompactionActive,
   resolveComposerDispatchMode,
   type ActiveTurnComposerAction,
 } from "@t3tools/client-runtime/state/composer-dispatch";
@@ -369,17 +369,15 @@ export function useThreadComposerState() {
         item.runId === activeRunId && item.type === "compaction" && item.status === "running",
     );
   const isCompacting = compactCommandIsActive || compactionRunning;
-  // Only an explicit compaction refuses steering. Automatic compaction runs
-  // inside an ordinary turn, which still accepts it.
-  const explicitCompactionIsActive =
-    compactCommandIsActive ||
-    (compactionRunning &&
-      selectedThreadVisibleTurnItems.some(
-        ({ item }) =>
-          item.runId === activeRunId &&
-          item.type === "user_message" &&
-          isCompactCommandText(item.text),
-      ));
+  const activeRunUserItem = selectedThreadVisibleTurnItems.find(
+    ({ item }) => item.type === "user_message" && item.runId === activeRunId,
+  )?.item;
+  const explicitCompactionIsActive = isExplicitCompactionActive({
+    compactCommandIsActive,
+    compactionRunning,
+    activeRunUserMessageText:
+      activeRunUserItem?.type === "user_message" ? activeRunUserItem.text : undefined,
+  });
   const canSteerActiveTurn =
     queueWorkflow?.canPromoteToSteer === true && !explicitCompactionIsActive;
   // A stop or a restart holds the queue, completion wakes included, until it
