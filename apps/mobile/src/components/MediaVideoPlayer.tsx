@@ -169,8 +169,8 @@ function MediaVideoPlayerContent(props: MediaVideoPlayerProps) {
   const [videoSize, setVideoSize] = useState<{ width: number; height: number } | null>(null);
   const [bounds, setBounds] = useState<{ width: number; height: number } | null>(null);
   const sizeSource = props.fitToVideo && videoSize === null ? props.uri : null;
-  // Layout effect so this request queues ahead of the poster's passive one. Otherwise tapping Play
-  // unmounts the poster, aborts the extraction it started, and this load begins again from scratch.
+  // Queue before the poster so early Play cannot cancel the extraction that supplies frame dimensions.
+  // oxlint-disable-next-line t3code/react-effect-budget -- Load native thumbnail dimensions independently of the poster's lifetime.
   useLayoutEffect(() => {
     if (sizeSource === null) return;
     // Thumbnails are oriented like the displayed frame, unlike VideoTrack.size.
