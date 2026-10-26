@@ -59,7 +59,7 @@ jobs:
           test "$(git -C source rev-parse HEAD)" = "$SOURCE_SHA"
       - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: '24'
+          node-version: '26.12.1'
           cache: true
           working-directory: source
           run-install: |
