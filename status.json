@@ -6,10 +6,10 @@
     "apps/server/src/mcp/PreviewAutomationBroker.ts",
     "apps/server/src/preview/ServerBrowser.ts"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40301756847",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40330653912",
   "releasedVersion": "0.1.3-nightly.20261026.1792997612285",
   "baseCommit": "4b9d1bfba0e9b4c17e7db347a181c70d1602e1f4",
-  "sequence": 1793007814497,
+  "sequence": 1793021225556,
   "conflictPullRequest": 17871,
   "conflictStage": "pull_request",
   "conflictIdentity": "01d19f5fa0eed42322831c5a137ce8031ad06942d0fe39413caecb806bec4e69",
@@ -58,7 +58,7 @@
       },
       {
         "number": 22883,
-        "headSha": "9b097f58e78ad8e9aaac981d5160f2e0d77f2cb7",
+        "headSha": "81f0220cab9bd022c98345360a6fb4603f6ab2b1",
         "baseRef": "main"
       },
       {
@@ -184,8 +184,8 @@
     {
       "number": 22883,
       "title": "fix(markdown): formulas ending in a comma render",
-      "headSha": "9b097f58e78ad8e9aaac981d5160f2e0d77f2cb7",
-      "baseSha": "41967084e3979818e0bf8fa7cea31ffb6feb7369",
+      "headSha": "81f0220cab9bd022c98345360a6fb4603f6ab2b1",
+      "baseSha": "3cb16cf16509e74e2f483f541010996a9e6fac34",
       "headRef": "fix/latex-comma-before-closing-dollar",
       "baseRef": "main",
       "author": "NikitaMGrimm",
