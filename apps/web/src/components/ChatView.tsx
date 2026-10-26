@@ -2009,6 +2009,7 @@ export default function ChatView(props: ChatViewProps) {
     onToolOutputCollapsedAtEndStable,
     onIsAtEndChangeStable,
     anchorNewTurn,
+    setTimelineScrollNode,
   } = useTimelineFollow({
     legendListRef,
     composerRef,
@@ -2016,7 +2017,6 @@ export default function ChatView(props: ChatViewProps) {
     composerTimelineInset,
     routeThreadKey,
     activeThreadKey,
-    activeThreadId: activeThread?.id,
     isServerThread,
     serverProjection,
     threadStatus,
@@ -3290,6 +3290,7 @@ export default function ChatView(props: ChatViewProps) {
                   )
                 }
                 listRef={legendListRef}
+                onScrollNodeChange={setTimelineScrollNode}
                 runs={paintOnlyDisplayedTimeline ? [] : (serverProjection?.runs ?? [])}
                 latestRun={paintOnlyDisplayedTimeline ? null : activeActivityRun}
                 announcedRun={
