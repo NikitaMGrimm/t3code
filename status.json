@@ -6,10 +6,10 @@
     "apps/server/src/mcp/PreviewAutomationBroker.ts",
     "apps/server/src/preview/ServerBrowser.ts"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40414358611",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40418458759",
   "releasedVersion": "0.1.3-nightly.20261026.1792997612285",
   "baseCommit": "4b9d1bfba0e9b4c17e7db347a181c70d1602e1f4",
-  "sequence": 1793054493363,
+  "sequence": 1793056520716,
   "conflictPullRequest": 17871,
   "conflictStage": "pull_request",
   "conflictIdentity": "01d19f5fa0eed42322831c5a137ce8031ad06942d0fe39413caecb806bec4e69",
@@ -68,7 +68,7 @@
       },
       {
         "number": 23673,
-        "headSha": "ea71e4c09f81b7599a868a4cefb0a521d26c3a3a",
+        "headSha": "9c52baf8d2030792df6f16d6b4a7714489cb7972",
         "baseRef": "main"
       },
       {
@@ -208,8 +208,8 @@
     {
       "number": 23673,
       "title": "feat(web): optionally keep thread section dividers visible",
-      "headSha": "ea71e4c09f81b7599a868a4cefb0a521d26c3a3a",
-      "baseSha": "3de45c6254345f968fbdc64db7b149bf4f429855",
+      "headSha": "9c52baf8d2030792df6f16d6b4a7714489cb7972",
+      "baseSha": "9db433f4bab5dcc923672ef2e6f31f377d39705e",
       "headRef": "feat/sidebar-section-dividers",
       "baseRef": "main",
       "author": "NikitaMGrimm",
