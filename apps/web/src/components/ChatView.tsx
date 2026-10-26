@@ -1367,14 +1367,11 @@ export default function ChatView(props: ChatViewProps) {
   const isCompacting =
     (isSendBusy || phase === "connecting" || phase === "running") &&
     (compactionRunning || compactCommandIsActive);
-  const activeRunUserItem = serverVisibleTurnItems.find(
-    ({ item }) => item.type === "user_message" && item.runId === activeRuntime?.activeRunId,
-  )?.item;
   const explicitCompactionIsActive = isExplicitCompactionActive({
     compactCommandIsActive,
     compactionRunning,
-    activeRunUserMessageText:
-      activeRunUserItem?.type === "user_message" ? activeRunUserItem.text : undefined,
+    run: serverProjection?.runs.find((run) => run.id === activeRuntime?.activeRunId),
+    messages: serverProjection?.messages,
   });
   const isWorking =
     phase === "running" ||

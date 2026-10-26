@@ -19,13 +19,13 @@ export function resolveComposerDispatchMode(input: {
 export function isExplicitCompactionActive(input: {
   readonly compactCommandIsActive: boolean;
   readonly compactionRunning: boolean;
-  readonly activeRunUserMessageText: string | undefined;
+  readonly run: { readonly userMessageId: string } | undefined;
+  readonly messages: ReadonlyArray<{ readonly id: string; readonly text: string }> | undefined;
 }): boolean {
-  return (
-    input.compactCommandIsActive ||
-    (input.compactionRunning &&
-      /^\/compact(?:\s|$)/i.test(input.activeRunUserMessageText?.trim() ?? ""))
-  );
+  if (input.compactCommandIsActive) return true;
+  if (!input.compactionRunning || input.run === undefined) return false;
+  const message = input.messages?.find((message) => message.id === input.run?.userMessageId);
+  return /^\/compact(?:\s|$)/i.test(message?.text.trim() ?? "");
 }
 
 export function alternateComposerDispatchAction(

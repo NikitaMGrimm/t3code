@@ -369,14 +369,11 @@ export function useThreadComposerState() {
         item.runId === activeRunId && item.type === "compaction" && item.status === "running",
     );
   const isCompacting = compactCommandIsActive || compactionRunning;
-  const activeRunUserItem = selectedThreadVisibleTurnItems.find(
-    ({ item }) => item.type === "user_message" && item.runId === activeRunId,
-  )?.item;
   const explicitCompactionIsActive = isExplicitCompactionActive({
     compactCommandIsActive,
     compactionRunning,
-    activeRunUserMessageText:
-      activeRunUserItem?.type === "user_message" ? activeRunUserItem.text : undefined,
+    run: selectedThreadProjection?.projection.runs.find((run) => run.id === activeRunId),
+    messages: selectedThreadMessages,
   });
   const canSteerActiveTurn =
     queueWorkflow?.canPromoteToSteer === true && !explicitCompactionIsActive;
