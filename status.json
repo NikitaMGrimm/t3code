@@ -6,10 +6,10 @@
     "apps/server/src/mcp/PreviewAutomationBroker.ts",
     "apps/server/src/preview/ServerBrowser.ts"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40418458759",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40427326746",
   "releasedVersion": "0.1.3-nightly.20261026.1792997612285",
-  "baseCommit": "4b9d1bfba0e9b4c17e7db347a181c70d1602e1f4",
-  "sequence": 1793056520716,
+  "baseCommit": "117007144e410ee62db51b764cae65e201474d3e",
+  "sequence": 1793061309648,
   "conflictPullRequest": 17871,
   "conflictStage": "pull_request",
   "conflictIdentity": "01d19f5fa0eed42322831c5a137ce8031ad06942d0fe39413caecb806bec4e69",
