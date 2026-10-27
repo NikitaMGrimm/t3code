@@ -1,19 +1,19 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.3-nightly.20261027.3754",
+  "upstreamTag": "v0.1.4-nightly.20261027.3770",
   "conflicts": [
     "apps/web/src/components/preview/ThreadPreviewMiniPlayer.tsx"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40491837854",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40493958979",
   "releasedVersion": "0.1.3-nightly.20261026.1793068419469",
   "baseCommit": "f7e3106561e15d04b1a9d1a4362881949e8553e0",
-  "sequence": 1793098353994,
+  "sequence": 1793099351866,
   "conflictPullRequest": 18873,
   "conflictStage": "pull_request",
   "conflictIdentity": "fd87bb76b79c0573670ae013bde518499eb06e914c4c50b514f9a4ae72829438",
   "inputs": {
-    "upstreamTag": "v0.1.3-nightly.20261027.3754",
+    "upstreamTag": "v0.1.4-nightly.20261027.3770",
     "pullRequests": [
       {
         "number": 17871,
