@@ -1,15 +1,14 @@
 import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { EnvironmentId, ThreadId, type PreviewSessionSnapshot } from "@t3tools/contracts";
 import {
-  act,
   createElement,
   useEffect,
   useImperativeHandle,
   type ComponentProps,
   type ReactNode,
 } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
+import { act, render } from "../../../test/render";
 import type { HostedBrowserWebview } from "~/browser/HostedBrowserWebview";
 import type { ServerBrowserSurface } from "~/browser/ServerBrowserSurface";
 
@@ -169,43 +168,29 @@ import { ElectronBrowserHost } from "~/browser/ElectronBrowserHost";
 import { ThreadPreviewMiniPlayer } from "./ThreadPreviewMiniPlayer";
 import { previewRuntimeTabId } from "~/browser/previewRuntimeTabId";
 
-let root: Root | undefined;
-let container: HTMLElement;
-const render = (element: ReactNode) => act(async () => root!.render(element));
-const labelled = (label: string) => container.querySelectorAll(`[aria-label="${label}"]`);
-const click = (label: string) =>
-  act(async () =>
-    container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!.click(),
-  );
-beforeEach(() => {
+const setup = () => {
   vi.clearAllMocks();
   mocks.mode = "native";
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  container = document.body.appendChild(document.createElement("div"));
-  root = createRoot(container);
-});
-afterEach(async () => {
-  await act(async () => root?.unmount());
-  root = undefined;
-  document.body.replaceChildren();
-  vi.unstubAllGlobals();
-});
+};
 
 describe("headless fallback surfaces", () => {
   it("unmounts the hosted native guest and never remounts it for a headless snapshot", async () => {
+    setup();
     const runtimeTabId = previewRuntimeTabId(threadRef, "server-1", "tab-1");
-    await render(<ElectronBrowserHost />);
+    // This host renders preview guests and does not use routes.
+    await using screen = await render(<ElectronBrowserHost />, { router: false });
     expect(mocks.nativeMount).toHaveBeenCalledExactlyOnceWith(runtimeTabId);
-    expect(container.querySelectorAll("webview")).toHaveLength(1);
+    expect(screen.container.querySelectorAll("webview")).toHaveLength(1);
     mocks.mode = "headless";
-    await render(<ElectronBrowserHost />);
+    await screen.rerender(<ElectronBrowserHost />);
     expect(mocks.nativeUnmount).toHaveBeenCalledExactlyOnceWith(runtimeTabId);
-    expect(container.querySelectorAll("webview")).toHaveLength(0);
-    await render(<ElectronBrowserHost />);
+    expect(screen.container.querySelectorAll("webview")).toHaveLength(0);
+    await screen.rerender(<ElectronBrowserHost />);
     expect(mocks.nativeMount).toHaveBeenCalledTimes(1);
   });
 
   it("moves a floating tab to its stream and uses server pop-out instead of stale native PiP", async () => {
+    setup();
     const view = () => (
       <ThreadPreviewMiniPlayer
         threadRef={threadRef}
@@ -217,19 +202,28 @@ describe("headless fallback surfaces", () => {
         }}
       />
     );
-    await render(view());
-    expect(labelled("Native surface")).toHaveLength(1);
-    await click("Close popped-out preview");
+    // The mini player uses mocked preview state and does not navigate.
+    await using screen = await render(view(), { router: false });
+    expect(screen.container.querySelectorAll('[aria-label="Native surface"]')).toHaveLength(1);
+    await act(() =>
+      screen.container
+        .querySelector<HTMLButtonElement>('button[aria-label="Close popped-out preview"]')!
+        .click(),
+    );
     expect(mocks.nativeClosePopOut).toHaveBeenCalledOnce();
 
     mocks.mode = "headless";
-    await render(view());
-    expect(labelled("Native surface")).toHaveLength(0);
+    await screen.rerender(view());
+    expect(screen.container.querySelectorAll('[aria-label="Native surface"]')).toHaveLength(0);
     expect(mocks.streamMount).toHaveBeenCalledExactlyOnceWith("tab-1");
     expect(mocks.reportPreview).toHaveBeenLastCalledWith(
       expect.objectContaining({ source: { width: 800, height: 600 } }),
     );
-    await click("Pop preview into separate window");
+    await act(() =>
+      screen.container
+        .querySelector<HTMLButtonElement>('button[aria-label="Pop preview into separate window"]')!
+        .click(),
+    );
     expect(mocks.serverPopOut).toHaveBeenCalledExactlyOnceWith({
       ...threadRef,
       tabId: "tab-1",
