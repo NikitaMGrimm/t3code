@@ -31,9 +31,9 @@ vi.mock("@tanstack/react-router", async (original) => ({
 vi.mock("~/state/entities", () => ({
   useProjects: () => state.projects,
   useServerConfigs: () => state.configs,
-  useActiveEnvironmentId: () => null,
 }));
 vi.mock("~/state/environments", () => ({
+  usePrimaryEnvironmentId: () => null,
   useEnvironments: () => ({ environments: state.environments }),
   useEnvironmentProviders: () => state.providers,
 }));

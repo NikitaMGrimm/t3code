@@ -443,7 +443,6 @@ function GuestThread({
       <div className="relative min-h-0 flex-1">
         <MessagesTimeline
           listRef={listRef}
-          onScrollNodeChange={follow.setTimelineScrollNode}
           timelineEntries={entries}
           isWorking={isWorking}
           activeTurnInProgress={isWorking}

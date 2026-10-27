@@ -86,10 +86,7 @@ import {
   resolveWorkflowOpening,
   workflowOpeningParentThreadId,
 } from "@t3tools/client-runtime/state/subagentRuntime";
-import {
-  getUserQueuedThreadRuns,
-  threadSupportsProviderHandoff,
-} from "@t3tools/client-runtime/state/thread-workflows";
+import { threadSupportsProviderHandoff } from "@t3tools/client-runtime/state/thread-workflows";
 import { isExplicitCompactionActive } from "@t3tools/client-runtime/state/composer-dispatch";
 import { resolvePendingHandoff } from "@t3tools/client-runtime/handoff";
 import { HandoffRow } from "./chat/V2LifecycleRow";

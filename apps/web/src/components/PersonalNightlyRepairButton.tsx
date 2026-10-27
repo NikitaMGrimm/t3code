@@ -24,8 +24,12 @@ import { WrenchIcon } from "lucide-react";
 import { useState, useSyncExternalStore } from "react";
 import { newMessageId, newThreadId, randomUUID } from "~/lib/utils";
 import { resolveDefaultProviderModelSelection } from "~/providerInstances";
-import { useActiveEnvironmentId, useProjects, useServerConfigs } from "~/state/entities";
-import { useEnvironments, useEnvironmentProviders } from "~/state/environments";
+import { useProjects, useServerConfigs } from "~/state/entities";
+import {
+  useEnvironments,
+  useEnvironmentProviders,
+  usePrimaryEnvironmentId,
+} from "~/state/environments";
 import { orchestrationEnvironment } from "~/state/orchestration";
 import { useEnvironmentScope } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
@@ -68,7 +72,7 @@ export function PersonalNightlyRepairButton({ status }: { status: PersonalUpdate
   const configs = useServerConfigs();
   const { environments } = useEnvironments();
   const providersByEnvironment = useEnvironmentProviders();
-  const activeEnvironmentId = useActiveEnvironmentId();
+  const activeEnvironmentId = usePrimaryEnvironmentId();
   const candidates = projects.filter((project) => {
     const repository = project.repositoryIdentity?.canonicalKey.toLowerCase();
     return (
