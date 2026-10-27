@@ -2,7 +2,7 @@
   "repository": "NikitaMGrimm/t3code",
   "branch": "personal-nightly",
   "upstreamRepository": "pingdotgg/t3code",
-  "upstreamTag": "v0.1.3-nightly.20261026.3710",
+  "upstreamTag": "v0.1.3-nightly.20261026.3740",
   "pullRequests": [
     {
       "number": 17871,
@@ -55,8 +55,8 @@
     {
       "number": 21894,
       "title": "fix(mobile): file preview videos keep their own aspect ratio",
-      "headSha": "1882dc19e1d36ea0bf5e12c3577a54255a3ef89c",
-      "baseSha": "10629afaace9a57511bac9a2a7d63a69e98bee94",
+      "headSha": "39e16d467401aeeb1f9b21ba7f0694cee65100d1",
+      "baseSha": "bfc7177f9f54b0a4b9d3571d30723a51cd4b31bd",
       "headRef": "fix/mobile-file-preview-video-aspect",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -103,8 +103,8 @@
     {
       "number": 22883,
       "title": "fix(markdown): formulas ending in a comma render",
-      "headSha": "9b097f58e78ad8e9aaac981d5160f2e0d77f2cb7",
-      "baseSha": "41967084e3979818e0bf8fa7cea31ffb6feb7369",
+      "headSha": "81f0220cab9bd022c98345360a6fb4603f6ab2b1",
+      "baseSha": "3cb16cf16509e74e2f483f541010996a9e6fac34",
       "headRef": "fix/latex-comma-before-closing-dollar",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -127,8 +127,8 @@
     {
       "number": 23673,
       "title": "feat(web): optionally keep thread section dividers visible",
-      "headSha": "ea71e4c09f81b7599a868a4cefb0a521d26c3a3a",
-      "baseSha": "3de45c6254345f968fbdc64db7b149bf4f429855",
+      "headSha": "9c52baf8d2030792df6f16d6b4a7714489cb7972",
+      "baseSha": "9db433f4bab5dcc923672ef2e6f31f377d39705e",
       "headRef": "feat/sidebar-section-dividers",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -151,8 +151,8 @@
     {
       "number": 24138,
       "title": "fix(composer): steer instead of queueing during automatic compaction",
-      "headSha": "3878e0fef2ad395d7acbd947a80e7bc8143674d0",
-      "baseSha": "738fd087076623e159b677e1f87ffe23d2bc7e88",
+      "headSha": "a5d900de598e7f90bd9cd23cd0829932d6b8655b",
+      "baseSha": "bfc7177f9f54b0a4b9d3571d30723a51cd4b31bd",
       "headRef": "fix/steer-during-auto-compaction",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -161,5 +161,5 @@
       "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "61cf8bfe1b8f00b0895792423c26928df1322300"
+  "prBaseline": "978ab2dae39b0440795a1f18ca591d225b271ce0"
 }

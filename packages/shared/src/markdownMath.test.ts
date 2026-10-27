@@ -127,6 +127,15 @@ describe("chat math parsing", () => {
       "Pay $5,$10 now.",
       "Run $browser then $deploy on it.",
       "Set $HOME before running.",
+      "Set $HOME,$PATH before running.",
+      "Set $HOME, $PATH before running.",
+      "Set $HOME,$_PATH before running.",
+      "Set $home,$path before running.",
+      "Set $HOME,${PATH} before running.",
+      "Set $HOME,$? before running.",
+      "Set $HOME,$@ before running.",
+      "Set $HOME,$(pwd) before running.",
+      "Pay $1,000,$2,000 now.",
     ]) {
       expect(formulas(prose), prose).toEqual([]);
       expect(text(prose), prose).toBe(prose);
@@ -145,6 +154,9 @@ describe("chat math parsing", () => {
   });
 
   it("reads formulas that end in a comma", () => {
+    for (const boundary of ["", " ", "\n", ".", ",", ";", ":", ")", "]", "}"]) {
+      expect(formulas(`$x,$${boundary}`)).toEqual([["inline", "x,"]]);
+    }
     expect(formulas("Where $x = 1,$ with $$a,$$ and $$ b,$$.")).toEqual([
       ["inline", "x = 1,"],
       ["display", "a,"],

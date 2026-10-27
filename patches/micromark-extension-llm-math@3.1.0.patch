@@ -245,6 +245,9 @@ diff --git a/dev/lib/math-tex-text.js b/dev/lib/math-tex-text.js
 diff --git a/dev/lib/math-text.js b/dev/lib/math-text.js
 --- a/dev/lib/math-text.js
 +++ b/dev/lib/math-text.js
+@@ -10 +10 @@
+-import {markdownLineEnding} from 'micromark-util-character'
++import {markdownLineEnding, markdownLineEndingOrSpace} from 'micromark-util-character'
 @@ -42,6 +42,13 @@
      let size
      /** @type {Token} */
@@ -309,7 +312,7 @@ diff --git a/dev/lib/math-text.js b/dev/lib/math-text.js
        if (
          code === codes.eof ||
          code === codes.space ||
-@@ -179,9 +207,28 @@
+@@ -179,9 +207,29 @@
  
        // Done!
        if (size === sizeOpen) {
@@ -324,12 +327,13 @@ diff --git a/dev/lib/math-text.js b/dev/lib/math-text.js
 +        if (code !== null && code >= codes.digit0 && code <= codes.digit9) {
 +          return nok(code)
 +        }
++        if (charBeforeClose === codes.comma && !openWhitespace && code !== codes.eof && !markdownLineEndingOrSpace(code) && !/[.,;:)\]}]/.test(String.fromCharCode(code))) {
++          return nok(code)
++        }
 +        // Check if closing sequence has matching whitespace pattern
 +        const closeWhitespace =
 +          charBeforeClose === codes.space ||
 +          charBeforeClose === codes.horizontalTab ||
-+          // A formula can end in a comma, as it can in `.` or `;`. The comma
-+          // still matches an opening space, as in `$$ x,$$`.
 +          (charBeforeClose === codes.comma && openWhitespace)
 +        if (openWhitespace === closeWhitespace) {
 +          effects.exit('mathTextSequence')

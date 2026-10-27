@@ -392,7 +392,6 @@ function GuestThread({
   const follow = useTimelineFollow({
     legendListRef: listRef,
     composerRef: NO_COMPOSER,
-    composerOverlayElement: null,
     composerTimelineInset: 0,
     routeThreadKey: threadKey,
     activeThreadKey: threadKey,
@@ -476,8 +475,7 @@ function GuestThread({
           emptyPlaceholderInset={0}
           liveFollowEnabled={follow.timelineLiveFollowEnabled}
           onIsAtEndChange={follow.onIsAtEndChangeStable}
-          onManualNavigation={follow.cancelTimelineLiveFollowForUserNavigationStable}
-          cancelPositionRestoreRef={follow.cancelPositionRestoreRef}
+          onViewportAttach={follow.attachTimelineViewport}
           footer={
             unplaced.length === 0 ? null : (
               <ol ref={footerRef} className="chat-content-lane flex flex-col gap-4 pb-4">
