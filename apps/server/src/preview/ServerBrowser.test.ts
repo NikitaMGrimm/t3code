@@ -52,7 +52,9 @@ vi.mock("./ServerBrowserContexts.ts", () => ({
       return context as unknown as BrowserContext;
     }
     async scratchPage() {
-      return makeEncoderPage() as unknown as Page;
+      const page = makeEncoderPage();
+      scratchPages.push(page);
+      return page as unknown as Page;
     }
     async connectDesktopPage(endpoint: string) {
       const context = makeContext();
@@ -87,7 +89,7 @@ function makeSession(frame?: ReturnType<typeof makeFrame>) {
   const events = new NodeEvents.EventEmitter();
   return {
     on: vi.fn((name: string, listener: () => void) => events.on(name, listener)),
-    emit: (name: string) => events.emit(name),
+    emit: (name: string, ...args: unknown[]) => events.emit(name, ...args),
     detach: vi.fn(async () => {}),
     send: vi.fn(async (method: string, input?: unknown): Promise<Record<string, unknown>> => {
       if (method === "Page.getNavigationHistory") return { currentIndex: 0, entries: [{}] };
@@ -175,7 +177,7 @@ function makeContext(onClose?: (context: BrowserContext) => void) {
     reload: vi.fn(async () => {}),
     emulateMedia: vi.fn(async () => {}),
     waitForLoadState: vi.fn(async () => {}),
-    evaluate: vi.fn(async () => ({
+    evaluate: vi.fn(async (): Promise<unknown> => ({
       url,
       title: "test page",
       loading: false,
@@ -260,6 +262,7 @@ function makeEncoderPage() {
 
 const contexts: ReturnType<typeof makeContext>[] = [];
 const encoderStreams: Array<{ frameRate: number | undefined; bitsPerSecond: number }> = [];
+const scratchPages: ReturnType<typeof makeEncoderPage>[] = [];
 const contextRequests: Array<{ profileId: string; isolated: boolean }> = [];
 let contextGate: PromiseWithResolvers<void> | null = null;
 let pageCopy = "";
@@ -371,6 +374,7 @@ const viewerInput = (tabId: string, canOperate: boolean) => ({
 beforeEach(() => {
   contexts.length = 0;
   encoderStreams.length = 0;
+  scratchPages.length = 0;
   contextRequests.length = 0;
   contextGate = null;
   contextFailure = null;
@@ -1277,6 +1281,312 @@ it.live(
           reason:
             'No browser profile is named "Personal". Use one of: Default (id default), Incognito (id incognito), Work (id profile-work).',
         });
+      }),
+    ).pipe(Effect.provide(layer)),
+);
+
+it.live("an agent tab keeps throwaway storage when no client reported profiles", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      yield* ready;
+      expect(contextRequests).toEqual([{ profileId: "default", isolated: true }]);
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live("a desktop page that comes back reconnects without waiting for a viewer", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const manager = yield* Manager.PreviewManager;
+      yield* ServerBrowser.ServerBrowser;
+      yield* Effect.yieldNow;
+      desktopRendersNext = true;
+      const opened = yield* manager.open({ threadId: scope.thread.threadId, runtime: "server" });
+      while (desktopConnections.length === 0) yield* Effect.yieldNow;
+      while (desktopDetaches.listenerCount("detach") === 0) yield* Effect.yieldNow;
+      desktopDetaches.emit("detach", { threadId: scope.thread.threadId, tabId: opened.tabId });
+      while (releasedDesktopTabs.length === 0) yield* Effect.yieldNow;
+      desktopDetaches.emit("attach", { threadId: scope.thread.threadId, tabId: opened.tabId });
+      while (desktopConnections.length < 2) yield* Effect.yieldNow;
+      expect(desktopConnections).toHaveLength(2);
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live.each(["wait", "pause", "capture", "resume"] as const)(
+  "a stalled snapshot %s releases the tab queue and capture lock without leaking a paused viewer",
+  (stage) =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const { browser, broker, tabId } = yield* ready;
+        const viewer = yield* browser.attachViewer(viewerInput(tabId, stage === "wait"));
+        if (stage === "wait") {
+          yield* viewer.input({ type: "takeControl" });
+          yield* viewer.input({ type: "key", action: "down", key: "Shift", code: "ShiftLeft" });
+          yield* viewer.input({ type: "mouse", action: "down", button: "left", x: 10, y: 20 });
+        }
+        // Recovery must reach a viewer even when its output queue is full.
+        stallViewer(viewer, { _tag: "viewport", width: 1280, height: 800 });
+        const { page, sessions } = contexts[0]!;
+        const session = sessions.at(-1)!;
+        const blocked = Promise.withResolvers<void>();
+        const release = Promise.withResolvers<void>();
+        const send = session.send.getMockImplementation()!;
+        let streaming = true;
+        let stalled = false;
+        session.send.mockImplementation(async (method, input) => {
+          if (
+            !stalled &&
+            ((stage === "wait" && method === "Page.captureScreenshot") ||
+              (stage === "pause" && method === "Page.stopScreencast") ||
+              (stage === "resume" && method === "Page.startScreencast"))
+          ) {
+            stalled = true;
+            blocked.resolve();
+            if (stage !== "wait") await release.promise;
+          }
+          if (stalled && stage === "wait") await release.promise;
+          const result = await send(method, input);
+          if (method === "Page.stopScreencast") streaming = false;
+          if (method === "Page.startScreencast") streaming = true;
+          return result;
+        });
+        const cdp = sessions[0]!;
+        if (stage === "wait") {
+          session.detach.mockImplementation(() => release.promise);
+          const tabSend = cdp.send.getMockImplementation()!;
+          cdp.send.mockImplementation(async (method, input) => {
+            const result = await tabSend(method, input);
+            if (method.startsWith("Input.dispatch")) await release.promise;
+            return result;
+          });
+        }
+        if (stage === "capture") {
+          page.ariaSnapshot.mockImplementationOnce(async () => {
+            blocked.resolve();
+            await release.promise;
+            return '- button "delete" [ref=e1]';
+          });
+        }
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+        yield* Effect.addFinalizer(() =>
+          Effect.sync(() => {
+            release.resolve();
+            vi.useRealTimers();
+          }),
+        );
+        if (stage === "wait") {
+          session.emit("Page.screencastFrame", { data: "ZnJhbWU=", sessionId: 1 });
+          session.emit("Page.screencastFrame", { data: "ZnJhbWU=", sessionId: 2 });
+          yield* Effect.promise(() => vi.advanceTimersByTimeAsync(200));
+          yield* Effect.promise(() => blocked.promise);
+        }
+        const snapshot = yield* broker
+          .invoke<PreviewAutomationSnapshot>({
+            // A different agent can observe while the viewer controls the owning agent's tab.
+            scope: stage === "wait" ? asSession("agent-b") : scope,
+            tabId,
+            operation: "snapshot",
+            input: {},
+          })
+          .pipe(Effect.flip, Effect.forkScoped({ startImmediately: true }));
+        yield* Effect.promise(() => blocked.promise);
+        // The host must answer within the action budget, before the broker timeout.
+        if (stage === "wait") {
+          yield* Effect.yieldNow;
+          yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+          // Exercise simultaneous expiry before the queued capture can start.
+          yield* Effect.sync(() => vi.advanceTimersByTime(15_000));
+          yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+        } else {
+          yield* Effect.promise(() => vi.advanceTimersByTimeAsync(15_000));
+        }
+        expect.soft(snapshot.pollUnsafe()).toMatchObject({
+          _tag: "Success",
+          value: {
+            _tag: "PreviewAutomationTimeoutError",
+            remoteTag: "PreviewAutomationTimeoutError",
+          },
+        });
+
+        if (stage === "wait") {
+          expect.soft(cdp.send).toHaveBeenCalledWith("Input.dispatchKeyEvent", {
+            type: "keyUp",
+            key: "Shift",
+            code: "ShiftLeft",
+          });
+          expect.soft(cdp.send).toHaveBeenCalledWith("Input.dispatchMouseEvent", {
+            type: "mouseReleased",
+            button: "left",
+            x: 10,
+            y: 20,
+            buttons: 0,
+            clickCount: 1,
+          });
+          // Even the healthy session's release acknowledgements cannot hold the control queue.
+          yield* Effect.promise(() => vi.advanceTimersByTimeAsync(1_000));
+        }
+        const sendsAtTimeout = session.send.mock.calls.length;
+        const releasesAtTimeout = cdp.send.mock.calls.filter(([method]) =>
+          method.startsWith("Input.dispatch"),
+        ).length;
+
+        const evaluation = yield* broker
+          .invoke({ scope, tabId, operation: "evaluate", input: { expression: "1 + 1" } })
+          .pipe(Effect.forkScoped({ startImmediately: true }));
+        yield* Effect.yieldNow;
+        yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+        expect.soft(evaluation.pollUnsafe()).toMatchObject({ _tag: "Success", value: "evaluated" });
+
+        const recovered = yield* broker
+          .invoke<PreviewAutomationSnapshot>({ scope, tabId, operation: "snapshot", input: {} })
+          .pipe(Effect.forkScoped({ startImmediately: true }));
+        yield* Effect.yieldNow;
+        yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+        expect.soft(recovered.pollUnsafe()).toMatchObject({
+          _tag: "Success",
+          value: { visibleText: "delete", screenshot: { data: "ZnJhbWU=" } },
+        });
+        // A failed CDP session may be retired, but cannot remain attached and paused.
+        expect.soft(streaming || session.detach.mock.calls.length > 0).toBe(true);
+        let replacement: ReturnType<typeof makeSession> | undefined;
+        if (stage !== "capture") {
+          expect(session.detach).toHaveBeenCalled();
+          expect(yield* Queue.clear(viewer.output)).toContainEqual({ _tag: "reconnect" });
+          const reattached = yield* browser.attachViewer(viewerInput(tabId, false));
+          replacement = sessions.at(-1)!;
+          expect(replacement.send).toHaveBeenCalledWith("Page.startScreencast", expect.anything());
+          if (stage === "wait")
+            expect(yield* Queue.clear(reattached.output)).toContainEqual(
+              expect.objectContaining({ _tag: "control", controller: "agent" }),
+            );
+        }
+
+        release.resolve();
+        yield* Effect.yieldNow;
+        yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+        expect(streaming || session.detach.mock.calls.length > 0).toBe(true);
+        if (replacement) expect(replacement.detach).not.toHaveBeenCalled();
+        if (stage === "wait") {
+          expect(page.ariaSnapshot).toHaveBeenCalledTimes(1);
+          expect(session.send).toHaveBeenCalledTimes(sendsAtTimeout);
+          expect(
+            cdp.send.mock.calls.filter(([method]) => method.startsWith("Input.dispatch")),
+          ).toHaveLength(releasesAtTimeout);
+          expect(yield* Queue.clear(viewer.output)).toEqual([]);
+        }
+      }),
+    ).pipe(Effect.provide(layer)),
+);
+
+it.live(
+  "a snapshot timeout preserves recorded frames and retires a persistently stalled recording session",
+  () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const { broker, tabId } = yield* ready;
+        yield* broker.invoke({ scope, tabId, operation: "recordingStart", input: {} });
+        const session = contexts[0]!.sessions.at(-1)!;
+        const encoder = scratchPages.at(-1)!;
+        const blocked = Promise.withResolvers<void>();
+        const release = Promise.withResolvers<void>();
+        const send = session.send.getMockImplementation()!;
+        let stops = 0;
+        session.send.mockImplementation(async (method, input) => {
+          if (method === "Page.stopScreencast" && ++stops === 2) blocked.resolve();
+          await release.promise;
+          return send(method, input);
+        });
+        // Playwright detach waits for a command on the same stalled CDP session.
+        session.detach.mockImplementation(() => release.promise);
+        // Reaching the encoder limit must not tie frame draining to the stalled stop command.
+        encoder.evaluate.mockResolvedValueOnce(false);
+        session.emit("Page.screencastFrame", {
+          data: "ZnJhbWU=",
+          sessionId: 1,
+          metadata: { deviceWidth: 1280 },
+        });
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+        yield* Effect.addFinalizer(() =>
+          Effect.sync(() => {
+            release.resolve();
+            vi.useRealTimers();
+          }),
+        );
+        const snapshot = yield* broker
+          .invoke({ scope, tabId, operation: "snapshot", input: {} })
+          .pipe(Effect.flip, Effect.forkScoped({ startImmediately: true }));
+        yield* Effect.promise(() => blocked.promise);
+        yield* Effect.promise(() => vi.advanceTimersByTimeAsync(15_000));
+        expect(snapshot.pollUnsafe()).toMatchObject({
+          _tag: "Success",
+          value: {
+            _tag: "PreviewAutomationTimeoutError",
+            remoteTag: "PreviewAutomationTimeoutError",
+          },
+        });
+        expect(session.detach).toHaveBeenCalledTimes(1);
+        const sendsAtTimeout = session.send.mock.calls.length;
+        const framesAtTimeout = encoder.evaluate.mock.calls.length;
+        session.emit("Page.screencastFrame", {
+          data: "bGF0ZQ==",
+          sessionId: 2,
+          metadata: { deviceWidth: 1280 },
+        });
+        yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+        expect.soft(encoder.evaluate).toHaveBeenCalledTimes(framesAtTimeout);
+
+        const recovered = yield* broker
+          .invoke<PreviewAutomationSnapshot>({ scope, tabId, operation: "snapshot", input: {} })
+          .pipe(Effect.forkScoped({ startImmediately: true }));
+        yield* Effect.yieldNow;
+        yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+        expect.soft(recovered.pollUnsafe()).toMatchObject({
+          _tag: "Success",
+          value: { visibleText: "delete" },
+        });
+
+        encoder.evaluate
+          .mockResolvedValueOnce({ mimeType: "video/webm", count: 1, bytes: 5 })
+          .mockResolvedValueOnce("ZnJhbWU=");
+        const stopping = yield* broker
+          .invoke<{ path: string; mimeType: string; sizeBytes: number }>({
+            scope,
+            tabId,
+            operation: "recordingStop",
+            input: {},
+          })
+          .pipe(Effect.forkScoped({ startImmediately: true }));
+        yield* Effect.yieldNow;
+        yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+        expect(encoder.close).toHaveBeenCalled();
+        const stopped = yield* Fiber.join(stopping);
+        expect(session.send).toHaveBeenCalledTimes(sendsAtTimeout);
+        expect(session.detach).toHaveBeenCalledTimes(1);
+        const fs = yield* FileSystem.FileSystem;
+        expect(stopped).toMatchObject({ mimeType: "video/webm", sizeBytes: 5 });
+        expect(yield* fs.readFileString(stopped.path)).toBe("frame");
+        yield* broker.invoke({ scope, tabId, operation: "recordingStart", input: {} });
+        const replacement = contexts[0]!.sessions.at(-1)!;
+        expect(replacement).not.toBe(session);
+
+        release.resolve();
+        yield* Effect.yieldNow;
+        yield* Effect.promise(() => vi.advanceTimersByTimeAsync(0));
+        expect(
+          session.send.mock.calls.filter(([method]) => method === "Page.startScreencast"),
+        ).toHaveLength(1);
+        expect(replacement.detach).not.toHaveBeenCalled();
+        const next = yield* broker.invoke<PreviewAutomationSnapshot>({
+          scope,
+          tabId,
+          operation: "snapshot",
+          input: {},
+        });
+        expect(next.visibleText).toBe("delete");
+        expect(
+          replacement.send.mock.calls.filter(([method]) => method === "Page.startScreencast"),
+        ).toHaveLength(2);
       }),
     ).pipe(Effect.provide(layer)),
 );
