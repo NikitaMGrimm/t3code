@@ -59,6 +59,7 @@ vi.mock("@effect/atom-react", async () => ({
   useAtomValue: () => threadRef.environmentId,
 }));
 vi.mock("~/state/primaryEnvironment", () => ({ primaryEnvironmentIdAtom: {} }));
+vi.mock("~/rpc/atomRegistry", () => ({ appAtomRegistry: { get: () => threadRef.environmentId } }));
 vi.mock("~/state/entities", () => ({
   readEnvironmentSupportsServerBrowser: () => true,
   useEnvironmentSupportsServerBrowser: () => true,
@@ -68,6 +69,7 @@ vi.mock("~/previewStateStore", () => ({
   readThreadPreviewState: previewState,
   whenPreviewTabKnown: vi.fn(),
   useActivePreviewSessions: () => ({ [scopedThreadKey(threadRef)]: previewState() }),
+  readActivePreviewSessions: () => ({ [scopedThreadKey(threadRef)]: previewState() }),
   isPreviewSupportedInRuntime: () => true,
 }));
 vi.mock("~/hooks/useSettings", () => ({ useClientSettingsHydrated: () => true }));
@@ -77,6 +79,7 @@ vi.mock("~/browser/browserDefaults", () => ({
 }));
 vi.mock("~/browser/browserPointerStore", () => ({ useBrowserPointerStore: {} }));
 vi.mock("~/state/session", () => ({ useEnvironmentScope: () => true }));
+vi.mock("~/state/environments", () => ({ useEnvironmentHttpBaseUrl: () => null }));
 vi.mock("~/state/preview", () => ({ previewEnvironment: { open: {} } }));
 vi.mock("~/state/use-atom-command", () => ({ useAtomCommand: () => vi.fn() }));
 vi.mock("~/components/preview/usePreviewSession", () => ({
@@ -151,6 +154,7 @@ vi.mock("~/state/device", () => ({
   useDeviceState: () => ({ state: { devices: [], hosts: [] } }),
 }));
 vi.mock("../device/DeviceStreamView", () => ({ DeviceStreamView: () => null }));
+vi.mock("../device/deviceStreamSession", () => ({ deviceStreamScreenAtom: () => ({}) }));
 vi.mock("~/components/ui/button", () => ({
   buttonVariants: () => "",
   Button: (props: ComponentProps<"button">) => createElement("button", props),
