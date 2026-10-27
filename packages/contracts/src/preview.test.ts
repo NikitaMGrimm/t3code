@@ -110,7 +110,7 @@ describe("PreviewEvent", () => {
       },
     });
     const jsonCodec = Schema.toCodecJson(PreviewEvent);
-    const received = Schema.decodeUnknownSync(jsonCodec)(Schema.encodeSync(jsonCodec)(event));
+    const received = Schema.decodeSync(jsonCodec)(Schema.encodeSync(jsonCodec)(event));
     expect(received).toEqual(event);
     expect(received.type === "navigated" && received.snapshot.serverPageMode).toBe("headless");
   });

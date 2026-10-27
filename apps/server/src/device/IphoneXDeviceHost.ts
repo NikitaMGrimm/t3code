@@ -6,6 +6,7 @@ import * as NodePath from "node:path";
 import {
   DeviceOperationError,
   DeviceHostUnavailableError,
+  type DevicePlatform,
   type ThreadId,
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
@@ -262,9 +263,14 @@ export const make = Effect.fn("IphoneXDeviceHost.make")(function* (
         { platform: "android", available: false },
       ],
     }),
-    platformAvailability: (platform) => Effect.succeed({ platform, available: platform === "ios" }),
+    platformAvailability: Effect.fn("DeviceHost.platformAvailability")((platform: DevicePlatform) =>
+      Effect.succeed({ platform, available: platform === "ios" }),
+    ),
     ensureReady,
-    ensureAgentReady: (onPhase) => ensureReady(onPhase).pipe(Effect.as(ready)),
+    ensureAgentReady: Effect.fn("DeviceHost.ensureAgentReady")(
+      (onPhase: Parameters<DeviceHost.DeviceHost["Service"]["ensureAgentReady"]>[0]) =>
+        ensureReady(onPhase).pipe(Effect.as(ready)),
+    ),
     current: Effect.sync(() => (bridge?.isRunning() ? ready : null)),
     stopAgent: Effect.gen(function* () {
       if (bridge) yield* json("revoke-agent", {}).pipe(Effect.ignore);

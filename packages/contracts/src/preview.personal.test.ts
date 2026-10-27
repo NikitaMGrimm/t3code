@@ -21,6 +21,6 @@ describe("personal preview protocol compatibility", () => {
     };
     const codec = Schema.toCodecJson(PreviewAutomationStatus);
     const decoded = decodeAutomationStatus(status);
-    expect(Schema.decodeUnknownSync(codec)(Schema.encodeSync(codec)(decoded))).toEqual(status);
+    expect(Schema.decodeSync(codec)(Schema.encodeSync(codec)(decoded))).toEqual(status);
   });
 });
