@@ -151,8 +151,8 @@
     {
       "number": 24138,
       "title": "fix(composer): steer instead of queueing during automatic compaction",
-      "headSha": "a5d900de598e7f90bd9cd23cd0829932d6b8655b",
-      "baseSha": "bfc7177f9f54b0a4b9d3571d30723a51cd4b31bd",
+      "headSha": "ef4cfa7fa1cb67abd460ae95ca2a7f1cc963b4ad",
+      "baseSha": "becf853defb6127dbe4447860383777d69346b6f",
       "headRef": "fix/steer-during-auto-compaction",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -161,5 +161,5 @@
       "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "978ab2dae39b0440795a1f18ca591d225b271ce0"
+  "prBaseline": "aa071b822e1242457208b6bd3e14404d2e9161c5"
 }
