@@ -81,3 +81,16 @@ it("blocks steering only for a pending compact command or a running explicit com
     ).toBe(false);
   }
 });
+
+it("allows steering when an attached compact prompt compacts automatically", () => {
+  const message = { id: "user", text: "/compact", attachments: [{}] };
+  const canSteer = !isExplicitCompactionActive({
+    compactCommandIsActive: false,
+    compactionRunning: true,
+    run: { userMessageId: "user" },
+    messages: [message],
+  });
+  expect(resolveComposerDispatchMode({ running: true, alternateModifier: false, canSteer })).toBe(
+    "steer",
+  );
+});
