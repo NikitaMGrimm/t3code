@@ -45,6 +45,7 @@ vi.mock("./ServerBrowserContexts.ts", () => ({
     }
     async contextFor(profileId: string, isolationKey?: string) {
       contextRequests.push({ profileId, isolated: isolationKey !== undefined });
+      contextRequested?.resolve();
       if (contextFailure) throw contextFailure;
       await contextGate?.promise;
       const context = makeContext(this.onClose);
@@ -265,12 +266,18 @@ const encoderStreams: Array<{ frameRate: number | undefined; bitsPerSecond: numb
 const scratchPages: ReturnType<typeof makeEncoderPage>[] = [];
 const contextRequests: Array<{ profileId: string; isolated: boolean }> = [];
 let contextGate: PromiseWithResolvers<void> | null = null;
+let contextRequested: PromiseWithResolvers<void> | null = null;
 let pageCopy = "";
 let keyCopy = "";
 let focusedFrame: ReturnType<typeof makeFrame> | null = null;
 let contextFailure: Error | null = null;
 let initialNavigation: (() => Promise<void>) | null = null;
 let desktopRendersNext = false;
+let desktopAvailable = false;
+let desktopAttachGate: PromiseWithResolvers<boolean> | null = null;
+let desktopAttachStarted: PromiseWithResolvers<void> | null = null;
+let desktopDetachConsumed: PromiseWithResolvers<void> | null = null;
+const desktopAttachRequests: string[] = [];
 const desktopDetaches = new NodeEvents.EventEmitter();
 const desktopTabs = new Set<string>();
 const desktopRenders = (tabId: string) => {
@@ -312,8 +319,16 @@ const dependencies = Layer.mergeAll(
     installed: Effect.die("mock Chromium does not need an executable"),
   }),
   Layer.succeed(DesktopChannel.DesktopBrowserChannel, {
-    available: true,
-    awaitAttached: (key) => Effect.sync(() => desktopRenders(key.tabId)),
+    // Standalone tests have no desktop; native tests explicitly enable it.
+    get available() {
+      return desktopAvailable || desktopRendersNext || desktopTabs.size > 0;
+    },
+    awaitAttached: (key) =>
+      Effect.promise(async () => {
+        desktopAttachRequests.push(key.tabId);
+        desktopAttachStarted?.resolve();
+        return desktopAttachGate ? desktopAttachGate.promise : desktopRenders(key.tabId);
+      }),
     detached: Stream.callback<{ threadId: string; tabId: string }>((queue) =>
       Effect.acquireRelease(
         Effect.sync(() => {
@@ -324,7 +339,7 @@ const dependencies = Layer.mergeAll(
         }),
         (onDetach) => Effect.sync(() => desktopDetaches.off("detach", onDetach)),
       ),
-    ),
+    ).pipe(Stream.tap(() => Effect.sync(() => desktopDetachConsumed?.resolve()))),
     attached: Stream.callback<{ threadId: string; tabId: string }>((queue) =>
       Effect.acquireRelease(
         Effect.sync(() => {
@@ -377,6 +392,7 @@ beforeEach(() => {
   scratchPages.length = 0;
   contextRequests.length = 0;
   contextGate = null;
+  contextRequested = null;
   contextFailure = null;
   initialNavigation = null;
   pageCopy = "";
@@ -384,6 +400,11 @@ beforeEach(() => {
   focusedFrame = null;
   desktopTabs.clear();
   desktopRendersNext = false;
+  desktopAvailable = false;
+  desktopAttachGate = null;
+  desktopAttachStarted = null;
+  desktopDetachConsumed = null;
+  desktopAttachRequests.length = 0;
   releasedDesktopTabs.length = 0;
   desktopConnections.length = 0;
 });
@@ -1589,4 +1610,395 @@ it.live(
         ).toHaveLength(2);
       }),
     ).pipe(Effect.provide(layer)),
+);
+
+it.live("a popup closed before adoption does not leave its page behind", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { tabId } = yield* ready;
+      const manager = yield* Manager.PreviewManager;
+      const events = yield* manager.subscribeEvents;
+      const reading = Promise.withResolvers<void>();
+      const read = Promise.withResolvers<void>();
+      const closed = Promise.withResolvers<void>();
+      const list = manager.list;
+      const spy = vi.spyOn(manager, "list").mockImplementationOnce((input) =>
+        Effect.promise(async () => {
+          reading.resolve();
+          await read.promise;
+        }).pipe(Effect.andThen(list(input))),
+      );
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          read.resolve();
+          spy.mockRestore();
+        }),
+      );
+      const popup = makeContext();
+      popup.page.once("close", () => closed.resolve());
+      contexts[0]!.page.emit("popup", popup.page);
+      yield* Effect.promise(() => reading.promise);
+      const opened = yield* PubSub.take(events);
+      expect(opened.type).toBe("opened");
+      yield* manager.close({ threadId: scope.thread.threadId, tabId: opened.tabId });
+      read.resolve();
+      yield* Effect.promise(() => closed.promise);
+      expect(popup.page.isClosed()).toBe(true);
+      expect(contexts[0]!.page.isClosed()).toBe(false);
+      expect(
+        (yield* manager.list({ threadId: scope.thread.threadId })).sessions.map(
+          (session) => session.tabId,
+        ),
+      ).toEqual([tabId]);
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live(
+  "publishes a headless fallback before launch and keeps the same page after late native events",
+  () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const browser = yield* ServerBrowser.ServerBrowser;
+        const broker = yield* Broker.PreviewAutomationBroker;
+        const manager = yield* Manager.PreviewManager;
+        const events = yield* manager.subscribeEvents;
+        yield* Effect.yieldNow;
+        desktopAvailable = true;
+        const launching = Promise.withResolvers<void>();
+        const launch = Promise.withResolvers<void>();
+        contextRequested = launching;
+        contextGate = launch;
+        yield* Effect.addFinalizer(() => Effect.sync(() => launch.resolve()));
+        const opening = yield* broker
+          .invoke<PreviewAutomationStatus>({
+            scope,
+            operation: "open",
+            input: { url: "http://localhost:5173/fallback", reuseExistingTab: false, show: false },
+          })
+          .pipe(Effect.forkScoped);
+        yield* Effect.promise(() => launching.promise);
+        const listed = yield* manager.list({ threadId: scope.thread.threadId });
+        const snapshot = listed.sessions[0]!;
+        expect(snapshot.serverPageMode).toBe("headless");
+        expect(contexts).toEqual([]);
+        expect(
+          (yield* PubSub.takeUpTo(events, 10)).map((event) => ({
+            type: event.type,
+            mode: "snapshot" in event ? event.snapshot.serverPageMode : undefined,
+          })),
+        ).toEqual([
+          { type: "opened", mode: undefined },
+          { type: "resized", mode: "headless" },
+        ]);
+        // A native guest arriving while headless is still launching must not become another page.
+        const queried = Promise.withResolvers<void>();
+        const list = manager.list;
+        const spy = vi
+          .spyOn(manager, "list")
+          .mockImplementation((input) =>
+            list(input).pipe(Effect.tap(() => Effect.sync(() => queried.resolve()))),
+          );
+        yield* Effect.addFinalizer(() => Effect.sync(() => spy.mockRestore()));
+        desktopTabs.add(snapshot.tabId);
+        desktopDetaches.emit("attach", { threadId: scope.thread.threadId, tabId: snapshot.tabId });
+        yield* Effect.promise(() => queried.promise);
+        launch.resolve();
+        const opened = yield* Fiber.join(opening);
+        expect(opened).toMatchObject({
+          available: true,
+          tabId: snapshot.tabId,
+          url: "http://localhost:5173/fallback",
+        });
+        expect(contexts).toHaveLength(1);
+        expect(contexts[0]!.page.goto).toHaveBeenCalledOnce();
+        expect(desktopConnections).toEqual([]);
+        const viewer = yield* browser.attachViewer(viewerInput(snapshot.tabId, false));
+        expect((yield* Queue.clear(viewer.output)).some((item) => item._tag === "frame")).toBe(
+          true,
+        );
+        const consumed = Promise.withResolvers<void>();
+        desktopDetachConsumed = consumed;
+        desktopTabs.delete(snapshot.tabId);
+        desktopDetaches.emit("detach", { threadId: scope.thread.threadId, tabId: snapshot.tabId });
+        yield* Effect.promise(() => consumed.promise);
+        expect(
+          yield* broker.invoke({
+            scope,
+            tabId: PreviewTabId.make(snapshot.tabId),
+            operation: "evaluate",
+            input: { expression: "42" },
+          }),
+        ).toBe("evaluated");
+        expect(contexts[0]!.page.close).not.toHaveBeenCalled();
+        expect((yield* manager.list({ threadId: scope.thread.threadId })).sessions).toHaveLength(1);
+      }),
+    ).pipe(Effect.provide(layer)),
+);
+
+it.live(
+  "a chosen headless page stays headless when its failed launch is retried after native attachment",
+  () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const browser = yield* ServerBrowser.ServerBrowser;
+        const broker = yield* Broker.PreviewAutomationBroker;
+        const manager = yield* Manager.PreviewManager;
+        yield* Effect.yieldNow;
+        desktopAvailable = true;
+        contextFailure = new Error("launch failed");
+        yield* broker
+          .invoke<PreviewAutomationStatus>({
+            scope,
+            operation: "open",
+            input: { reuseExistingTab: false, show: false },
+          })
+          .pipe(Effect.flip);
+        const snapshot = (yield* manager.list({ threadId: scope.thread.threadId })).sessions[0]!;
+        expect(snapshot.serverPageMode).toBe("headless");
+        contextFailure = null;
+        desktopTabs.add(snapshot.tabId);
+        const viewer = yield* browser.attachViewer(viewerInput(snapshot.tabId, false));
+        expect((yield* Queue.clear(viewer.output)).some((item) => item._tag === "frame")).toBe(
+          true,
+        );
+        expect(desktopConnections).toEqual([]);
+        expect(contexts).toHaveLength(1);
+        expect(desktopAttachRequests).toEqual([snapshot.tabId]);
+      }),
+    ).pipe(Effect.provide(layer)),
+);
+
+it.live("closing a tab during its native wait prevents a headless fallback", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const broker = yield* Broker.PreviewAutomationBroker;
+      const manager = yield* Manager.PreviewManager;
+      yield* Effect.yieldNow;
+      desktopAvailable = true;
+      const waiting = Promise.withResolvers<void>();
+      const attached = Promise.withResolvers<boolean>();
+      desktopAttachStarted = waiting;
+      desktopAttachGate = attached;
+      yield* Effect.addFinalizer(() => Effect.sync(() => attached.resolve(false)));
+      const opening = yield* broker
+        .invoke<PreviewAutomationStatus>({
+          scope,
+          operation: "open",
+          input: { reuseExistingTab: false, show: false },
+        })
+        .pipe(Effect.flip, Effect.forkScoped);
+      yield* Effect.promise(() => waiting.promise);
+      const snapshot = (yield* manager.list({ threadId: scope.thread.threadId })).sessions[0]!;
+      yield* manager.close({ threadId: scope.thread.threadId, tabId: snapshot.tabId });
+      attached.resolve(false);
+      yield* Fiber.join(opening);
+      expect(contextRequests).toEqual([]);
+      expect(contexts).toEqual([]);
+      expect((yield* manager.list({ threadId: scope.thread.threadId })).sessions).toEqual([]);
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live(
+  "closing a tab while headless launches discards its page and prevents late native resurrection",
+  () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const broker = yield* Broker.PreviewAutomationBroker;
+        const manager = yield* Manager.PreviewManager;
+        yield* Effect.yieldNow;
+        desktopAvailable = true;
+        const launching = Promise.withResolvers<void>();
+        const launch = Promise.withResolvers<void>();
+        contextRequested = launching;
+        contextGate = launch;
+        yield* Effect.addFinalizer(() => Effect.sync(() => launch.resolve()));
+        const opening = yield* broker
+          .invoke<PreviewAutomationStatus>({
+            scope,
+            operation: "open",
+            input: { reuseExistingTab: false, show: false },
+          })
+          .pipe(Effect.flip, Effect.forkScoped);
+        yield* Effect.promise(() => launching.promise);
+        const snapshot = (yield* manager.list({ threadId: scope.thread.threadId })).sessions[0]!;
+        yield* manager.close({ threadId: scope.thread.threadId, tabId: snapshot.tabId });
+        launch.resolve();
+        yield* Fiber.join(opening);
+        expect(contexts[0]!.page.isClosed()).toBe(true);
+        expect(contexts[0]!.close).toHaveBeenCalledOnce();
+        expect((yield* manager.list({ threadId: scope.thread.threadId })).sessions).toEqual([]);
+        const queried = Promise.withResolvers<void>();
+        const list = manager.list;
+        const spy = vi
+          .spyOn(manager, "list")
+          .mockImplementation((input) =>
+            list(input).pipe(Effect.tap(() => Effect.sync(() => queried.resolve()))),
+          );
+        yield* Effect.addFinalizer(() => Effect.sync(() => spy.mockRestore()));
+        desktopTabs.add(snapshot.tabId);
+        desktopDetaches.emit("attach", { threadId: scope.thread.threadId, tabId: snapshot.tabId });
+        yield* Effect.promise(() => queried.promise);
+        expect(desktopConnections).toEqual([]);
+      }),
+    ).pipe(Effect.provide(layer)),
+);
+
+it.live("headless fallbacks count toward both tab limits and free capacity when closed", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const broker = yield* Broker.PreviewAutomationBroker;
+      const manager = yield* Manager.PreviewManager;
+      yield* Effect.yieldNow;
+      desktopAvailable = true;
+      const open = (agent: string) =>
+        broker.invoke<PreviewAutomationStatus>({
+          scope: asSession(agent),
+          operation: "open",
+          input: { reuseExistingTab: false, show: false },
+        });
+      let first: PreviewAutomationStatus | undefined;
+      for (let agent = 0; agent < 4; agent++) {
+        for (let count = 0; count < 8; count++) {
+          const opened = yield* open(`agent-${agent}`);
+          first ??= opened;
+        }
+        expect(yield* open(`agent-${agent}`).pipe(Effect.flip)).toMatchObject({
+          reason: "tabLimit",
+        });
+      }
+      expect(yield* open("another-agent").pipe(Effect.flip)).toMatchObject({ reason: "tabLimit" });
+      expect(contexts).toHaveLength(32);
+      expect(
+        (yield* manager.list({ threadId: scope.thread.threadId })).sessions.every(
+          (session) => session.serverPageMode === "headless",
+        ),
+      ).toBe(true);
+      desktopTabs.add(first!.tabId!);
+      desktopDetaches.emit("attach", { threadId: scope.thread.threadId, tabId: first!.tabId! });
+      yield* broker.invoke({
+        scope: asSession("agent-0"),
+        tabId: PreviewTabId.make(first!.tabId!),
+        operation: "close",
+        input: {},
+      });
+      expect((yield* open("another-agent")).available).toBe(true);
+      expect(desktopConnections).toEqual([]);
+      expect((yield* manager.list({ threadId: scope.thread.threadId })).sessions).toHaveLength(32);
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live("a standalone server still opens a headless page when no desktop channel exists", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { broker, tabId } = yield* ready;
+      expect(desktopAvailable).toBe(false);
+      expect(contexts).toHaveLength(1);
+      expect(desktopConnections).toEqual([]);
+      expect(
+        yield* broker.invoke({ scope, tabId, operation: "evaluate", input: { expression: "42" } }),
+      ).toBe("evaluated");
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live("late desktop attachment keeps downloads and an active headless recording", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { broker, tabId } = yield* ready;
+      const manager = yield* Manager.PreviewManager;
+      const page = contexts[0]!.page;
+      const saved = Promise.withResolvers<string>();
+      const written = Promise.withResolvers<void>();
+      page.emit("download", {
+        failure: async () => null,
+        saveAs: (path: string) => {
+          saved.resolve(path);
+          return written.promise;
+        },
+        suggestedFilename: () => "report.csv",
+        url: () => "blob:http://localhost/1",
+      });
+      const fs = yield* FileSystem.FileSystem;
+      yield* fs.writeFileString(yield* Effect.promise(() => saved.promise), "a,b");
+      written.resolve();
+      const status = () =>
+        broker.invoke<PreviewAutomationStatus>({ scope, tabId, operation: "status", input: {} });
+      let before = yield* status();
+      while (!before.downloads?.length) {
+        yield* Effect.yieldNow;
+        before = yield* status();
+      }
+      yield* broker.invoke({ scope, tabId, operation: "recordingStart", input: {} });
+      const encoder = scratchPages[0]!;
+      const attached = Promise.withResolvers<void>();
+      const list = manager.list;
+      const spy = vi
+        .spyOn(manager, "list")
+        .mockImplementation((input) =>
+          list(input).pipe(Effect.tap(() => Effect.sync(() => attached.resolve()))),
+        );
+      yield* Effect.addFinalizer(() => Effect.sync(() => spy.mockRestore()));
+      desktopTabs.add(tabId);
+      desktopDetaches.emit("attach", { threadId: scope.thread.threadId, tabId });
+      // The stream processes this missing tab after the real attach, providing a completion barrier.
+      desktopDetaches.emit("attach", { threadId: scope.thread.threadId, tabId: "attach-barrier" });
+      yield* Effect.promise(() => attached.promise);
+      expect(page.close).not.toHaveBeenCalled();
+      expect(encoder.close).not.toHaveBeenCalled();
+      expect(desktopConnections).toEqual([]);
+      expect((yield* status()).downloads).toEqual(before.downloads);
+      expect((yield* status()).serverPageMode).toBe("headless");
+      encoder.evaluate
+        .mockResolvedValueOnce({ mimeType: "video/webm", bytes: 5, count: 1 })
+        .mockResolvedValueOnce("dmlkZW8=");
+      const recording = yield* broker.invoke<{ path: string; sizeBytes: number }>({
+        scope,
+        tabId,
+        operation: "recordingStop",
+        input: {},
+      });
+      expect(recording.sizeBytes).toBe(5);
+      expect(yield* fs.readFileString(recording.path)).toBe("video");
+      expect(yield* fs.exists(before.downloads?.[0]?.path ?? "")).toBe(true);
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live("a capture timeout releases the tab so the next agent action works", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { broker, tabId } = yield* ready;
+      const cdp = contexts[0]!.sessions[0]!;
+      const started = Promise.withResolvers<void>();
+      const captured = Promise.withResolvers<Record<string, unknown>>();
+      const send = cdp.send.getMockImplementation()!;
+      cdp.send.mockImplementation((method, input) => {
+        if (method !== "Page.captureScreenshot") return send(method, input);
+        started.resolve();
+        return captured.promise;
+      });
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          captured.resolve({ data: "ZnJhbWU=" });
+          vi.useRealTimers();
+        }),
+      );
+      const snapshot = yield* broker
+        .invoke<PreviewAutomationSnapshot>({ scope, tabId, operation: "snapshot", input: {} })
+        .pipe(Effect.flip, Effect.forkScoped);
+      yield* Effect.promise(() => started.promise);
+      yield* Effect.promise(() => vi.advanceTimersByTimeAsync(5_000));
+      expect(yield* Fiber.join(snapshot)).toMatchObject({
+        _tag: "PreviewAutomationExecutionError",
+        reason: expect.stringContaining("did not draw a frame"),
+      });
+      expect(
+        yield* broker.invoke({ scope, tabId, operation: "evaluate", input: { expression: "42" } }),
+      ).toBe("evaluated");
+    }),
+  ).pipe(Effect.provide(layer)),
 );
