@@ -438,6 +438,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["beta boring sidebar folder rows multiline branch pull request details"],
   },
   {
+    id: "sidebar-section-dividers",
+    title: "Always show thread section dividers",
+    to: "/settings/general",
+    searchTerms: ["sidebar pinned active labels lines separators dragging"],
+  },
+  {
     id: "guest-links",
     title: "Guest links",
     to: "/settings/labs",
