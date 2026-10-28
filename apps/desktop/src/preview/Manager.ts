@@ -419,6 +419,8 @@ type RecordingInputListener = (event: DesktopPreviewRecordingInputEvent) => Effe
 
 type PointerEventListener = (event: DesktopPreviewPointerEvent) => Effect.Effect<void>;
 
+type FrameRequestListener = (tabId: string) => Effect.Effect<void>;
+
 type OpenLinkListener = (event: DesktopPreviewOpenLinkEvent) => Effect.Effect<void>;
 
 // about:blank inherits relaxed guest preferences; external editor schemes must reach the OS handler.
@@ -532,6 +534,7 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
   const attachedRef = yield* Ref.make<ReadonlyMap<number, ManagedListeners>>(new Map());
   const listenersRef = yield* Ref.make<ReadonlySet<Listener>>(new Set());
   const pointerEventListenersRef = yield* Ref.make<ReadonlySet<PointerEventListener>>(new Set());
+  const frameRequestListenersRef = yield* Ref.make<ReadonlySet<FrameRequestListener>>(new Set());
   const openLinkListenersRef = yield* Ref.make<ReadonlySet<OpenLinkListener>>(new Set());
   const recordingInputListenersRef = yield* Ref.make<ReadonlySet<RecordingInputListener>>(
     new Set(),
@@ -806,6 +809,7 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
       | "recording-frame"
       | "recording-input"
       | "pointer-event"
+      | "frame-request"
       | "open-link",
     tabId: string,
     delivery: () => Effect.Effect<void>,
@@ -3259,6 +3263,23 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
       }
     },
   );
+  /** Tells the renderer that the server waits for a frame of this tab, so it must draw. */
+  const emitFrameRequest = Effect.fn("PreviewManager.emitFrameRequest")(function* (key: {
+    readonly threadId: string;
+    readonly tabId: string;
+  }) {
+    const tab = [...(yield* SynchronizedRef.get(tabsRef)).values()].find(
+      (candidate) =>
+        candidate.serverTab?.threadId === key.threadId && candidate.serverTab.tabId === key.tabId,
+    );
+    if (!tab) return;
+    const listeners = yield* Ref.get(frameRequestListenersRef);
+    yield* Effect.forEach(
+      listeners,
+      (listener) => deliverEvent("frame-request", tab.tabId, () => listener(tab.tabId)),
+      { discard: true },
+    );
+  });
   let browserHostStarted = false;
   // Subscribes before the attach that follows, so no event falls between the two.
   const listenToBrowserHost = Effect.suspend(() => {
@@ -3269,6 +3290,7 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
       [
         browserHost.pointers.pipe(Stream.runForEach(emitAgentPointer), listen),
         browserHost.painting.pipe(Stream.runForEach(updateServerTabCapturing), listen),
+        browserHost.frameRequests.pipe(Stream.runForEach(emitFrameRequest), listen),
       ],
       { discard: true },
     );
@@ -3305,6 +3327,7 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
       [
         Ref.set(listenersRef, new Set()),
         Ref.set(pointerEventListenersRef, new Set()),
+        Ref.set(frameRequestListenersRef, new Set()),
         Ref.set(openLinkListenersRef, new Set()),
         Ref.set(recordingFrameListenersRef, new Set()),
         Ref.set(recordingInputListenersRef, new Set()),
@@ -3351,6 +3374,8 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
     stopRecording,
     subscribePointerEvents: (listener: PointerEventListener) =>
       subscribe(pointerEventListenersRef, listener),
+    subscribeFrameRequests: (listener: FrameRequestListener) =>
+      subscribe(frameRequestListenersRef, listener),
     subscribeOpenLinks: (listener: OpenLinkListener) => subscribe(openLinkListenersRef, listener),
     subscribeRecordingInputs: (listener: RecordingInputListener) =>
       subscribe(recordingInputListenersRef, listener),
@@ -3591,6 +3616,9 @@ export class PreviewManager extends Context.Service<
     readonly subscribePointerEvents: (
       listener: PointerEventListener,
     ) => Effect.Effect<void, never, Scope.Scope>;
+    readonly subscribeFrameRequests: (
+      listener: FrameRequestListener,
+    ) => Effect.Effect<void, never, Scope.Scope>;
     readonly subscribeOpenLinks: (
       listener: OpenLinkListener,
     ) => Effect.Effect<void, never, Scope.Scope>;
@@ -3732,6 +3760,7 @@ export const make = Effect.gen(function* PreviewManagerMake() {
     saveRecording: operations.saveRecording,
     subscribeStateChanges: operations.subscribeStateChanges,
     subscribePointerEvents: operations.subscribePointerEvents,
+    subscribeFrameRequests: operations.subscribeFrameRequests,
     subscribeOpenLinks: operations.subscribeOpenLinks,
     subscribeRecordingFrames: operations.subscribeRecordingFrames,
     subscribeRecordingInputs: operations.subscribeRecordingInputs,
