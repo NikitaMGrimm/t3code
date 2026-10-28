@@ -679,6 +679,9 @@ const make = Effect.gen(function* () {
     }
   };
 
+  /**
+   * Prefer the desktop's page, but keep a chosen headless page across reattachments.
+   */
   const desktopRenders = (snapshot: PreviewSessionSnapshot) =>
     desktopChannel.available && snapshot.serverPageMode !== "headless"
       ? runPromise(
@@ -714,7 +717,9 @@ const make = Effect.gen(function* () {
   };
 
   const currentSnapshot = async (threadId: string, tabId: string) => {
-    const { sessions } = await runPromise(manager.list({ threadId: ThreadId.make(threadId) }));
+    const { sessions } = await runPromise(
+      manager.list({ threadId: ThreadId.make(threadId) }),
+    );
     const snapshot = sessions.find(
       (session) => session.tabId === tabId && session.runtime === "server",
     );
@@ -1512,7 +1517,7 @@ const make = Effect.gen(function* () {
       try {
         await encoder.evaluate(ServerBrowserPage.recordingEncoderScript(recordingFrameRate));
         // Seed idle pages before returning so an immediate stop has a frame to encode.
-        const firstFrame = await ServerBrowserPage.captureViewport(tab.page, tab.cdp, {
+        const firstFrame = await ServerBrowserPage.captureViewport(tab.cdp, {
           format: "jpeg",
           quality: RECORDING_SCREENCAST.quality,
         });
