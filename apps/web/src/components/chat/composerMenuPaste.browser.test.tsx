@@ -5,7 +5,10 @@ import { page, userEvent } from "vite-plus/test/browser";
 import { render, type Screen } from "../../../test/render";
 import { ComposerHandleContext } from "../../composerHandleContext";
 import { BranchPicker } from "../BranchPicker";
-import { ComposerPromptEditor, type ComposerPromptEditorHandle } from "../ComposerPromptEditor";
+import {
+  ComposerPromptEditorTiptap as ComposerPromptEditor,
+  type ComposerPromptEditorHandle,
+} from "../ComposerPromptEditorTiptap";
 import { ComboboxItem, ComboboxTrigger } from "../ui/combobox";
 import type { ChatComposerHandle } from "./ChatComposer";
 import { CompactComposerControlsMenu } from "./CompactComposerControlsMenu";
@@ -127,13 +130,13 @@ async function renderComposer() {
 describe("composer picker paste", () => {
   it("dismisses the access picker and pastes once at the draft's retained caret", async () => {
     await using screen = await renderComposer();
-    await userEvent.click(screen.getByRole("combobox", { name: "Runtime mode" }));
-    await expect.element(page.getByRole("listbox")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Permissions: Supervised" }));
+    await expect.element(page.getByRole("menu")).toBeVisible();
 
     const event = pasteOnFocused(" there");
 
     expect(event.defaultPrevented).toBe(true);
-    await expect.element(page.getByRole("listbox")).not.toBeInTheDocument();
+    await expect.element(page.getByRole("menu")).not.toBeInTheDocument();
     await expectDraft(screen, "hello there world");
     expect(document.activeElement?.closest(".tiptap")).not.toBeNull();
   });
@@ -224,8 +227,8 @@ describe("composer picker paste", () => {
     window.addEventListener("paste", listener, true);
     try {
       pasteOnFocused("text");
-      await userEvent.click(screen.getByRole("combobox", { name: "Runtime mode" }));
-      await expect.element(page.getByRole("listbox")).toBeVisible();
+      await userEvent.click(screen.getByRole("button", { name: "Permissions: Supervised" }));
+      await expect.element(page.getByRole("menu")).toBeVisible();
       (toggle.element() as HTMLElement).focus();
       pasteOnFocused("text");
     } finally {

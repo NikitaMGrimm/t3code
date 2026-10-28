@@ -241,6 +241,7 @@ const handlers = {
           agentDevice: {
             command: agent.customCommand.command,
             targetArgs: agent.customCommand.args,
+            session: agent.session,
           },
           quickStart: agent.customCommand.quickStart,
         };

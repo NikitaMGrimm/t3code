@@ -230,7 +230,11 @@ export function DeviceControlsRail(props: {
             <MenuSeparator />
             <MenuItem variant="destructive" onClick={props.onPowerOff}>
               <Power />
-              {props.inputOnly ? "Return device to the pool" : props.physical ? "Disconnect phone" : "Power off device"}
+              {props.inputOnly
+                ? "Return device to the pool"
+                : props.physical
+                  ? "Disconnect phone"
+                  : "Power off device"}
             </MenuItem>
           </MenuPopup>
         </Menu>

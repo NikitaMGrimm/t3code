@@ -23,7 +23,6 @@ function Actions() {
           promptHasText
           isSendBusy={false}
           sendDisabledReason={null}
-          isConnecting={false}
           isEnvironmentUnavailable={false}
           isPreparingWorktree={false}
           hasSendableContent

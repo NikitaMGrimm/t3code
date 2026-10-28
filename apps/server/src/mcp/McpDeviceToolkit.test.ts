@@ -623,6 +623,7 @@ it.effect("returns a physical phone command without installing the simulator CLI
     agentTarget: () =>
       Effect.succeed({
         agentDeviceId: "phone",
+        session: "phone-session",
         args: [],
         customCommand: {
           command: "python-phone",
@@ -630,7 +631,7 @@ it.effect("returns a physical phone command without installing the simulator CLI
           quickStart: "Physical phone controls",
         },
       }),
-    agentCli: Effect.die("Physical device must not install a simulator launcher"),
+    agentLauncher: () => Effect.die("Physical device must not install a simulator launcher"),
   });
   return Effect.gen(function* () {
     const server = yield* McpServer.McpServer;

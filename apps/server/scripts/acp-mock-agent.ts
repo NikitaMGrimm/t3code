@@ -939,7 +939,6 @@ const program = Effect.gen(function* () {
           );
         }
         return yield* finishPrompt(requestedSessionId, "end_turn");
-      
       }
 
       if (clientFsProbePath !== undefined && clientFsProbeLogPath !== undefined) {

@@ -336,15 +336,18 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
     }),
   );
 
-  // Uninterruptible so a committed retirement always prunes, even if its caller is cancelled.
-  const publish = (update: (state: DeviceServiceState) => DeviceServiceState) =>
+  const publishState = (update: (state: DeviceServiceState) => DeviceServiceState) =>
     SynchronizedRef.modifyEffect(stateRef, ({ state }) => {
       const next = { ...update(state), revision: state.revision + 1 };
       const retired = state.sessions.some((session) => !next.sessions.includes(session));
       return PubSub.publish(statePubSub, next).pipe(
         Effect.as([{ next, retired }, { state: next }] as const),
       );
-    }).pipe(
+    });
+
+  // Uninterruptible so a committed retirement always prunes, even if its caller is cancelled.
+  const publish = (update: (state: DeviceServiceState) => DeviceServiceState) =>
+    publishState(update).pipe(
       Effect.tap(({ retired }) => (retired ? pruneLaunchers : Effect.void)),
       Effect.map(({ next }) => next),
       Effect.uninterruptible,
@@ -860,40 +863,51 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
 
   const close: DeviceService["Service"]["close"] = Effect.fn("DeviceService.close")(
     function* (input) {
-      const shutdown = yield* lifecycleLock.withPermit(
-        Effect.gen(function* () {
-          const { state } = yield* SynchronizedRef.get(stateRef);
-          const closing = state.sessions.filter(
-            (session) =>
-              session.threadId === input.threadId &&
-              (input.hostId === undefined || session.hostId === input.hostId) &&
-              (input.deviceId === undefined || session.deviceId === input.deviceId),
-          );
-          // Shutdown retires every session on a device before it powers off.
-          const retiring = state.sessions.filter(
-            (session) => closing.includes(session) || (input.shutdown === true && closing.some(
-              (closed) => closed.hostId === session.hostId && closed.deviceId === session.deviceId,
-            )),
-          );
-          const needsShutdown: Array<DeviceSession> = [];
-          yield* Effect.forEach(
-            retiring,
-            (session) =>
-              Effect.gen(function* () {
-                const ready = yield* currentReadiness(session.hostId);
-                if (ready?.devices.detach)
-                  yield* ready.devices.detach(session.deviceId, session.threadId);
-                else needsShutdown.push(session);
-              }),
-            { discard: true },
-          );
-          yield* publish((current) => ({
-            ...current,
-            sessions: current.sessions.filter((session) => !retiring.includes(session)),
-          }));
-          return needsShutdown;
-        }),
-      );
+      const shutdown = yield* lifecycleLock
+        .withPermit(
+          Effect.gen(function* () {
+            const { state } = yield* SynchronizedRef.get(stateRef);
+            const closing = state.sessions.filter(
+              (session) =>
+                session.threadId === input.threadId &&
+                (input.hostId === undefined || session.hostId === input.hostId) &&
+                (input.deviceId === undefined || session.deviceId === input.deviceId),
+            );
+            // Shutdown retires every session on a device before it powers off.
+            const retiring = state.sessions.filter(
+              (session) =>
+                closing.includes(session) ||
+                (input.shutdown === true &&
+                  closing.some(
+                    (closed) =>
+                      closed.hostId === session.hostId && closed.deviceId === session.deviceId,
+                  )),
+            );
+            const needsShutdown: Array<DeviceSession> = [];
+            yield* Effect.forEach(
+              retiring,
+              (session) =>
+                Effect.gen(function* () {
+                  const ready = yield* currentReadiness(session.hostId);
+                  if (ready?.devices.detach)
+                    yield* ready.devices.detach(session.deviceId, session.threadId);
+                  else if (closing.includes(session)) needsShutdown.push(session);
+                }),
+              { discard: true },
+            );
+            const { retired } = yield* publishState((current) => ({
+              ...current,
+              sessions: current.sessions.filter((session) => !retiring.includes(session)),
+            }));
+            return { needsShutdown, retired };
+          }),
+        )
+        .pipe(
+          // Launcher pruning can wait on a bind; release the lifecycle lock first so discovery can continue.
+          Effect.tap(({ retired }) => (retired ? pruneLaunchers : Effect.void)),
+          Effect.map(({ needsShutdown }) => needsShutdown),
+          Effect.uninterruptible,
+        );
       if (input.shutdown) {
         yield* Effect.forEach(
           shutdown,
@@ -1079,7 +1093,11 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
                 });
               return {
                 agentDeviceId: input.deviceId,
-                session: yield* agentDeviceSession(input.threadId, input.hostId, input.deviceId).pipe(Effect.provideService(Crypto.Crypto, crypto)),
+                session: yield* agentDeviceSession(
+                  input.threadId,
+                  input.hostId,
+                  input.deviceId,
+                ).pipe(Effect.provideService(Crypto.Crypto, crypto)),
                 args: [],
                 customCommand: yield* ready.devices.agentCommand!(input.threadId),
               };

@@ -173,9 +173,6 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
     return yield* Effect.gen(function* () {
       yield* reportProgress("downloading");
       if (capability === "respawn" && externalCommand !== undefined) {
-        if (input.continueRunningThreads === true) {
-          return yield* failWith("This managed deployment does not support thread continuation.");
-        }
         const result = yield* runner
           .run({
             command: externalCommand,

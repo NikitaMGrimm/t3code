@@ -20,11 +20,16 @@ const options = runtimeModeOptions.map((mode) => ({ mode, ...runtimeModeConfig[m
 function EffortMenu() {
   const [effort, setEffort] = useState("high");
   const [mode, setMode] = useState<RuntimeMode>("full-access");
-  const composerMenuProps = useComposerMenuProps();
+  const [open, setOpen] = useState(false);
+  const composerMenuProps = useComposerMenuProps(() => setOpen(false));
   const triggerRef = useRef<HTMLButtonElement>(null);
   return (
     <>
-      <Menu onOpenChangeComplete={(open) => focusRequestedPermission(open, triggerRef.current)}>
+      <Menu
+        open={open}
+        onOpenChange={setOpen}
+        onOpenChangeComplete={(open) => focusRequestedPermission(open, triggerRef.current)}
+      >
         <MenuTrigger ref={triggerRef}>Effort</MenuTrigger>
         <MenuPopup {...composerMenuProps}>
           <MenuRadioGroup value={effort} onValueChange={setEffort}>
@@ -89,7 +94,7 @@ it("marks the current mode as checked and closes on Escape", async () => {
 
 // The real composer menu focus rule (useComposerMenuProps), with a stub composer handle.
 function withComposer(children: ReactNode) {
-  const handle = { focusAtEnd: vi.fn() };
+  const handle = { restoreFocus: vi.fn() };
   const ref = { current: handle } as unknown as ComposerHandleRef;
   return { handle, ui: <ComposerHandleContext value={ref}>{children}</ComposerHandleContext> };
 }
@@ -102,7 +107,7 @@ it("returns focus to the editor after a pick", async () => {
   await expect.element(page.getByRole("menuitemradio", { name: "Low" })).toHaveFocus();
   await userEvent.keyboard("{ArrowDown}{ArrowDown}{Enter}");
   await expect.element(screen.getByRole("status")).toHaveTextContent("approval-required");
-  await vi.waitFor(() => expect(handle.focusAtEnd).toHaveBeenCalled());
+  await vi.waitFor(() => expect(handle.restoreFocus).toHaveBeenCalled());
 });
 
 it("opens on the checked permission when composer.mode marked the trigger", async () => {
@@ -146,6 +151,6 @@ it("returns focus to the editor when picking the default hides the chip", async 
   await using screen = await render(ui, { router: false }); // no routes involved
   await userEvent.click(screen.getByRole("button", { name: "Permissions: Supervised" }));
   await userEvent.click(page.getByRole("menuitemradio", { name: "Full access" }));
-  await vi.waitFor(() => expect(handle.focusAtEnd).toHaveBeenCalled());
+  await vi.waitFor(() => expect(handle.restoreFocus).toHaveBeenCalled());
   await expect.element(screen.getByRole("button", { name: "Effort" })).not.toHaveFocus();
 });

@@ -19,7 +19,6 @@ import {
   ORCHESTRATION_V2_WS_METHODS,
   ScheduledTaskId,
   WS_METHODS,
-  ORCHESTRATION_V2_WS_METHODS,
   type AuthSessionState,
   type PeerLinkSummary,
 } from "@t3tools/contracts";

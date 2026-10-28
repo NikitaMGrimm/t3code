@@ -314,7 +314,6 @@ export const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryA
       promptHasText={props.promptHasText}
       isSendBusy={props.isSendBusy}
       sendDisabledReason={props.sendDisabledReason}
-      isConnecting={props.isConnecting}
       isEnvironmentUnavailable={props.isEnvironmentUnavailable}
       isPreparingWorktree={props.isPreparingWorktree}
       hasSendableContent={props.hasSendableContent}

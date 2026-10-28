@@ -13,7 +13,15 @@ import {
   ThreadId,
 } from "@t3tools/contracts";
 import type { LegendListRef } from "@legendapp/list/react";
-import { createRef, Profiler, StrictMode, useRef, useState, type ComponentProps, type ReactElement } from "react";
+import {
+  createRef,
+  Profiler,
+  StrictMode,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactElement,
+} from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import "~/index.css";
@@ -26,7 +34,6 @@ import {
   deriveTimelineEntriesFromVisibleTurnItems,
 } from "../../session-logic";
 import { useTimelineFollow } from "./useTimelineFollow";
-import type { ChatComposerHandle } from "./ChatComposer";
 import { remarkThoughtPreview } from "./TimelineWorkEntryRow.logic";
 import { parseMarkdownWithMath } from "@t3tools/shared/markdownMath";
 import { collectThreadFindRanges } from "./threadFindHighlights";
@@ -156,11 +163,9 @@ async function click(element: HTMLElement) {
 
 function FollowHarness({ entries, loading }: { entries: Entry[]; loading: boolean }) {
   const listRef = useRef<LegendListRef | null>(null);
-  const composerRef = useRef<ChatComposerHandle | null>(null);
   const [routeThreadKey] = useState(() => baseProps().routeThreadKey);
   const follow = useTimelineFollow({
     legendListRef: listRef,
-    composerRef,
     composerTimelineInset: 0,
     routeThreadKey,
     activeThreadKey: routeThreadKey,
