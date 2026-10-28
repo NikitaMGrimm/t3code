@@ -24,6 +24,8 @@ const AGENT_INPUT_COMMAND =
   /"method":"(?:Input\.|Page\.navigate"|Runtime\.(?:evaluate|callFunctionOn)")/;
 /** The same commands as above, by method, for the relay's sends. */
 const AGENT_INPUT_METHOD = /^(?:Input\.|Page\.navigate$|Runtime\.(?:evaluate|callFunctionOn)$)/;
+/** A capture waits for the page's next frame, which a hidden tab only draws on request. */
+const CAPTURE_COMMAND = /"method":"Page\.captureScreenshot"/;
 const AGENT_DOWNLOAD_WINDOW_MS = 5_000;
 const FOCUS_IDLE = "5 seconds";
 
@@ -100,6 +102,8 @@ export class DesktopBrowserHost extends Context.Service<
       readonly key: DesktopBrowserTabKey;
       readonly active: boolean;
     }>;
+    /** Server tabs whose page the server is waiting to capture, so they must draw. */
+    readonly frameRequests: Stream.Stream<DesktopBrowserTabKey>;
   }
 >()("@t3tools/desktop/preview/DesktopBrowserHost") {}
 
@@ -115,6 +119,7 @@ export const make = Effect.gen(function* () {
     readonly key: DesktopBrowserTabKey;
     readonly active: boolean;
   }>();
+  const frameRequests = yield* PubSub.sliding<DesktopBrowserTabKey>(16);
   const runFork = Effect.runForkWith(yield* Effect.context<never>());
   const tabs = new Map<string, AttachedTab>();
   /** Threads whose agent turn runs, by the server's account. */
@@ -463,6 +468,8 @@ export const make = Effect.gen(function* () {
         return;
       }
       if (AGENT_INPUT_COMMAND.test(command.value.message)) tab.agentInputAt = performance.now();
+      if (CAPTURE_COMMAND.test(command.value.message))
+        runFork(PubSub.publish(frameRequests, tab.key));
       relayFor(tab).receive(command.value.message);
     });
 
@@ -487,6 +494,7 @@ export const make = Effect.gen(function* () {
   return DesktopBrowserHost.of({
     pointers: Stream.fromPubSub(pointers),
     painting: Stream.fromPubSub(painting),
+    frameRequests: Stream.fromPubSub(frameRequests),
     // Subscribes before announcing, so no attach falls between the two.
     events: Stream.unwrap(
       Effect.gen(function* () {
