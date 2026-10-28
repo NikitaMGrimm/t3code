@@ -8,7 +8,7 @@ import {
 } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { runAtomCommand } from "@t3tools/client-runtime/state/runtime";
-import { type ComponentProps, useState } from "react";
+import { type ComponentProps, useEffect, useState } from "react";
 
 import { primaryEnvironmentIdAtom } from "~/state/primaryEnvironment";
 
@@ -24,6 +24,7 @@ import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { previewEnvironment } from "~/state/preview";
 import { useEnvironmentScope } from "~/state/session";
 
+import { holdFramesForCapture, releaseCaptureFrames } from "./agentFrameRequests";
 import { readPreviewAnnotationTheme } from "./annotationTheme";
 import { useBrowserDefaults } from "./browserDefaults";
 import { useBrowserPointerStore } from "./browserPointerStore";
@@ -119,6 +120,13 @@ export function startElectronBrowserHost(): () => void {
       useBrowserPointerStore.getState().apply(event);
     }),
     preview.onOpenLink(openLinkInPreview),
+    preview.onFrameRequest((tabId) => {
+      const session = hostedBrowserSessions(
+        readActivePreviewSessions(),
+        appAtomRegistry.get(primaryEnvironmentIdAtom),
+      ).find((session) => session.runtimeTabId === tabId);
+      if (session) holdFramesForCapture(tabId, session.threadRef);
+    }),
   ];
   return () => {
     for (const dispose of disposers) dispose();
@@ -169,6 +177,8 @@ function AuthorizedBrowserWebview(props: ComponentProps<typeof HostedBrowserWebv
     AuthPreviewOperateScope,
   );
   const profileId = useTabProfileId(props.profileId);
+  // oxlint-disable-next-line t3code/react-effect-budget -- Release capture activity when this native tab unmounts.
+  useEffect(() => () => releaseCaptureFrames(props.runtimeTabId), [props.runtimeTabId]);
   return canOperatePreview ? <HostedBrowserWebview {...props} profileId={profileId} /> : null;
 }
 

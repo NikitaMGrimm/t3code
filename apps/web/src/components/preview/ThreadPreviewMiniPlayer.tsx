@@ -133,8 +133,6 @@ function useBrowserMiniPlayerSource(threadRef: ScopedThreadRef | null, tabId: st
     threadRef && tabId !== null
       ? previewRuntimeTabId(threadRef, previewState.serverEpoch, tabId)
       : null;
-  const desktopOverlay = tabId === null ? null : (previewState.desktopByTabId[tabId] ?? null);
-  const layoutZoomFactor = useBrowserLayoutZoomFactor(desktopOverlay?.zoomFactor ?? 1);
   const fittedSourceContent = useBrowserSurfaceStore((state) =>
     runtimeTabId === null ? null : (state.byTabId[runtimeTabId]?.fittedSourceContent ?? null),
   );
@@ -143,6 +141,8 @@ function useBrowserMiniPlayerSource(threadRef: ScopedThreadRef | null, tabId: st
     threadRef !== null &&
     snapshot?.runtime === "server" &&
     !rendersServerTabNatively(threadRef.environmentId, primaryEnvironmentId, snapshot);
+  const desktopOverlay = serverTab || tabId === null ? null : (previewState.desktopByTabId[tabId] ?? null);
+  const layoutZoomFactor = useBrowserLayoutZoomFactor(desktopOverlay?.zoomFactor ?? 1);
   const streamViewport = useStreamedSourceSize((state) =>
     threadRef &&
     tabId !== null &&
@@ -156,7 +156,7 @@ function useBrowserMiniPlayerSource(threadRef: ScopedThreadRef | null, tabId: st
       ? streamViewport
       : resolvePreviewMiniPlayerSourceSize(
           snapshot?.viewport ?? FILL_PREVIEW_VIEWPORT,
-          fittedSourceContent,
+          serverTab ? null : fittedSourceContent,
           layoutZoomFactor,
         );
   return { serverEpoch: previewState.serverEpoch, snapshot, desktopOverlay, serverTab, sourceSize };
