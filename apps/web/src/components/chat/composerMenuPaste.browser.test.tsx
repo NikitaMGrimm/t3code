@@ -29,7 +29,6 @@ function BranchControl() {
       filteredItems={["main", "feature"]}
       value="main"
       query=""
-      resultsQuery=""
       onQueryChange={() => {}}
       open={open}
       onOpenChange={setOpen}

@@ -559,11 +559,11 @@ it.effect("a tab the desktop does not draw is marked headless, so the desktop st
         input: { reuseExistingTab: false, show: false },
       });
       const { sessions } = yield* manager.list({ threadId: scope.thread.threadId });
-      const headlessOf = (id: string | null) =>
-        sessions.find((session) => session.tabId === id)?.headless;
+      const pageModeOf = (id: string | null) =>
+        sessions.find((session) => session.tabId === id)?.serverPageMode;
 
-      expect(headlessOf(tabId)).toBe(true);
-      expect(headlessOf(desktopTab.tabId)).toBeUndefined();
+      expect(pageModeOf(tabId)).toBe("headless");
+      expect(pageModeOf(desktopTab.tabId)).toBe("native");
     }),
   ).pipe(Effect.provide(layer)),
 );

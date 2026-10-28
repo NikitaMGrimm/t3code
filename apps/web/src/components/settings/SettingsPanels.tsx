@@ -1,4 +1,3 @@
-import { SettingsGroup } from "./SettingsGroup";
 import { PersonalUpdateStatus } from "../PersonalUpdateStatus";
 import { refreshPersonalUpdateStatus } from "../../hooks/usePersonalUpdateStatus";
 import { NotificationSettings } from "./NotificationSettings";

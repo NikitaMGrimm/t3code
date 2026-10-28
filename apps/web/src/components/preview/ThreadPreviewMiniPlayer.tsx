@@ -141,7 +141,8 @@ function useBrowserMiniPlayerSource(threadRef: ScopedThreadRef | null, tabId: st
     threadRef !== null &&
     snapshot?.runtime === "server" &&
     !rendersServerTabNatively(threadRef.environmentId, primaryEnvironmentId, snapshot);
-  const desktopOverlay = serverTab || tabId === null ? null : (previewState.desktopByTabId[tabId] ?? null);
+  const desktopOverlay =
+    serverTab || tabId === null ? null : (previewState.desktopByTabId[tabId] ?? null);
   const layoutZoomFactor = useBrowserLayoutZoomFactor(desktopOverlay?.zoomFactor ?? 1);
   const streamViewport = useStreamedSourceSize((state) =>
     threadRef &&
