@@ -3,7 +3,7 @@ import type { TimestampFormat } from "@t3tools/contracts/settings";
 import { newerPersonalRelease, type PersonalUpdateStatus } from "@t3tools/shared/personalUpdate";
 
 import { resolveDesktopPairingUrl, resolveHostedPairingUrl } from "./pairingUrls";
-import { getPairingTokenFromUrl, setPairingTokenOnUrl } from "../../pairingUrl";
+import { getPairingTokenFromUrl, setPairingTokenOnUrl } from "@t3tools/shared/remote";
 import { readHostedPairingRequest } from "../../hostedPairing";
 import {
   type ServerClientSessionRecord,

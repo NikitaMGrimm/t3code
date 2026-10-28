@@ -1,6 +1,6 @@
 import { useEvent } from "expo";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 
 import { AppActivityIndicator } from "./ui/AppActivityIndicator";
@@ -30,7 +30,7 @@ function LoadedMediaVideo(props: {
     player.staysActiveInBackground = false;
     player.bufferOptions = { preferredForwardBufferDuration: 5 };
   });
-  const playback = useMemo(() => createAudioPlaybackSession(player, true), [player]);
+  const playback = createAudioPlaybackSession(player, true);
   const { active, fullscreen, createPlayRequest, onFullscreenEnter, onFullscreenExit } =
     useMediaVideoPlayback(player, props, playback);
   const previousPlaybackRequested = useRef(false);
