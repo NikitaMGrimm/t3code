@@ -1,22 +1,21 @@
 {
   "schema": 1,
-  "phase": "conflict",
+  "phase": "building",
   "upstreamTag": "v0.1.5-nightly.20261029.3877",
-  "conflicts": [
-    "apps/web/src/components/settings/SettingsPanels.tsx",
-    "apps/web/src/components/sidebar/updateEverything.logic.test.ts",
-    "apps/web/src/components/sidebar/updateEverything.logic.ts",
-    "apps/web/src/components/sidebar/useUpdateEverything.ts",
-    "apps/web/src/state/npmRelease.ts",
-    "packages/contracts/src/orchestrationV2.ts",
-    "packages/shared/src/cliRelease.ts"
-  ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40873397824",
+  "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40903170349",
   "releasedVersion": "0.1.4-nightly.20261029.1793241431538",
-  "baseCommit": "1661fbcb2c2e0fbd7d497b317b8e7c91dad4e8eb",
-  "sequence": 1793276852524,
-  "conflictStage": "personal",
-  "conflictIdentity": "a79fe240452c9d65150238e0d9deb2579279352e8072aa263940892d10e7dd10",
+  "baseCommit": "f80be8795bcdd7738f9ec23e69d5de7e594027b5",
+  "sequence": 1793288155611,
+  "resolvedTestImports": [],
+  "lockfileReconciliations": [
+    {
+      "conflictStage": "pull_request",
+      "pullRequest": 22893
+    }
+  ],
+  "candidateCommit": "9d8140bb24ca47e358a3f51f957fa45c2f54685b",
+  "candidateVersion": "0.1.5-nightly.20261029.1793288155611",
   "inputs": {
     "upstreamTag": "v0.1.5-nightly.20261029.3877",
     "pullRequests": [
@@ -86,7 +85,7 @@
         "baseRef": "main"
       }
     ],
-    "resolutions": "958340ba9e466021a40a5bb08af9a2a2a7579412988c9c1359e78863f336f10f"
+    "resolutions": "56f9fef950ec1facc6cce355abc92ca5a569cc52b8c7b080bd4d31e1a945682a"
   },
   "pullRequests": [
     {
