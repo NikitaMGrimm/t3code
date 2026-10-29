@@ -53,11 +53,9 @@ export const WorktreeSubmodules = Schema.Literals(["recursive", "top-level", "no
 export type WorktreeSubmodules = typeof WorktreeSubmodules.Type;
 export type ExecutionEnvironmentPlatform = typeof ExecutionEnvironmentPlatform.Type;
 
-/** How a server can replace itself with another version when asked over RPC.
-    Launcher-managed servers advertise "boot-service". "respawn" also covers
-    externally supervised replacement, confirmed by version rather than a launcher trial.
-    "desktop-app" means the supervising desktop app updated and relaunched
-    itself, bringing the server back with it. */
+/** How a server replaces itself over RPC. "boot-service" is launcher-managed;
+ * "respawn" includes supervised replacement confirmed by version rather than a launcher trial.
+ * "desktop-app" means its supervising desktop app updated and relaunched with the server. */
 export const ServerSelfUpdateMethod = Schema.Literals(["boot-service", "respawn", "desktop-app"]);
 export type ServerSelfUpdateMethod = typeof ServerSelfUpdateMethod.Type;
 
