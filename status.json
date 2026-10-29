@@ -1,18 +1,24 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.5-nightly.20261029.3873",
+  "upstreamTag": "v0.1.5-nightly.20261029.3877",
   "conflicts": [
-    "packages/contracts/src/orchestrationV2.ts"
+    "apps/web/src/components/settings/SettingsPanels.tsx",
+    "apps/web/src/components/sidebar/updateEverything.logic.test.ts",
+    "apps/web/src/components/sidebar/updateEverything.logic.ts",
+    "apps/web/src/components/sidebar/useUpdateEverything.ts",
+    "apps/web/src/state/npmRelease.ts",
+    "packages/contracts/src/orchestrationV2.ts",
+    "packages/shared/src/cliRelease.ts"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40863265186",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40873397824",
   "releasedVersion": "0.1.4-nightly.20261029.1793241431538",
   "baseCommit": "1661fbcb2c2e0fbd7d497b317b8e7c91dad4e8eb",
-  "sequence": 1793272211444,
+  "sequence": 1793276852524,
   "conflictStage": "personal",
-  "conflictIdentity": "0052ced568828642dda34f47077870920448d8c1a9812f83b290a1f35f905ab9",
+  "conflictIdentity": "a79fe240452c9d65150238e0d9deb2579279352e8072aa263940892d10e7dd10",
   "inputs": {
-    "upstreamTag": "v0.1.5-nightly.20261029.3873",
+    "upstreamTag": "v0.1.5-nightly.20261029.3877",
     "pullRequests": [
       {
         "number": 17871,
