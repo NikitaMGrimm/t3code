@@ -127,8 +127,8 @@
     {
       "number": 23673,
       "title": "feat(web): optionally keep thread section dividers visible",
-      "headSha": "9c52baf8d2030792df6f16d6b4a7714489cb7972",
-      "baseSha": "9db433f4bab5dcc923672ef2e6f31f377d39705e",
+      "headSha": "6e393e291c2ece58898068422c411641dd797eb3",
+      "baseSha": "37fbefd147197fab9d88f9c120560c3f21b52cfc",
       "headRef": "feat/sidebar-section-dividers",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -161,5 +161,5 @@
       "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "94137f91c028ad28b8584ea19adf8d08e8d01043"
+  "prBaseline": "f5919a6eed9c3f505a6fd4bd12ed5d0617922892"
 }
