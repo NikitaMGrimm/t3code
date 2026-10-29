@@ -5,10 +5,10 @@
   "conflicts": [
     "apps/server/src/provider/agentContextBudget.json"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40935914750",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40964933503",
   "releasedVersion": "0.1.5-nightly.20261029.1793291018305",
   "baseCommit": "e8ebb5433b4ad65f87a8e1ca98a9f3dcfcafabe3",
-  "sequence": 1793300368890,
+  "sequence": 1793312355359,
   "conflictStage": "personal",
   "conflictIdentity": "44f57999d1e701d154c89b58deb7a8f1a7fccc2cd0fcaa16811272eee464dfd3",
   "inputs": {
@@ -56,7 +56,7 @@
       },
       {
         "number": 22893,
-        "headSha": "4e93d55e6cdde1a8ba54399238d8a3a8cfa77711",
+        "headSha": "2d7790eb30120eb6af375665b62224c9f62f4d18",
         "baseRef": "main"
       },
       {
@@ -177,8 +177,8 @@
     {
       "number": 22893,
       "title": "fix(markdown): an escaped backslash before \\( no longer crashes dev builds",
-      "headSha": "4e93d55e6cdde1a8ba54399238d8a3a8cfa77711",
-      "baseSha": "41967084e3979818e0bf8fa7cea31ffb6feb7369",
+      "headSha": "2d7790eb30120eb6af375665b62224c9f62f4d18",
+      "baseSha": "dd148481531a0a090780a2ade20588566db099a2",
       "headRef": "fix/latex-escaped-backslash-before-paren",
       "baseRef": "main",
       "author": "NikitaMGrimm",
