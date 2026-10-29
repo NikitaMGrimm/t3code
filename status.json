@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "phase": "ready",
+  "phase": "building",
   "upstreamTag": "v0.1.5-nightly.20261029.3877",
   "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40903170349",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40911099639",
   "releasedVersion": "0.1.5-nightly.20261029.1793288155611",
-  "baseCommit": "f80be8795bcdd7738f9ec23e69d5de7e594027b5",
-  "sequence": 1793288155611,
+  "baseCommit": "9d8140bb24ca47e358a3f51f957fa45c2f54685b",
+  "sequence": 1793291018305,
   "resolvedTestImports": [],
   "lockfileReconciliations": [
     {
@@ -14,8 +14,8 @@
       "pullRequest": 22893
     }
   ],
-  "candidateCommit": "9d8140bb24ca47e358a3f51f957fa45c2f54685b",
-  "candidateVersion": "0.1.5-nightly.20261029.1793288155611",
+  "candidateCommit": "e8ebb5433b4ad65f87a8e1ca98a9f3dcfcafabe3",
+  "candidateVersion": "0.1.5-nightly.20261029.1793291018305",
   "inputs": {
     "upstreamTag": "v0.1.5-nightly.20261029.3877",
     "pullRequests": [
@@ -71,7 +71,7 @@
       },
       {
         "number": 23673,
-        "headSha": "9c52baf8d2030792df6f16d6b4a7714489cb7972",
+        "headSha": "6e393e291c2ece58898068422c411641dd797eb3",
         "baseRef": "main"
       },
       {
@@ -211,8 +211,8 @@
     {
       "number": 23673,
       "title": "feat(web): optionally keep thread section dividers visible",
-      "headSha": "9c52baf8d2030792df6f16d6b4a7714489cb7972",
-      "baseSha": "9db433f4bab5dcc923672ef2e6f31f377d39705e",
+      "headSha": "6e393e291c2ece58898068422c411641dd797eb3",
+      "baseSha": "37fbefd147197fab9d88f9c120560c3f21b52cfc",
       "headRef": "feat/sidebar-section-dividers",
       "baseRef": "main",
       "author": "NikitaMGrimm",
