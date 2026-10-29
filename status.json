@@ -1,19 +1,18 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.5-nightly.20261029.3867",
+  "upstreamTag": "v0.1.5-nightly.20261029.3873",
   "conflicts": [
-    "apps/web/src/components/settings/settingsSearch.ts"
+    "packages/contracts/src/orchestrationV2.ts"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40846316593",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40863265186",
   "releasedVersion": "0.1.4-nightly.20261029.1793241431538",
   "baseCommit": "1661fbcb2c2e0fbd7d497b317b8e7c91dad4e8eb",
-  "sequence": 1793264458128,
-  "conflictPullRequest": 23673,
-  "conflictStage": "pull_request",
-  "conflictIdentity": "bbfde0f29c8cc27cc4f343714893aa8124411f4b499fe28b1193e162314051a2",
+  "sequence": 1793272211444,
+  "conflictStage": "personal",
+  "conflictIdentity": "0052ced568828642dda34f47077870920448d8c1a9812f83b290a1f35f905ab9",
   "inputs": {
-    "upstreamTag": "v0.1.5-nightly.20261029.3867",
+    "upstreamTag": "v0.1.5-nightly.20261029.3873",
     "pullRequests": [
       {
         "number": 17871,
