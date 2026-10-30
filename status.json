@@ -5,10 +5,10 @@
   "conflicts": [
     "apps/server/src/provider/agentContextBudget.json"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40964933503",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40978618811",
   "releasedVersion": "0.1.5-nightly.20261029.1793291018305",
   "baseCommit": "e8ebb5433b4ad65f87a8e1ca98a9f3dcfcafabe3",
-  "sequence": 1793312355359,
+  "sequence": 1793319379355,
   "conflictStage": "personal",
   "conflictIdentity": "44f57999d1e701d154c89b58deb7a8f1a7fccc2cd0fcaa16811272eee464dfd3",
   "inputs": {
@@ -36,7 +36,7 @@
       },
       {
         "number": 21894,
-        "headSha": "39e16d467401aeeb1f9b21ba7f0694cee65100d1",
+        "headSha": "d475b7c4ec238d08ac7bada050bb3ec3992072cc",
         "baseRef": "main"
       },
       {
@@ -66,7 +66,7 @@
       },
       {
         "number": 23784,
-        "headSha": "b4e9ceafae3497b1ddc3934356887ab5c98315e0",
+        "headSha": "ca176d07e931cee72c5a54417739683ce536d6e8",
         "baseRef": "main"
       },
       {
@@ -129,8 +129,8 @@
     {
       "number": 21894,
       "title": "fix(mobile): file preview videos keep their own aspect ratio",
-      "headSha": "39e16d467401aeeb1f9b21ba7f0694cee65100d1",
-      "baseSha": "bfc7177f9f54b0a4b9d3571d30723a51cd4b31bd",
+      "headSha": "d475b7c4ec238d08ac7bada050bb3ec3992072cc",
+      "baseSha": "812c0a71c785c69c34a0111c3ce6976f64cd5bfe",
       "headRef": "fix/mobile-file-preview-video-aspect",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -201,8 +201,8 @@
     {
       "number": 23784,
       "title": "fix(shared): give attached threads a canonical read call",
-      "headSha": "b4e9ceafae3497b1ddc3934356887ab5c98315e0",
-      "baseSha": "f88b33a16de988f86782343b348631d11432ddf2",
+      "headSha": "ca176d07e931cee72c5a54417739683ce536d6e8",
+      "baseSha": "812c0a71c785c69c34a0111c3ce6976f64cd5bfe",
       "headRef": "fix/thread-context-read-id",
       "baseRef": "main",
       "author": "NikitaMGrimm",
