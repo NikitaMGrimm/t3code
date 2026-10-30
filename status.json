@@ -7,10 +7,10 @@
     "apps/web/src/components/device/DeviceControlsRail.tsx",
     "apps/web/src/components/device/DeviceWorkspace.tsx"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40987130345",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40988745209",
   "releasedVersion": "0.1.5-nightly.20261029.1793291018305",
   "baseCommit": "e8ebb5433b4ad65f87a8e1ca98a9f3dcfcafabe3",
-  "sequence": 1793324375059,
+  "sequence": 1793325383714,
   "conflictStage": "personal",
   "conflictIdentity": "f9133aa254fef7eec811f6ff42c34382f8a450f50989dd5e06eae4b3b999b760",
   "inputs": {
@@ -58,7 +58,7 @@
       },
       {
         "number": 22893,
-        "headSha": "2d7790eb30120eb6af375665b62224c9f62f4d18",
+        "headSha": "62ea7fe98c474d7e4c5e71112b155656e397705b",
         "baseRef": "main"
       },
       {
@@ -179,8 +179,8 @@
     {
       "number": 22893,
       "title": "fix(markdown): an escaped backslash before \\( no longer crashes dev builds",
-      "headSha": "2d7790eb30120eb6af375665b62224c9f62f4d18",
-      "baseSha": "dd148481531a0a090780a2ade20588566db099a2",
+      "headSha": "62ea7fe98c474d7e4c5e71112b155656e397705b",
+      "baseSha": "6d12bb1e9fbdd6186967ae57cd0917c39f7214e4",
       "headRef": "fix/latex-escaped-backslash-before-paren",
       "baseRef": "main",
       "author": "NikitaMGrimm",
