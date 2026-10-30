@@ -7,10 +7,10 @@
     "apps/web/src/components/device/DeviceControlsRail.tsx",
     "apps/web/src/components/device/DeviceWorkspace.tsx"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41049004405",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41067936703",
   "releasedVersion": "0.1.5-nightly.20261029.1793291018305",
   "baseCommit": "e8ebb5433b4ad65f87a8e1ca98a9f3dcfcafabe3",
-  "sequence": 1793360057153,
+  "sequence": 1793368803536,
   "conflictStage": "personal",
   "conflictIdentity": "f9133aa254fef7eec811f6ff42c34382f8a450f50989dd5e06eae4b3b999b760",
   "inputs": {
@@ -28,7 +28,7 @@
       },
       {
         "number": 21378,
-        "headSha": "c9d3749e3285197804e46d303ee9f6c9214c397b",
+        "headSha": "50fca85a98e310081a9d612978d4502e4beeee2c",
         "baseRef": "main"
       },
       {
@@ -107,8 +107,8 @@
     {
       "number": 21378,
       "title": "fix(web): video full-screen buttons work in HTML renders",
-      "headSha": "c9d3749e3285197804e46d303ee9f6c9214c397b",
-      "baseSha": "952921f39acd7793187e2b14650f1cbc447f483d",
+      "headSha": "50fca85a98e310081a9d612978d4502e4beeee2c",
+      "baseSha": "6575ce32508bd7908444241f3719aa33aaf77f90",
       "headRef": "fix/html-render-video-fullscreen",
       "baseRef": "main",
       "author": "punkhop",
