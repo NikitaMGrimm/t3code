@@ -7,10 +7,10 @@
     "apps/web/src/components/device/DeviceControlsRail.tsx",
     "apps/web/src/components/device/DeviceWorkspace.tsx"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41023226170",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41049004405",
   "releasedVersion": "0.1.5-nightly.20261029.1793291018305",
   "baseCommit": "e8ebb5433b4ad65f87a8e1ca98a9f3dcfcafabe3",
-  "sequence": 1793347034548,
+  "sequence": 1793360057153,
   "conflictStage": "personal",
   "conflictIdentity": "f9133aa254fef7eec811f6ff42c34382f8a450f50989dd5e06eae4b3b999b760",
   "inputs": {
@@ -68,7 +68,7 @@
       },
       {
         "number": 23784,
-        "headSha": "ca176d07e931cee72c5a54417739683ce536d6e8",
+        "headSha": "8776c40270b25e9584b9e226b8f40a83917a6316",
         "baseRef": "main"
       },
       {
@@ -203,8 +203,8 @@
     {
       "number": 23784,
       "title": "fix(shared): give attached threads a canonical read call",
-      "headSha": "ca176d07e931cee72c5a54417739683ce536d6e8",
-      "baseSha": "812c0a71c785c69c34a0111c3ce6976f64cd5bfe",
+      "headSha": "8776c40270b25e9584b9e226b8f40a83917a6316",
+      "baseSha": "32ecd71726fee16f335484c1f95cbce126d461f6",
       "headRef": "fix/thread-context-read-id",
       "baseRef": "main",
       "author": "NikitaMGrimm",
