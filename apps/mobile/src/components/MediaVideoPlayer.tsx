@@ -144,6 +144,7 @@ interface MediaVideoPlayerProps {
   readonly paused?: boolean;
   readonly onPlaybackStart?: () => void;
   readonly actionsSource?: MediaActionsSource;
+  readonly borderRadius?: number;
 }
 
 function MediaVideoPlayerContent(props: MediaVideoPlayerProps) {
@@ -178,11 +179,12 @@ function MediaVideoPlayerContent(props: MediaVideoPlayerProps) {
     <View
       collapsable={false}
       className="overflow-hidden rounded-[10px] bg-black"
-      style={
+      style={[
         props.expanded
           ? { flex: 1 }
-          : (fittedFrame ?? { width: "100%", maxWidth: 480, aspectRatio: 16 / 9 })
-      }
+          : (fittedFrame ?? { width: "100%", maxWidth: 480, aspectRatio: 16 / 9 }),
+        props.borderRadius === undefined ? null : { borderRadius: props.borderRadius },
+      ]}
     >
       {playbackUri ? (
         <LoadedMediaVideo
