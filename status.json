@@ -3,16 +3,15 @@
   "phase": "conflict",
   "upstreamTag": "v0.1.6-nightly.20261030.3917",
   "conflicts": [
-    "apps/server/src/provider/agentContextBudget.json",
-    "apps/web/src/components/device/DeviceControlsRail.tsx",
-    "apps/web/src/components/device/DeviceWorkspace.tsx"
+    "apps/mobile/src/components/MediaVideoPlayer.tsx"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41067936703",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41102395339",
   "releasedVersion": "0.1.5-nightly.20261029.1793291018305",
   "baseCommit": "e8ebb5433b4ad65f87a8e1ca98a9f3dcfcafabe3",
-  "sequence": 1793368803536,
-  "conflictStage": "personal",
-  "conflictIdentity": "f9133aa254fef7eec811f6ff42c34382f8a450f50989dd5e06eae4b3b999b760",
+  "sequence": 1793382910968,
+  "conflictPullRequest": 21894,
+  "conflictStage": "pull_request",
+  "conflictIdentity": "fe673de155a903968298281f8b7fa56da408f9d66a754e27edd331f28290e750",
   "inputs": {
     "upstreamTag": "v0.1.6-nightly.20261030.3917",
     "pullRequests": [
@@ -38,7 +37,7 @@
       },
       {
         "number": 21894,
-        "headSha": "d475b7c4ec238d08ac7bada050bb3ec3992072cc",
+        "headSha": "2321ea038dc992052244b40f7d88d60f21b92de7",
         "baseRef": "main"
       },
       {
@@ -58,7 +57,7 @@
       },
       {
         "number": 22893,
-        "headSha": "62ea7fe98c474d7e4c5e71112b155656e397705b",
+        "headSha": "389160ea9db28ec6f4ac8df1f82d341592c7359a",
         "baseRef": "main"
       },
       {
@@ -131,8 +130,8 @@
     {
       "number": 21894,
       "title": "fix(mobile): file preview videos keep their own aspect ratio",
-      "headSha": "d475b7c4ec238d08ac7bada050bb3ec3992072cc",
-      "baseSha": "812c0a71c785c69c34a0111c3ce6976f64cd5bfe",
+      "headSha": "2321ea038dc992052244b40f7d88d60f21b92de7",
+      "baseSha": "6fc9144a60c4a5f45089316ddd5f7371bafd3bf2",
       "headRef": "fix/mobile-file-preview-video-aspect",
       "baseRef": "main",
       "author": "NikitaMGrimm",
@@ -179,8 +178,8 @@
     {
       "number": 22893,
       "title": "fix(markdown): an escaped backslash before \\( no longer crashes dev builds",
-      "headSha": "62ea7fe98c474d7e4c5e71112b155656e397705b",
-      "baseSha": "6d12bb1e9fbdd6186967ae57cd0917c39f7214e4",
+      "headSha": "389160ea9db28ec6f4ac8df1f82d341592c7359a",
+      "baseSha": "6fc9144a60c4a5f45089316ddd5f7371bafd3bf2",
       "headRef": "fix/latex-escaped-backslash-before-paren",
       "baseRef": "main",
       "author": "NikitaMGrimm",
