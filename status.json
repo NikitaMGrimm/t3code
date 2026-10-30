@@ -1,20 +1,20 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.6-nightly.20261030.3904",
+  "upstreamTag": "v0.1.6-nightly.20261030.3917",
   "conflicts": [
     "apps/server/src/provider/agentContextBudget.json",
     "apps/web/src/components/device/DeviceControlsRail.tsx",
     "apps/web/src/components/device/DeviceWorkspace.tsx"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/40988745209",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41023226170",
   "releasedVersion": "0.1.5-nightly.20261029.1793291018305",
   "baseCommit": "e8ebb5433b4ad65f87a8e1ca98a9f3dcfcafabe3",
-  "sequence": 1793325383714,
+  "sequence": 1793347034548,
   "conflictStage": "personal",
   "conflictIdentity": "f9133aa254fef7eec811f6ff42c34382f8a450f50989dd5e06eae4b3b999b760",
   "inputs": {
-    "upstreamTag": "v0.1.6-nightly.20261030.3904",
+    "upstreamTag": "v0.1.6-nightly.20261030.3917",
     "pullRequests": [
       {
         "number": 17871,
