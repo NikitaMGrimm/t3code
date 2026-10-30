@@ -1,6 +1,6 @@
 import { useEvent } from "expo";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 
 import { AppActivityIndicator } from "./ui/AppActivityIndicator";
@@ -30,11 +30,12 @@ function LoadedMediaVideo(props: {
     player.staysActiveInBackground = false;
     player.bufferOptions = { preferredForwardBufferDuration: 5 };
   });
-  const playback = useMemo(() => createAudioPlaybackSession(player, true), [player]);
+  const playback = createAudioPlaybackSession(player, true);
   const { active, fullscreen, createPlayRequest, onFullscreenEnter, onFullscreenExit } =
     useMediaVideoPlayback(player, props, playback);
   const previousPlaybackRequested = useRef(false);
   const onPlaybackStart = useEffectEvent(() => props.onPlaybackStart?.());
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes to native video player events to keep the shared audio session in step
   useEffect(() => {
     const subscription = player.addListener("playingChange", ({ isPlaying }) => {
       if (isPlaying && !active.current && !fullscreen.current) playback.pause();
@@ -76,6 +77,7 @@ function LoadedMediaVideo(props: {
     if (!signal.aborted && props.playRequested) await playIfUninterrupted();
   });
 
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- loads the video source into the native player and aborts the load on cleanup
   useEffect(() => {
     const controller = new AbortController();
     // oxlint-disable-next-line react/set-state-in-effect -- Starting a native media load publishes pending before its async result.
@@ -153,7 +155,7 @@ function MediaVideoPlayerContent(props: MediaVideoPlayerProps) {
   const [bounds, setBounds] = useState<{ width: number; height: number } | null>(null);
   const sizeSource = props.fitToVideo && videoSize === null ? props.uri : null;
   // Queue before the poster so early Play cannot cancel the extraction that supplies frame dimensions.
-  // oxlint-disable-next-line t3code/react-effect-budget -- Load native thumbnail dimensions independently of the poster's lifetime.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- loads native thumbnail dimensions independently of the poster's lifetime
   useLayoutEffect(() => {
     if (sizeSource === null) return;
     // Thumbnails are oriented like the displayed frame, unlike VideoTrack.size.
