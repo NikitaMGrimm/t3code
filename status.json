@@ -1,20 +1,20 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.6-nightly.20261030.3940",
+  "upstreamTag": "v0.1.6-nightly.20261031.3956",
   "conflicts": [
     "apps/server/src/preview/ServerBrowser.test.ts",
     "apps/server/src/preview/ServerBrowser.ts"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41114316816",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41155760301",
   "releasedVersion": "0.1.5-nightly.20261029.1793291018305",
   "baseCommit": "e8ebb5433b4ad65f87a8e1ca98a9f3dcfcafabe3",
-  "sequence": 1793387981954,
+  "sequence": 1793410301323,
   "conflictPullRequest": 17871,
   "conflictStage": "pull_request",
-  "conflictIdentity": "ddad0875f2d1c001e077394ad7e70af51fe5e39a1b8704ff90be3450a4709b16",
+  "conflictIdentity": "5552e4b276a33c1c40c633aab79a2aac7d687b16f46f181c0e1ea56db67d1ed1",
   "inputs": {
-    "upstreamTag": "v0.1.6-nightly.20261030.3940",
+    "upstreamTag": "v0.1.6-nightly.20261031.3956",
     "pullRequests": [
       {
         "number": 17871,
@@ -37,28 +37,8 @@
         "baseRef": "main"
       },
       {
-        "number": 21894,
-        "headSha": "2321ea038dc992052244b40f7d88d60f21b92de7",
-        "baseRef": "main"
-      },
-      {
-        "number": 22522,
-        "headSha": "6498810463c4704e2858790db80283227ce7756f",
-        "baseRef": "main"
-      },
-      {
         "number": 22788,
         "headSha": "9ec682fce8d5c70f386f6a43c3290dc9901e2a4a",
-        "baseRef": "main"
-      },
-      {
-        "number": 22875,
-        "headSha": "7552eae13ccf2d2ebadc25522b2e36ed1d0b97ec",
-        "baseRef": "main"
-      },
-      {
-        "number": 22893,
-        "headSha": "389160ea9db28ec6f4ac8df1f82d341592c7359a",
         "baseRef": "main"
       },
       {
@@ -129,30 +109,6 @@
       "baseRepository": "pingdotgg/t3code"
     },
     {
-      "number": 21894,
-      "title": "fix(mobile): file preview videos keep their own aspect ratio",
-      "headSha": "2321ea038dc992052244b40f7d88d60f21b92de7",
-      "baseSha": "6fc9144a60c4a5f45089316ddd5f7371bafd3bf2",
-      "headRef": "fix/mobile-file-preview-video-aspect",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/21894",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 22522,
-      "title": "fix(web): mouse Back/Forward over a streamed preview navigate the preview",
-      "headSha": "6498810463c4704e2858790db80283227ce7756f",
-      "baseSha": "ca140c435f38612656dd655fc42e2f78efbfb4c9",
-      "headRef": "fix/streamed-preview-thumb-buttons",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/22522",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
       "number": 22788,
       "title": "fix(web): hold chat position through streaming tool calls",
       "headSha": "9ec682fce8d5c70f386f6a43c3290dc9901e2a4a",
@@ -162,30 +118,6 @@
       "author": "juliusmarminge",
       "url": "https://github.com/pingdotgg/t3code/pull/22788",
       "headRepository": "pingdotgg/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 22875,
-      "title": "fix(web): copied Markdown tables keep formula pipes",
-      "headSha": "7552eae13ccf2d2ebadc25522b2e36ed1d0b97ec",
-      "baseSha": "448b8a918694e84137f850c6526d75aacfb2292d",
-      "headRef": "fix/latex-table-copy-pipes",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/22875",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 22893,
-      "title": "fix(markdown): an escaped backslash before \\( no longer crashes dev builds",
-      "headSha": "389160ea9db28ec6f4ac8df1f82d341592c7359a",
-      "baseSha": "6fc9144a60c4a5f45089316ddd5f7371bafd3bf2",
-      "headRef": "fix/latex-escaped-backslash-before-paren",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/22893",
-      "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     },
     {
