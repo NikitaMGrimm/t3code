@@ -1,20 +1,20 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.6-nightly.20261031.3973",
+  "upstreamTag": "v0.1.6-nightly.20261031.3977",
   "conflicts": [
     "apps/server/src/preview/ServerBrowser.test.ts",
     "apps/server/src/preview/ServerBrowser.ts"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41189292667",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41193529414",
   "releasedVersion": "0.1.5-nightly.20261029.1793291018305",
   "baseCommit": "e8ebb5433b4ad65f87a8e1ca98a9f3dcfcafabe3",
-  "sequence": 1793439313160,
+  "sequence": 1793443069280,
   "conflictPullRequest": 17871,
   "conflictStage": "pull_request",
   "conflictIdentity": "5552e4b276a33c1c40c633aab79a2aac7d687b16f46f181c0e1ea56db67d1ed1",
   "inputs": {
-    "upstreamTag": "v0.1.6-nightly.20261031.3973",
+    "upstreamTag": "v0.1.6-nightly.20261031.3977",
     "pullRequests": [
       {
         "number": 17871,
