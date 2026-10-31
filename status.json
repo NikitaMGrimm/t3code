@@ -1,20 +1,20 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.6-nightly.20261031.3956",
+  "upstreamTag": "v0.1.6-nightly.20261031.3969",
   "conflicts": [
     "apps/server/src/preview/ServerBrowser.test.ts",
     "apps/server/src/preview/ServerBrowser.ts"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41169374472",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41182762298",
   "releasedVersion": "0.1.5-nightly.20261029.1793291018305",
   "baseCommit": "e8ebb5433b4ad65f87a8e1ca98a9f3dcfcafabe3",
-  "sequence": 1793421495475,
+  "sequence": 1793433594193,
   "conflictPullRequest": 17871,
   "conflictStage": "pull_request",
   "conflictIdentity": "5552e4b276a33c1c40c633aab79a2aac7d687b16f46f181c0e1ea56db67d1ed1",
   "inputs": {
-    "upstreamTag": "v0.1.6-nightly.20261031.3956",
+    "upstreamTag": "v0.1.6-nightly.20261031.3969",
     "pullRequests": [
       {
         "number": 17871,
@@ -24,11 +24,6 @@
       {
         "number": 18873,
         "headSha": "b9fa58f765e44c374c2bfbffaa07f9d0f240b102",
-        "baseRef": "main"
-      },
-      {
-        "number": 21378,
-        "headSha": "50fca85a98e310081a9d612978d4502e4beeee2c",
         "baseRef": "main"
       },
       {
@@ -82,18 +77,6 @@
       "author": "t3dotgg",
       "url": "https://github.com/pingdotgg/t3code/pull/18873",
       "headRepository": "pingdotgg/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 21378,
-      "title": "fix(web): video full-screen buttons work in HTML renders",
-      "headSha": "50fca85a98e310081a9d612978d4502e4beeee2c",
-      "baseSha": "6575ce32508bd7908444241f3719aa33aaf77f90",
-      "headRef": "fix/html-render-video-fullscreen",
-      "baseRef": "main",
-      "author": "punkhop",
-      "url": "https://github.com/pingdotgg/t3code/pull/21378",
-      "headRepository": "punkhop/t3code",
       "baseRepository": "pingdotgg/t3code"
     },
     {
