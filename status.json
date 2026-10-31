@@ -6,10 +6,10 @@
     "apps/server/src/preview/ServerBrowser.test.ts",
     "apps/server/src/preview/ServerBrowser.ts"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41155760301",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41169374472",
   "releasedVersion": "0.1.5-nightly.20261029.1793291018305",
   "baseCommit": "e8ebb5433b4ad65f87a8e1ca98a9f3dcfcafabe3",
-  "sequence": 1793410301323,
+  "sequence": 1793421495475,
   "conflictPullRequest": 17871,
   "conflictStage": "pull_request",
   "conflictIdentity": "5552e4b276a33c1c40c633aab79a2aac7d687b16f46f181c0e1ea56db67d1ed1",
@@ -33,7 +33,7 @@
       },
       {
         "number": 21839,
-        "headSha": "2febdb33aac90f9ad065a77be4b1c84cc3659c37",
+        "headSha": "bde03c756431a7754f05e425ee1cf22ba0d07808",
         "baseRef": "main"
       },
       {
@@ -99,8 +99,8 @@
     {
       "number": 21839,
       "title": "fix(web): file preview videos keep their own aspect ratio",
-      "headSha": "2febdb33aac90f9ad065a77be4b1c84cc3659c37",
-      "baseSha": "e5d6a092b0ba845292e14dc3b3dc6484447b18f7",
+      "headSha": "bde03c756431a7754f05e425ee1cf22ba0d07808",
+      "baseSha": "80a2351fcb909034e65a512dfabeb3cdfd367762",
       "headRef": "fix/file-preview-video-aspect",
       "baseRef": "main",
       "author": "NikitaMGrimm",
