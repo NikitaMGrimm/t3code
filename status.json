@@ -1,20 +1,20 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.6-nightly.20261031.3969",
+  "upstreamTag": "v0.1.6-nightly.20261031.3973",
   "conflicts": [
     "apps/server/src/preview/ServerBrowser.test.ts",
     "apps/server/src/preview/ServerBrowser.ts"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41182762298",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41189292667",
   "releasedVersion": "0.1.5-nightly.20261029.1793291018305",
   "baseCommit": "e8ebb5433b4ad65f87a8e1ca98a9f3dcfcafabe3",
-  "sequence": 1793433594193,
+  "sequence": 1793439313160,
   "conflictPullRequest": 17871,
   "conflictStage": "pull_request",
   "conflictIdentity": "5552e4b276a33c1c40c633aab79a2aac7d687b16f46f181c0e1ea56db67d1ed1",
   "inputs": {
-    "upstreamTag": "v0.1.6-nightly.20261031.3969",
+    "upstreamTag": "v0.1.6-nightly.20261031.3973",
     "pullRequests": [
       {
         "number": 17871,
@@ -39,11 +39,6 @@
       {
         "number": 23673,
         "headSha": "6e393e291c2ece58898068422c411641dd797eb3",
-        "baseRef": "main"
-      },
-      {
-        "number": 23784,
-        "headSha": "8776c40270b25e9584b9e226b8f40a83917a6316",
         "baseRef": "main"
       },
       {
@@ -112,18 +107,6 @@
       "baseRef": "main",
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/23673",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 23784,
-      "title": "fix(shared): give attached threads a canonical read call",
-      "headSha": "8776c40270b25e9584b9e226b8f40a83917a6316",
-      "baseSha": "32ecd71726fee16f335484c1f95cbce126d461f6",
-      "headRef": "fix/thread-context-read-id",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/23784",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     },
