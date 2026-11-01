@@ -344,6 +344,26 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
     }),
   );
 
+  const releaseLaunchers = (sessions: ReadonlyArray<DeviceSession>) =>
+    launcherLock.withPermit(
+      Effect.forEach(
+        sessions,
+        (session) =>
+          Effect.gen(function* () {
+            const name = yield* agentDeviceSession(
+              session.threadId,
+              session.hostId,
+              session.deviceId,
+            ).pipe(Effect.provideService(Crypto.Crypto, crypto));
+            const launcher = boundLaunchers.get(name);
+            if (!launcher || hostSessionLaunchers.has(name) || !launchers?.release) return;
+            yield* launchers.release(launcher);
+            boundLaunchers.delete(name);
+          }),
+        { discard: true },
+      ),
+    );
+
   const publishState = (update: (state: DeviceServiceState) => DeviceServiceState) =>
     SynchronizedRef.modifyEffect(stateRef, ({ state }) => {
       const next = { ...update(state), revision: state.revision + 1 };
@@ -843,12 +863,18 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
     },
   );
 
+  const refreshAfterShutdown = (ready: DeviceReadiness) =>
+    refresh(ready).pipe(
+      Effect.catch((cause) =>
+        Effect.logWarning("Device discovery unavailable after shutdown", { cause }),
+      ),
+    );
+
   const shutdownDevice = Effect.fn("DeviceService.shutdownDevice")(function* (
-    hostId: DeviceHostId,
+    ready: DeviceReadiness,
     deviceId: DeviceId,
     platform: DevicePlatform,
   ) {
-    const ready = yield* readiness(hostId);
     yield* ready.devices.shutdown({ id: deviceId, platform });
     yield* publish((state) => ({
       ...state,
@@ -857,21 +883,13 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
           ? { ...device, booted: false }
           : device,
       ),
-      sessions: state.sessions.filter(
-        (session) => !(session.hostId === ready.hostId && session.deviceId === deviceId),
-      ),
     }));
-    // Snapshot saves can stall discovery; refresh failure must not fail an accepted shutdown.
-    yield* refresh(ready).pipe(
-      Effect.catch((cause) =>
-        Effect.logWarning("Device discovery unavailable after shutdown", { cause }),
-      ),
-    );
   });
 
   const close: DeviceService["Service"]["close"] = Effect.fn("DeviceService.close")(
     function* (input) {
-      const shutdown = yield* lifecycleLock
+      // Open publishes under the same lock; an old close must not release a reopened claim.
+      const closing = yield* lifecycleLock
         .withPermit(
           Effect.gen(function* () {
             const { state } = yield* SynchronizedRef.get(stateRef);
@@ -881,48 +899,71 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
                 (input.hostId === undefined || session.hostId === input.hostId) &&
                 (input.deviceId === undefined || session.deviceId === input.deviceId),
             );
-            // Shutdown retires every session on a device before it powers off.
-            const retiring = state.sessions.filter(
-              (session) =>
-                closing.includes(session) ||
-                (input.shutdown === true &&
+            const ending = input.shutdown
+              ? state.sessions.filter((session) =>
                   closing.some(
                     (closed) =>
                       closed.hostId === session.hostId && closed.deviceId === session.deviceId,
-                  )),
-            );
+                  ),
+                )
+              : closing;
             const needsShutdown: Array<DeviceSession> = [];
-            yield* Effect.forEach(
-              retiring,
-              (session) =>
-                Effect.gen(function* () {
-                  const ready = yield* currentReadiness(session.hostId);
-                  if (ready?.devices.detach)
-                    yield* ready.devices.detach(session.deviceId, session.threadId);
-                  else if (closing.includes(session)) needsShutdown.push(session);
-                }),
-              { discard: true },
-            );
+            for (const session of ending) {
+              const host = yield* resolveHost(session.hostId);
+              const ready = yield* host.current;
+              // A lost SSH tunnel does not establish that the remote daemon stopped.
+              if (!ready && (yield* host.summary).kind === "ssh")
+                return yield* new DeviceHostUnavailableError({
+                  hostId: session.hostId,
+                  hostLabel: host.label,
+                  reason: "Device host is reconnecting. Retry close after it reconnects.",
+                });
+              if (ready?.releaseAgentSession) {
+                const name = yield* agentDeviceSession(
+                  session.threadId,
+                  session.hostId,
+                  session.deviceId,
+                ).pipe(Effect.provideService(Crypto.Crypto, crypto));
+                yield* ready.releaseAgentSession(name, session.deviceId);
+              }
+              if (ready?.devices.detach)
+                yield* ready.devices.detach(session.deviceId, session.threadId);
+              else if (closing.includes(session)) needsShutdown.push(session);
+            }
+            if (input.shutdown) {
+              yield* releaseLaunchers(ending);
+              for (const session of needsShutdown) {
+                const ready = yield* currentReadiness(session.hostId);
+                if (!ready)
+                  return yield* new DeviceHostUnavailableError({
+                    hostId: session.hostId,
+                    reason: "Device host is not running. Reconnect before retrying close.",
+                  });
+                yield* shutdownDevice(ready, session.deviceId, session.platform);
+              }
+            }
             const { retired } = yield* publishState((current) => ({
               ...current,
-              sessions: current.sessions.filter((session) => !retiring.includes(session)),
+              sessions: current.sessions.filter((session) => !ending.includes(session)),
             }));
             return { needsShutdown, retired };
           }),
         )
         .pipe(
-          // Launcher pruning can wait on a bind; release the lifecycle lock first so discovery can continue.
+          // Launcher pruning can wait on a bind; release the lifecycle lock so discovery can continue.
           Effect.tap(({ retired }) => (retired ? pruneLaunchers : Effect.void)),
           Effect.map(({ needsShutdown }) => needsShutdown),
           Effect.uninterruptible,
         );
-      if (input.shutdown) {
+      if (input.shutdown)
         yield* Effect.forEach(
-          shutdown,
-          (session) => shutdownDevice(session.hostId, session.deviceId, session.platform),
+          closing,
+          (session) =>
+            currentReadiness(session.hostId).pipe(
+              Effect.flatMap((ready) => (ready ? refreshAfterShutdown(ready) : Effect.void)),
+            ),
           { discard: true },
         );
-      }
     },
   );
 
@@ -937,7 +978,9 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
           (session) => !(session.hostId === host.id && session.deviceId === input.deviceId),
         ),
       }));
-      yield* shutdownDevice(host.id, input.deviceId, input.platform);
+      const ready = yield* readiness(host.id);
+      yield* shutdownDevice(ready, input.deviceId, input.platform);
+      yield* refreshAfterShutdown(ready);
     },
   );
 

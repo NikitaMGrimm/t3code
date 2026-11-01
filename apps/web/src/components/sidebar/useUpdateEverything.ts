@@ -79,7 +79,7 @@ export function useUpdateEverything(
   // A track switch's target came from npm already.
   const { targets: behindServers, skipped: unreachable } = channelSwitch
     ? collectChannelSwitchTargets(machines, channelSwitch)
-    : collectServerUpdateTargets(machines, targetVersion, localUpdateVersion !== null);
+    : collectServerUpdateTargets(machines, targetVersion);
   const servers = channelSwitch
     ? behindServers.filter((server) => isPublishedPersonalServerUpdateTarget(server, status))
     : collectPublishedPersonalServerUpdateTargets(machines, targetVersion, status);

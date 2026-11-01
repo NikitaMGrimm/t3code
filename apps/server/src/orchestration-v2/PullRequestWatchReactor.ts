@@ -35,6 +35,7 @@ import * as Orchestrator from "./Orchestrator.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 import {
   evaluatePullRequestWatch,
+  PULL_REQUEST_WATCH_NO_CHECKS_MS,
   pullRequestWatchMessage,
   pullRequestWatchNews,
   type PullRequestWatchNews,
@@ -157,19 +158,28 @@ function planRead(
   if (last === undefined || group.targets.some((target) => !last.watches.has(watchKey(target)))) {
     return { detail: true, activity: true };
   }
+  // Nothing on the host changes when the no-checks deadline passes, so it alone prompts a read.
+  const checksDue = group.targets.some(
+    ({ watch }) =>
+      watch.checksAwaitedSince != null &&
+      now - Date.parse(watch.checksAwaitedSince) >= PULL_REQUEST_WATCH_NO_CHECKS_MS,
+  );
   if (fingerprint === null) {
     const read =
       last.inFlight ||
       !last.remarksComplete ||
       last.fingerprint !== group.fingerprint ||
       now - last.at >= QUIET_REREAD_MS;
-    return { detail: read, activity: read };
+    return { detail: read || checksDue, activity: read };
   }
   const activity =
     last.remarks !== fingerprint.remarks ||
     !last.remarksComplete ||
     now - last.at >= FINGERPRINT_REREAD_MS;
-  return { detail: activity || last.status !== fingerprint.status || last.inFlight, activity };
+  return {
+    detail: activity || checksDue || last.status !== fingerprint.status || last.inFlight,
+    activity,
+  };
 }
 
 function watchesEqual(left: ThreadPullRequestWatch, right: ThreadPullRequestWatch): boolean {
@@ -188,18 +198,9 @@ function watchesEqual(left: ThreadPullRequestWatch, right: ThreadPullRequestWatc
   );
 }
 
-/**
- * Wakes a thread's agent when a pull request it watches (`watch_pull_request`) needs a look:
- * checks finished on the head commit, someone else commented, or the branch started to
- * conflict. A pass every two minutes looks at each watched pull request once for all the threads
- * of a project that watch it, and sends a thread one wake for everything the pass found on the
- * pull requests it watches. Where the host has a fingerprint, one batched read of those tells
- * the pass which pull requests moved, and only those are read; elsewhere a pull request is read
- * unless its sync snapshot has not moved while nothing is in flight.
- * Settling or archiving a thread ends its watches, and a merged or closed pull request ends
- * its watch. Each ended watch is logged once with why it ended and how long it went without
- * a push, for debugging watches that live too long.
- */
+/** Batches each project's watched PRs into one sweep, using host fingerprints where available.
+ * Wakes each thread once for new checks, comments, or conflicts across its watched PRs.
+ * Logs and retires watches when the thread settles or archives, or the PR merges or closes. */
 export class PullRequestWatchReactor extends Context.Service<
   PullRequestWatchReactor,
   {

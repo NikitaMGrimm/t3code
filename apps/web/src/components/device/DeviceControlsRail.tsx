@@ -1,4 +1,4 @@
-import type { DevicePlatform } from "@t3tools/contracts";
+import type { DeviceHostSummary, DevicePlatform } from "@t3tools/contracts";
 import {
   Camera,
   ChevronLeft,
@@ -36,6 +36,7 @@ import type { DeviceControls } from "./useDeviceControls";
 
 export function DeviceControlsRail(props: {
   platform: DevicePlatform;
+  hostKind: DeviceHostSummary["kind"] | undefined;
   physical?: boolean;
   handle: DeviceStreamHandle | null;
   view: DeviceViewControls;
@@ -47,13 +48,12 @@ export function DeviceControlsRail(props: {
   onFloat: () => void;
   onClose: () => void;
   onPowerOff: () => void;
-  /** The host takes input but runs no device commands (Simlock): no rotation, settings, tools, or screenshots. */
-  inputOnly?: boolean;
 }) {
   const { view, handle, controls } = props;
   const popupSide = "left";
   const settings = controls.detail?.settings;
   const inputDisabled = !handle?.inputConnected;
+  const runsHostCommands = props.hostKind === "local" || props.hostKind === "ssh";
   const nextAppearance = settings?.appearance === "dark" ? "light" : "dark";
   return (
     <aside
@@ -88,7 +88,7 @@ export function DeviceControlsRail(props: {
             >
               <Square />
             </RailButton>
-            {props.inputOnly ? null : (
+            {runsHostCommands ? (
               <Menu>
                 <MenuTrigger
                   render={
@@ -117,9 +117,9 @@ export function DeviceControlsRail(props: {
                   </MenuItem>
                 </MenuPopup>
               </Menu>
-            )}
+            ) : null}
           </>
-        ) : props.inputOnly || props.physical ? null : (
+        ) : props.hostKind === "simlock" || props.physical ? null : (
           <RailButton
             tooltipSide={popupSide}
             label="Rotate device"
@@ -129,7 +129,7 @@ export function DeviceControlsRail(props: {
             <RotateCcw />
           </RailButton>
         )}
-        {props.inputOnly ? null : (
+        {runsHostCommands ? (
           <>
             <RailDivider />
             <RailButton
@@ -194,8 +194,8 @@ export function DeviceControlsRail(props: {
               <SlidersHorizontal />
             </RailButton>
           </>
-        )}
-        {props.inputOnly ? null : (
+        ) : null}
+        {props.hostKind === "simlock" ? null : (
           <RailButton
             tooltipSide={popupSide}
             label={props.screenshotPending ? "Capturing screenshot" : "Save screenshot"}
@@ -230,7 +230,7 @@ export function DeviceControlsRail(props: {
             <MenuSeparator />
             <MenuItem variant="destructive" onClick={props.onPowerOff}>
               <Power />
-              {props.inputOnly
+              {props.hostKind === "simlock"
                 ? "Return device to the pool"
                 : props.physical
                   ? "Disconnect phone"

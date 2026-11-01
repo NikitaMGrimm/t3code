@@ -2,7 +2,7 @@
   "repository": "NikitaMGrimm/t3code",
   "branch": "personal-nightly",
   "upstreamRepository": "pingdotgg/t3code",
-  "upstreamTag": "v0.1.5-nightly.20261029.3877",
+  "upstreamTag": "v0.1.7-nightly.20261101.4016",
   "pullRequests": [
     {
       "number": 17871,
@@ -29,54 +29,6 @@
       "baseRepository": "pingdotgg/t3code"
     },
     {
-      "number": 21378,
-      "title": "fix(web): video full-screen buttons work in HTML renders",
-      "headSha": "c9d3749e3285197804e46d303ee9f6c9214c397b",
-      "baseSha": "952921f39acd7793187e2b14650f1cbc447f483d",
-      "headRef": "fix/html-render-video-fullscreen",
-      "baseRef": "main",
-      "author": "punkhop",
-      "url": "https://github.com/pingdotgg/t3code/pull/21378",
-      "headRepository": "punkhop/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 21839,
-      "title": "fix(web): file preview videos keep their own aspect ratio",
-      "headSha": "2febdb33aac90f9ad065a77be4b1c84cc3659c37",
-      "baseSha": "e5d6a092b0ba845292e14dc3b3dc6484447b18f7",
-      "headRef": "fix/file-preview-video-aspect",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/21839",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 21894,
-      "title": "fix(mobile): file preview videos keep their own aspect ratio",
-      "headSha": "39e16d467401aeeb1f9b21ba7f0694cee65100d1",
-      "baseSha": "bfc7177f9f54b0a4b9d3571d30723a51cd4b31bd",
-      "headRef": "fix/mobile-file-preview-video-aspect",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/21894",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 22522,
-      "title": "fix(web): mouse Back/Forward over a streamed preview navigate the preview",
-      "headSha": "6498810463c4704e2858790db80283227ce7756f",
-      "baseSha": "ca140c435f38612656dd655fc42e2f78efbfb4c9",
-      "headRef": "fix/streamed-preview-thumb-buttons",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/22522",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
       "number": 22788,
       "title": "fix(web): hold chat position through streaming tool calls",
       "headSha": "9ec682fce8d5c70f386f6a43c3290dc9901e2a4a",
@@ -89,62 +41,14 @@
       "baseRepository": "pingdotgg/t3code"
     },
     {
-      "number": 22875,
-      "title": "fix(web): copied Markdown tables keep formula pipes",
-      "headSha": "7552eae13ccf2d2ebadc25522b2e36ed1d0b97ec",
-      "baseSha": "448b8a918694e84137f850c6526d75aacfb2292d",
-      "headRef": "fix/latex-table-copy-pipes",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/22875",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 22883,
-      "title": "fix(markdown): formulas ending in a comma render",
-      "headSha": "81f0220cab9bd022c98345360a6fb4603f6ab2b1",
-      "baseSha": "3cb16cf16509e74e2f483f541010996a9e6fac34",
-      "headRef": "fix/latex-comma-before-closing-dollar",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/22883",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 22893,
-      "title": "fix(markdown): an escaped backslash before \\( no longer crashes dev builds",
-      "headSha": "4e93d55e6cdde1a8ba54399238d8a3a8cfa77711",
-      "baseSha": "41967084e3979818e0bf8fa7cea31ffb6feb7369",
-      "headRef": "fix/latex-escaped-backslash-before-paren",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/22893",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
       "number": 23673,
       "title": "feat(web): optionally keep thread section dividers visible",
-      "headSha": "6e393e291c2ece58898068422c411641dd797eb3",
+      "headSha": "f3f0631636444e7bfb0d2c70f9c0f323b37bce09",
       "baseSha": "37fbefd147197fab9d88f9c120560c3f21b52cfc",
       "headRef": "feat/sidebar-section-dividers",
       "baseRef": "main",
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/23673",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 23784,
-      "title": "fix(shared): give attached threads a canonical read call",
-      "headSha": "b4e9ceafae3497b1ddc3934356887ab5c98315e0",
-      "baseSha": "f88b33a16de988f86782343b348631d11432ddf2",
-      "headRef": "fix/thread-context-read-id",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/23784",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     },
@@ -161,5 +65,5 @@
       "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "f5919a6eed9c3f505a6fd4bd12ed5d0617922892"
+  "prBaseline": "486ef342b20de1bb9cd7fe0cb2058cebfdeb7bc7"
 }

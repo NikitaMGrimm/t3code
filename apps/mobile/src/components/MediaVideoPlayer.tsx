@@ -1,5 +1,6 @@
 import { useEvent } from "expo";
 import { useVideoPlayer, VideoView } from "expo-video";
+import { useIsFocused } from "@react-navigation/native";
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 
@@ -144,18 +145,20 @@ interface MediaVideoPlayerProps {
   readonly paused?: boolean;
   readonly onPlaybackStart?: () => void;
   readonly actionsSource?: MediaActionsSource;
+  readonly borderRadius?: number;
 }
 
 function MediaVideoPlayerContent(props: MediaVideoPlayerProps) {
   const mediaActions = useMediaActions(props.actionsSource);
+  const isFocused = useIsFocused();
   const [playbackUri, setPlaybackUri] = useState<string | null>(props.expanded ? props.uri : null);
   // Keep an opened player mounted while signing or reconnecting temporarily has no usable URL.
   if (playbackUri === null && props.expanded && props.uri !== null) setPlaybackUri(props.uri);
   const [videoSize, setVideoSize] = useState<{ width: number; height: number } | null>(null);
   const [bounds, setBounds] = useState<{ width: number; height: number } | null>(null);
-  const sizeSource = props.fitToVideo && videoSize === null ? props.uri : null;
+  const sizeSource = props.fitToVideo && isFocused && videoSize === null ? props.uri : null;
   // Queue before the poster so early Play cannot cancel the extraction that supplies frame dimensions.
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Load native thumbnail dimensions independently of the poster's lifetime.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- loads native thumbnail dimensions independently of the poster's lifetime
   useLayoutEffect(() => {
     if (sizeSource === null) return;
     // Thumbnails are oriented like the displayed frame, unlike VideoTrack.size.
@@ -178,11 +181,12 @@ function MediaVideoPlayerContent(props: MediaVideoPlayerProps) {
     <View
       collapsable={false}
       className="overflow-hidden rounded-[10px] bg-black"
-      style={
+      style={[
         props.expanded
           ? { flex: 1 }
-          : (fittedFrame ?? { width: "100%", maxWidth: 480, aspectRatio: 16 / 9 })
-      }
+          : (fittedFrame ?? { width: "100%", maxWidth: 480, aspectRatio: 16 / 9 }),
+        props.borderRadius === undefined ? null : { borderRadius: props.borderRadius },
+      ]}
     >
       {playbackUri ? (
         <LoadedMediaVideo
