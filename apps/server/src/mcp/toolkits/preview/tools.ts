@@ -1,4 +1,5 @@
 import {
+  BrowserNavigationTarget,
   OrchestratorMcpFailure,
   ToolActivityIcon,
   PreviewAutomationActInput,
@@ -62,11 +63,17 @@ const PreviewStatusTool = Tool.make("preview_status", {
   .annotate(Tool.Destructive, false)
   .annotate(Tool.Idempotent, true);
 
+// `url` already covers websites, so open only adds the dev-server target.
+const EnvironmentPortTarget = BrowserNavigationTarget.members[1];
+
 const PreviewOpenTool = browserTool(
   Tool.make("preview_open", {
     description:
-      "Initialize a collaborative browser tab and open its thread-bound inline preview by default. Set open=false for background-only automation. Pass tabId to reuse a specific existing tab, set reuseExistingTab=false to create another tab, or omit both to use this agent session's current tab. Parallel subagents sharing a provider session must each open with reuseExistingTab=false and pass their returned tabId on every call. Pass profileId (an id or name from preview_status profiles) to open under a browser profile; omit it for the user's default profile. To recover a desktop profile's existing sign-ins after a headless fallback, pass its profileId explicitly with open=true and reuseExistingTab=false. On a desktop server, this new foreground tab visits the requested URL only after connecting to the native page; attachment failure closes the new blank tab and preserves previous tabs. Incognito, background, and standalone server opens retain headless support. Another agent session's tabs can be read but not operated.",
-    parameters: PreviewAutomationOpenInput,
+      "Initialize a collaborative browser tab and open its thread-bound inline preview by default. For a dev server, pass `target` instead of `url`. Set open=false for background-only automation. Pass tabId to reuse a specific existing tab, set reuseExistingTab=false to create another tab, or omit both to use this agent session's current tab. Parallel subagents sharing a provider session must each open with reuseExistingTab=false and pass their returned tabId on every call. Pass profileId (an id or name from preview_status profiles) to open under a browser profile; omit it for the user's default profile. To recover a desktop profile's existing sign-ins after a headless fallback, pass its profileId explicitly with open=true and reuseExistingTab=false. On a desktop server, this new foreground tab visits the requested URL only after connecting to the native page; attachment failure closes the new blank tab and preserves previous tabs. Incognito, background, and standalone server opens retain headless support. Another agent session's tabs can be read but not operated.",
+    parameters: PreviewAutomationOpenInput.mapFields(
+      (fields) => ({ ...fields, target: Schema.optional(EnvironmentPortTarget) }),
+      { unsafePreserveChecks: true },
+    ),
     success: PreviewAutomationStatus,
     failure: PreviewToolFailure,
     dependencies,
