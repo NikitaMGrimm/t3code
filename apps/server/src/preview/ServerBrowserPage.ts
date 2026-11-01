@@ -446,15 +446,34 @@ const readPageMetrics = async (cdp: CDPSession) => {
 
 // Never pass a clip scale: Chromium mirrors the top-left of the page into a `backdrop-filter`
 // in any capture it shrinks.
-export const captureViewport = async (
+const CAPTURE_TIMEOUT_MS = 5_000;
+const pendingCaptures = new WeakSet<Page>();
+
+export const captureViewport = (
+  page: Page,
   cdp: CDPSession,
   options: { readonly format: "png" | "jpeg"; readonly quality?: number },
-) => {
-  const { data } = await cdp.send("Page.captureScreenshot", {
-    format: options.format,
-    ...(options.quality === undefined ? {} : { quality: options.quality }),
+): Promise<string> => {
+  const noFrame = () =>
+    new ServerBrowserOperationError(
+      "PreviewAutomationExecutionError",
+      "The page did not draw a frame within 5 seconds, so no screenshot was taken. Use preview_evaluate to read the page, or open the tab in the Browser panel and retry.",
+    );
+  if (pendingCaptures.has(page)) return Promise.reject(noFrame());
+  pendingCaptures.add(page);
+  const capture = cdp
+    .send("Page.captureScreenshot", {
+      format: options.format,
+      ...(options.quality === undefined ? {} : { quality: options.quality }),
+    })
+    .then(({ data }) => data)
+    .finally(() => pendingCaptures.delete(page));
+  void capture.catch(constVoid);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const limit = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(noFrame()), CAPTURE_TIMEOUT_MS);
   });
-  return data;
+  return Promise.race([capture, limit]).finally(() => clearTimeout(timer));
 };
 
 /** Runs in the page's own isolated world, as the server has no image library. */
@@ -542,7 +561,7 @@ const capture = async (
         "url" | "title" | "loading" | "visibleText" | "interactiveElements"
       >
     >,
-    captureViewport(input.cdp, { format: "png" }).then((png) =>
+    captureViewport(input.page, input.cdp, { format: "png" }).then((png) =>
       scale < 1 ? shrinkPng(input.cdp, png, scale) : png,
     ),
   ]);
