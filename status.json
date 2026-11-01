@@ -1,20 +1,20 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.7-nightly.20261031.4004",
+  "upstreamTag": "v0.1.7-nightly.20261101.4016",
   "conflicts": [
     "apps/server/src/preview/ServerBrowser.test.ts",
     "apps/server/src/preview/ServerBrowser.ts"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41270930830",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41278805351",
   "releasedVersion": "0.1.5-nightly.20261029.1793291018305",
   "baseCommit": "e8ebb5433b4ad65f87a8e1ca98a9f3dcfcafabe3",
-  "sequence": 1793505216267,
+  "sequence": 1793512577179,
   "conflictPullRequest": 17871,
   "conflictStage": "pull_request",
-  "conflictIdentity": "5552e4b276a33c1c40c633aab79a2aac7d687b16f46f181c0e1ea56db67d1ed1",
+  "conflictIdentity": "15f7302e22683beae2dd10395e60405b3e2a7a4f51ee84d1f6a1191f55244dff",
   "inputs": {
-    "upstreamTag": "v0.1.7-nightly.20261031.4004",
+    "upstreamTag": "v0.1.7-nightly.20261101.4016",
     "pullRequests": [
       {
         "number": 17871,
@@ -24,11 +24,6 @@
       {
         "number": 18873,
         "headSha": "b9fa58f765e44c374c2bfbffaa07f9d0f240b102",
-        "baseRef": "main"
-      },
-      {
-        "number": 21839,
-        "headSha": "bde03c756431a7754f05e425ee1cf22ba0d07808",
         "baseRef": "main"
       },
       {
@@ -72,18 +67,6 @@
       "author": "t3dotgg",
       "url": "https://github.com/pingdotgg/t3code/pull/18873",
       "headRepository": "pingdotgg/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 21839,
-      "title": "fix(web): file preview videos keep their own aspect ratio",
-      "headSha": "bde03c756431a7754f05e425ee1cf22ba0d07808",
-      "baseSha": "80a2351fcb909034e65a512dfabeb3cdfd367762",
-      "headRef": "fix/file-preview-video-aspect",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/21839",
-      "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     },
     {
