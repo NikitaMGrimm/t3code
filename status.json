@@ -1,19 +1,19 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.7-nightly.20261101.4016",
+  "upstreamTag": "v0.1.7-nightly.20261101.4035",
   "conflicts": [
-    "apps/server/src/preview/ServerBrowser.test.ts"
+    "apps/server/src/mcp/toolkits/preview/tools.ts",
+    "apps/server/src/provider/agentContextBudget.json"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41319965885",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41320605298",
   "releasedVersion": "0.1.5-nightly.20261029.1793291018305",
   "baseCommit": "07ad9ac7a45c4ca37493d57f79786e5244b4a200",
-  "sequence": 1793545904831,
-  "conflictPullRequest": 18873,
-  "conflictStage": "pull_request",
-  "conflictIdentity": "52cc2141a98b1ea93490e5069a396faccfc05196aa3e42c3669233217acea2c3",
+  "sequence": 1793546353051,
+  "conflictStage": "personal",
+  "conflictIdentity": "874de7ab7c6df7b85355eefa987c6288618a8c86e3ff7af1e55fc23c204c8bfd",
   "inputs": {
-    "upstreamTag": "v0.1.7-nightly.20261101.4016",
+    "upstreamTag": "v0.1.7-nightly.20261101.4035",
     "pullRequests": [
       {
         "number": 17871,
@@ -41,7 +41,7 @@
         "baseRef": "main"
       }
     ],
-    "resolutions": "0e7ab8448de3a038a5e498950c6522152aaaae4cdc2430f90794e19014b3b85e"
+    "resolutions": "32ec5ec7416af07ed4116050c07dea4d5d4613f4b107284368593d2f6d3c0755"
   },
   "pullRequests": [
     {
