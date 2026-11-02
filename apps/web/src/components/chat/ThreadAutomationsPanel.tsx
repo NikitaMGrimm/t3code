@@ -43,7 +43,9 @@ function taskScheduleLine(task: ScheduledTask, timestampFormat: TimestampFormat)
   return (
     <>
       {scheduleLabel(task.schedule, timestampFormat)}
-      {task.enabled && task.nextRunAt !== null ? (
+      {task.blockedByPolicy !== undefined ? (
+        ` · ${task.blockedByPolicy}`
+      ) : task.enabled && task.nextRunAt !== null ? (
         <>
           {" · next "}
           <ScheduledRelativeLabel value={task.nextRunAt} />
@@ -156,7 +158,7 @@ export function ThreadAutomationsPanel(props: {
         </Tooltip>
       }
     >
-      <ul className="m-0 list-none p-0">
+      <ul className="m-0 max-h-[13.5rem] list-none overflow-y-auto p-0">
         {boundTasks.map((task) => (
           <li
             key={task.id}
