@@ -1,17 +1,19 @@
 {
   "schema": 1,
-  "phase": "ready",
-  "upstreamTag": "v0.1.7-nightly.20261102.4093",
-  "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41531218307",
+  "phase": "conflict",
+  "upstreamTag": "v0.1.7-nightly.20261103.4106",
+  "conflicts": [
+    "apps/web/src/components/ChatView.tsx"
+  ],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/41567443441",
   "releasedVersion": "0.1.7-nightly.20261102.1793655924209",
-  "baseCommit": "b7d3cc29b878c742fa876c2b3fa11261b6c174de",
-  "sequence": 1793655924209,
-  "resolvedTestImports": [],
-  "candidateCommit": "4bf8619bc87b6172bad5c2e54a056e92d6337fb3",
-  "candidateVersion": "0.1.7-nightly.20261102.1793655924209",
+  "baseCommit": "4bf8619bc87b6172bad5c2e54a056e92d6337fb3",
+  "sequence": 1793673560414,
+  "conflictPullRequest": 22788,
+  "conflictStage": "pull_request",
+  "conflictIdentity": "4636c52423ac567d0fc1b62022b01a889e5e3ca66112c9030fd9e331f915083d",
   "inputs": {
-    "upstreamTag": "v0.1.7-nightly.20261102.4093",
+    "upstreamTag": "v0.1.7-nightly.20261103.4106",
     "pullRequests": [
       {
         "number": 17871,
