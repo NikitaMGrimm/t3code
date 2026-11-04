@@ -57,6 +57,7 @@ function codeFenceFor(code: string): string {
   return "`".repeat(Math.max(3, longestRun + 1));
 }
 
+
 function resolveCodeBlockLanguage(pre: Element): string | null {
   const declared =
     pre.closest("[data-language]")?.getAttribute("data-language") ??

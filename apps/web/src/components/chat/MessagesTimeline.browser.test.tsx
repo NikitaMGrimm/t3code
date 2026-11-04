@@ -1,6 +1,6 @@
 import { flushSync } from "react-dom";
 import { AudioPreview } from "../files/AudioPreview";
-import { page } from "vite-plus/test/browser";
+import { cdp, page } from "vite-plus/test/browser";
 import {
   ComposerContextId,
   EnvironmentId,
@@ -36,6 +36,7 @@ import { environmentThreadDetails } from "../../state/threads";
 import { act, fakeTimers, render, stubGlobal } from "../../../test/render";
 import { ChangedFilesCard } from "./ChangedFilesTree";
 import { MessagesTimeline } from "./MessagesTimeline";
+import { useTimelineFollow } from "./useTimelineFollow";
 import { makeStreamingTimelineFixture } from "../../test-fixtures";
 import {
   type PendingApproval,
@@ -274,7 +275,9 @@ describe("MessagesTimeline work rows", () => {
       { container },
     );
     const heading = screen.getByRole("button", { name: /^Worked for/ });
-    await expect.element(heading).toBeVisible();
+    // LegendList keeps rows click-through until its initial scroll settles on animation
+    // frames, which the fake clock below would freeze.
+    await expect.element(heading).toHaveStyle({ pointerEvents: "auto" });
     const viewport = props.listRef.current!.getScrollableNode()!;
     await vi.waitFor(() =>
       expect(viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop).toBeLessThan(2),
@@ -603,6 +606,76 @@ describe("MessagesTimeline messages", () => {
   });
 });
 
+function usageLimitEntries(resetAt: string) {
+  const threadId = ThreadId.make("usage-limit-thread");
+  const at = DateTime.makeUnsafe(CREATED_AT);
+  return deriveTimelineEntriesFromVisibleTurnItems({
+    visibleTurnItems: [
+      {
+        position: 0,
+        visibility: "local",
+        sourceThreadId: threadId,
+        sourceItemId: TurnItemId.make("usage-limit"),
+        item: {
+          id: TurnItemId.make("usage-limit"),
+          threadId,
+          runId: RunId.make("usage-limit-run"),
+          nodeId: null,
+          providerThreadId: null,
+          providerTurnId: null,
+          nativeItemRef: null,
+          parentItemId: null,
+          ordinal: 0,
+          title: null,
+          startedAt: at,
+          completedAt: at,
+          updatedAt: at,
+          type: "error",
+          status: "failed",
+          failure: {
+            class: "usage_limit",
+            message: "You've hit your usage limit.",
+            code: null,
+            retryable: true,
+            resetAt,
+          },
+        },
+      },
+    ],
+    optimisticMessages: [],
+  });
+}
+
+describe("MessagesTimeline usage limit notice", () => {
+  it("labels the retry time with the viewer's timezone", async () => {
+    await using screen = await renderTimeline(usageLimitEntries("2026-03-17T19:30:00.000Z"));
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    expect(screen.text()).toMatch(/Usage limit reached\. Retry after .+\./);
+    expect(screen.text()).toContain(`(${timeZone})`);
+  });
+
+  it("keeps the retry time in the named zone after the viewer's timezone changes", async () => {
+    const resetAt = "2026-07-01T19:30:00.000Z";
+    const session = cdp();
+    await session.send("Emulation.setTimezoneOverride", { timezoneId: "Europe/Madrid" });
+    try {
+      {
+        await using _madrid = await renderTimeline(usageLimitEntries(resetAt));
+      }
+      await session.send("Emulation.setTimezoneOverride", { timezoneId: "America/New_York" });
+      await using screen = await renderTimeline(usageLimitEntries(resetAt));
+      const newYorkTime = new Date(resetAt).toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "America/New_York",
+      });
+      expect(screen.text()).toContain(`${newYorkTime} (America/New_York)`);
+    } finally {
+      await session.send("Emulation.setTimezoneOverride", { timezoneId: "" });
+    }
+  });
+});
+
 const CITATION_REQUEST = {
   key: "activation-1",
   citation: {
@@ -702,41 +775,6 @@ describe("MessagesTimeline citations", () => {
     );
     await expect.element(screen.getByText("the cited answer")).toBeVisible();
     expect(toast).not.toHaveBeenCalled();
-  });
-});
-
-describe("timeline live follow", () => {
-  it("lets a wheel up break follow when the list mounts after a slow hydration", async () => {
-    const entries = Array.from({ length: 40 }, (_, index) =>
-      message(`Paragraph ${index}\n\n${"lorem ipsum ".repeat(60)}`, {}, `message-${index}`),
-    );
-    const container = document.createElement("div");
-    container.style.cssText =
-      "height: 1200px; width: 900px; display: flex; flex-direction: column;";
-    let screen: Awaited<ReturnType<typeof render>>;
-    {
-      // Hydration can outlast any fixed frame budget before the list mounts.
-      using _timers = fakeTimers();
-      screen = await render(<FollowHarness entries={entries} loading />, { container });
-      expect(container.querySelector(".messages-timeline-scroll")).toBeNull();
-      await act(async () => vi.advanceTimersByTime(16 * 20));
-    }
-    await using _screen = screen;
-    await screen.rerender(<FollowHarness entries={entries} loading={false} />);
-    const scrollNode = container.querySelector<HTMLElement>(".messages-timeline-scroll");
-    if (!scrollNode) throw new Error("Timeline did not mount");
-    await expect.poll(() => scrollNode.scrollHeight > scrollNode.clientHeight).toBe(true);
-    const follow = () => container.firstElementChild?.getAttribute("data-live-follow");
-    expect(follow()).toBe("true");
-    const row = scrollNode.querySelector<HTMLElement>("[data-timeline-root]");
-    if (!row) throw new Error("No timeline row");
-    // LegendList measures its viewport a frame after mount; retry until the gate sees overflow.
-    await vi.waitFor(async () => {
-      await act(async () => {
-        row.dispatchEvent(new WheelEvent("wheel", { deltaY: -120, bubbles: true }));
-      });
-      expect(follow()).toBe("false");
-    });
   });
 });
 
@@ -1551,4 +1589,39 @@ it("keeps concurrent approvals actionable outside collapsed work and restores se
   await expect
     .element(screen.getByRole("button", { name: "Open the current tab", exact: true }))
     .toBeVisible();
+});
+
+describe("timeline live follow", () => {
+  it("lets a wheel up break follow when the list mounts after a slow hydration", async () => {
+    const entries = Array.from({ length: 40 }, (_, index) =>
+      message(`Paragraph ${index}\n\n${"lorem ipsum ".repeat(60)}`, {}, `message-${index}`),
+    );
+    const container = document.createElement("div");
+    container.style.cssText =
+      "height: 1200px; width: 900px; display: flex; flex-direction: column;";
+    let screen: Awaited<ReturnType<typeof render>>;
+    {
+      // Hydration can outlast any fixed frame budget before the list mounts.
+      using _timers = fakeTimers();
+      screen = await render(<FollowHarness entries={entries} loading />, { container });
+      expect(container.querySelector(".messages-timeline-scroll")).toBeNull();
+      await act(async () => vi.advanceTimersByTime(16 * 20));
+    }
+    await using _screen = screen;
+    await screen.rerender(<FollowHarness entries={entries} loading={false} />);
+    const scrollNode = container.querySelector<HTMLElement>(".messages-timeline-scroll");
+    if (!scrollNode) throw new Error("Timeline did not mount");
+    await expect.poll(() => scrollNode.scrollHeight > scrollNode.clientHeight).toBe(true);
+    const follow = () => container.firstElementChild?.getAttribute("data-live-follow");
+    expect(follow()).toBe("true");
+    const row = scrollNode.querySelector<HTMLElement>("[data-timeline-root]");
+    if (!row) throw new Error("No timeline row");
+    // LegendList measures its viewport a frame after mount; retry until the gate sees overflow.
+    await vi.waitFor(async () => {
+      await act(async () => {
+        row.dispatchEvent(new WheelEvent("wheel", { deltaY: -120, bubbles: true }));
+      });
+      expect(follow()).toBe("false");
+    });
+  });
 });

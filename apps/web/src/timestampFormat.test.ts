@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { formatFullTimestamp, formatTimeOfDay } from "./timestampFormat";
+import { formatDayAwareTimestamp, formatUpcomingTimestamp, formatFullTimestamp, formatTimeOfDay } from "./timestampFormat";
 
 // ICU can separate the day period with a narrow no-break space.
 const normalize = (value: string) => value.replace(/[  ]/g, " ");
@@ -72,5 +72,23 @@ describe("formatTimeOfDay", () => {
   it("returns a malformed time of day unchanged", () => {
     expect(formatTimeOfDay("24:00", "24-hour")).toBe("24:00");
     expect(formatTimeOfDay("not-a-time", "12-hour")).toBe("not-a-time");
+  });
+});
+
+describe("timestamps in an explicit time zone", () => {
+  // 23:00 UTC on July 1 is 7 PM on July 1 in New York, whatever the host zone.
+  const now = Date.parse("2026-07-01T23:00:00.000Z");
+  const zone = "America/New_York";
+
+  it("picks relative days from the calendar in that zone", () => {
+    expect(formatUpcomingTimestamp("2026-07-02T00:30:00.000Z", "12-hour", now, zone)).not.toMatch(
+      /tomorrow/,
+    );
+    expect(formatUpcomingTimestamp("2026-07-02T05:30:00.000Z", "12-hour", now, zone)).toMatch(
+      /^tomorrow at /,
+    );
+    expect(formatDayAwareTimestamp("2026-07-01T03:30:00.000Z", "12-hour", now, zone)).toMatch(
+      /^yesterday at /,
+    );
   });
 });

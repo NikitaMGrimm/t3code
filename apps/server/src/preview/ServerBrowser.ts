@@ -471,8 +471,13 @@ const make = Effect.gen(function* () {
   const agentTurns = yield* (yield* PreviewAgentActivity.PreviewAgentActivity).changes;
   const runFork = Effect.runForkWith(yield* Effect.context<never>());
   const runPromise = Effect.runPromiseWith(yield* Effect.context<never>());
+  const runSyncExit = Effect.runSyncExitWith(yield* Effect.context<never>());
   const launchServices = yield* Effect.context<ChildProcessSpawner.ChildProcessSpawner>();
-  const setupCommand = yield* resolveRootCliCommand(PreviewBrowserHost.SETUP_SUBCOMMAND);
+  // sudo resets the environment, so the command has to name this server's home.
+  const setupCommand = yield* resolveRootCliCommand(PreviewBrowserHost.SETUP_SUBCOMMAND, [
+    "--base-dir",
+    config.baseDir,
+  ]);
   const agentScope = yield* AgentScope;
   const launchersDir = NodePath.join(config.stateDir, "server-browser", "launchers");
 
@@ -789,42 +794,50 @@ const make = Effect.gen(function* () {
 
   const currentSnapshot = async (threadId: string, tabId: string) => {
     const { sessions } = await runPromise(manager.list({ threadId: ThreadId.make(threadId) }));
-    const snapshot = sessions.find(
-      (session) => session.tabId === tabId && session.runtime === "server",
-    );
+    const snapshot = sessions.find((session) => session.tabId === tabId && session.runtime === "server");
     if (!snapshot) throw new ServerBrowserTabNotFoundError({ threadId, tabId });
     return snapshot;
   };
 
   const createTab = async (
+    snapshot: PreviewSessionSnapshot,
+    onDesktopAcquired: (close: () => Promise<void>) => void,
+  ): Promise<ServerTab> => {
+    const opened: Array<() => Promise<void>> = [];
+    try {
+      return await setUpTab(snapshot, opened, onDesktopAcquired);
+    } catch (cause) {
+      // An unpublished tab is in no list, so nothing else would ever close it.
+      for (const close of opened.reverse()) await close().catch(constVoid);
+      throw cause;
+    }
+  };
+
+  const setUpTab = async (
     requestedSnapshot: PreviewSessionSnapshot,
+    opened: Array<() => Promise<void>>,
     onDesktopAcquired: (close: () => Promise<void>) => void,
   ): Promise<ServerTab> => {
     const key = tabKey(requestedSnapshot.threadId, requestedSnapshot.tabId);
     const adopted = adoptedPages.get(key);
     adoptedPages.delete(key);
-    // An older opened event may be processed after a failed headless launch or a close.
-    const fresh = await currentSnapshot(requestedSnapshot.threadId, requestedSnapshot.tabId).catch(
-      async (cause: unknown) => {
-        await adopted?.page.close().catch(constVoid);
-        throw cause;
-      },
-    );
-    let snapshot = fresh;
+    if (adopted) opened.push(() => adopted.page.close());
+    // Re-read after queued open events; a tab can have closed or chosen its backing.
+    let snapshot = await currentSnapshot(requestedSnapshot.threadId, requestedSnapshot.tabId);
     const native = adopted === undefined && (await desktopRenders(snapshot));
     if (adopted === undefined) {
-      // Publish before launching headless so every client releases the independent native guest.
-      snapshot = await runPromise(
-        manager.setServerPageMode({
-          threadId: ThreadId.make(snapshot.threadId),
-          tabId: snapshot.tabId,
-          mode: native ? "native" : "headless",
-        }),
-      );
+      // Clients must release their native guest before a headless launch starts.
+      snapshot = await runPromise(manager.setServerPageMode({
+        threadId: ThreadId.make(snapshot.threadId),
+        tabId: snapshot.tabId,
+        mode: native ? "native" : "headless",
+      }));
     }
     const desktop = native ? await connectDesktop(snapshot) : null;
-    if (desktop) onDesktopAcquired(desktop.close);
-    // An agent tab without a profile (no client reported one) keeps throwaway storage.
+    if (desktop) {
+      opened.push(desktop.close);
+      onDesktopAcquired(desktop.close);
+    }
     const isolatedContext =
       adopted === undefined &&
       desktop === null &&
@@ -837,9 +850,11 @@ const make = Effect.gen(function* () {
         snapshot.profileId ?? "default",
         isolatedContext ? tabKey(snapshot.threadId, snapshot.tabId) : undefined,
       ));
+    if (isolatedContext) opened.push(() => context.close());
     if (adopted?.page.isClosed()) throw new Error("The popup closed before it opened.");
     if (!desktop) await prepareContext(context);
     const page = adopted?.page ?? desktop?.page ?? (await context.newPage());
+    if (!desktop) opened.push(() => page.close());
     const cdp = await context.newCDPSession(page);
     await installPdfDocumentNavigation(cdp);
     // The desktop's page is already a normal browser. A popup's first request
@@ -1014,9 +1029,6 @@ const make = Effect.gen(function* () {
     const { sessions } = await runPromise(manager.list({ threadId: tab.threadId }));
     if (closedPendingTabs.delete(key) || !sessions.some((session) => session.tabId === tab.tabId)) {
       await control.close().catch(constVoid);
-      if (desktop) await desktop.close().catch(constVoid);
-      else await page.close().catch(constVoid);
-      if (isolatedContext) await context.close().catch(constVoid);
       throw new ServerBrowserTabNotFoundError({ threadId: tab.threadId, tabId: tab.tabId });
     }
     page.on("close", () => dropTab(tab, true));
@@ -1718,7 +1730,7 @@ const make = Effect.gen(function* () {
       try {
         await encoder.evaluate(ServerBrowserPage.recordingEncoderScript(recordingFrameRate));
         // Seed idle pages before returning so an immediate stop has a frame to encode.
-        const firstFrame = await ServerBrowserPage.captureViewport(tab.page, tab.cdp, {
+        const firstFrame = await ServerBrowserPage.captureViewport(tab.cdp, {
           format: "jpeg",
           quality: RECORDING_SCREENCAST.quality,
         });
@@ -1776,6 +1788,7 @@ const make = Effect.gen(function* () {
     return started;
   };
 
+  // Scaled captures repaint every screencast; pause them to avoid leaking that frame.
   const withScreencastsPaused = <A>(tab: ServerTab, capture: () => Promise<A>): Promise<A> => {
     let expired = false;
     let capturing = false;
@@ -2118,7 +2131,16 @@ const make = Effect.gen(function* () {
             if (existing || nativeProfileOpen) {
               if (url) await navigate(tab, url, "load", navigationTimeout);
             } else {
-              await tab.initialNavigation;
+              // A failed open returns no tabId; a leftover hidden tab would block later reuse.
+              await tab.initialNavigation?.catch(async (cause: unknown) => {
+                // Playwright rejects downloads too; their tab must survive to save the file.
+                if (cause instanceof Error && cause.message.includes("Download is starting")) {
+                  throw cause;
+                }
+                await runPromise(manager.close({ threadId: tab.threadId, tabId: tab.tabId }));
+                dropTab(tab, false);
+                throw cause;
+              });
             }
             if (reveal !== false) {
               await runPromise(
@@ -2613,7 +2635,7 @@ const make = Effect.gen(function* () {
         // State a stalled viewer cannot miss compacts its backlog. It runs
         // synchronously so an older compaction can never land after a newer one.
         else if (["gone", "reconnect", "control", "viewport", "fileChooser"].includes(next._tag)) {
-          const dropped = Effect.runSyncExit(Queue.clear(output));
+          const dropped = runSyncExit(Queue.clear(output));
           if (dropped._tag === "Failure") return;
           const items = [...dropped.value, next];
           // Without its latest size and control the viewer cannot map input at all.
@@ -2695,13 +2717,7 @@ const make = Effect.gen(function* () {
           }, SNAPSHOT_TIMEOUT_MS);
         });
         return Promise.race([
-          // This deadline, not the agent's frame limit, bounds a still: it retires a stalled session.
-          ServerBrowserPage.captureViewport(
-            tab.page,
-            session,
-            { format: "jpeg", quality },
-            retired.signal,
-          ),
+          ServerBrowserPage.captureViewport(tab.page, session, { format: "jpeg", quality }, retired.signal),
           deadline,
         ]).finally(() => clearTimeout(timer));
       }).catch(() => null);
@@ -2796,16 +2812,35 @@ const make = Effect.gen(function* () {
                   : {}),
               });
             } else {
-              const dispatch = () => dispatchViewerInput(tab, session, viewer, message);
+              const dispatch = (input: Record<string, unknown>) =>
+                dispatchViewerInput(tab, session, viewer, input);
               if (
                 message.type === "mouse" &&
                 message.action === "move" &&
                 message.button === "none" &&
                 message.buttons === 0
               ) {
-                await tab.control.humanLatest(viewer.id, `hover:${modifiersOf(message)}`, dispatch);
+                await tab.control.humanLatest(
+                  viewer.id,
+                  `hover:${modifiersOf(message)}`,
+                  message,
+                  dispatch,
+                );
+              } else if (message.type === "wheel") {
+                // A reversal stays separate so scrolling clamped at an edge behaves as if unmerged.
+                await tab.control.humanLatest(
+                  viewer.id,
+                  `wheel:${num(message.x)}:${num(message.y)}:${modifiersOf(message)}:${Math.sign(num(message.deltaX))}:${Math.sign(num(message.deltaY))}`,
+                  message,
+                  dispatch,
+                  (waiting, next) => ({
+                    ...next,
+                    deltaX: num(waiting.deltaX) + num(next.deltaX),
+                    deltaY: num(waiting.deltaY) + num(next.deltaY),
+                  }),
+                );
               } else {
-                await tab.control.human(viewer.id, dispatch);
+                await tab.control.human(viewer.id, () => dispatch(message));
               }
             }
           } catch {

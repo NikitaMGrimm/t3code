@@ -73,17 +73,19 @@ const timestampFormatterCache = new Map<string, Intl.DateTimeFormat>();
 function getTimestampFormatter(
   timestampFormat: TimestampFormat,
   includeSeconds: boolean,
+  timeZone?: string,
   includeDate = false,
 ): Intl.DateTimeFormat {
-  const cacheKey = `${timestampFormat}:${includeSeconds ? "seconds" : "minutes"}:${includeDate ? "date" : "time"}`;
+  const cacheKey = `${timestampFormat}:${includeSeconds ? "seconds" : "minutes"}:${timeZone ?? ""}:${includeDate ? "date" : "time"}`;
   const cachedFormatter = timestampFormatterCache.get(cacheKey);
   if (cachedFormatter) {
     return cachedFormatter;
   }
 
   const formatter = new Intl.DateTimeFormat(timestampLocale, {
-    ...(includeDate ? { year: "numeric", month: "short", day: "numeric" } : {}),
+    ...(includeDate ? { year: "numeric", month: "short", day: "numeric" } as const : {}),
     ...getTimestampFormatOptions(timestampFormat, includeSeconds),
+    ...(timeZone ? { timeZone } : {}),
   });
   timestampFormatterCache.set(cacheKey, formatter);
   return formatter;
@@ -112,7 +114,7 @@ export function formatFullTimestamp(
 ): string {
   const date = parseTimestampDate(isoDate);
   if (!date) return "";
-  return getTimestampFormatter(timestampFormat, includeSeconds, true).format(date);
+  return getTimestampFormatter(timestampFormat, includeSeconds, undefined, true).format(date);
 }
 
 // Deliberately not the host locale: the tooltip's ordinal suffix and
@@ -154,70 +156,88 @@ export function formatShortTimestamp(isoDate: string, timestampFormat: Timestamp
   return getTimestampFormatter(timestampFormat, false).format(date);
 }
 
-// Same pattern as the scheduled-task `TimeOfDay` contract.
-const TIME_OF_DAY_PATTERN = /^([01]?\d|2[0-3]):([0-5]\d)$/;
+const numericDateOptions: Intl.DateTimeFormatOptions = { month: "numeric", day: "numeric" };
+const numericDateWithYearOptions: Intl.DateTimeFormatOptions = {
+  ...numericDateOptions,
+  year: "numeric",
+};
+const numericDateFormatter = new Intl.DateTimeFormat(timestampLocale, numericDateOptions);
+const numericDateWithYearFormatter = new Intl.DateTimeFormat(
+  timestampLocale,
+  numericDateWithYearOptions,
+);
 
-/** Formats a 24-hour `HH:MM` wall-clock string, returning it unchanged when malformed. */
-export function formatTimeOfDay(timeOfDay: string, timestampFormat: TimestampFormat): string {
-  const match = TIME_OF_DAY_PATTERN.exec(timeOfDay.trim());
-  if (!match) return timeOfDay;
-  // A fixed local date anchors the wall-clock time; only the time is rendered.
-  const date = new Date(2000, 0, 1, Number(match[1]), Number(match[2]));
-  return formatShortTimestamp(date.toISOString(), timestampFormat);
+interface CalendarDay {
+  year: number;
+  /** Days since the epoch, so differences are whole days across DST shifts. */
+  index: number;
 }
 
-const numericDateFormatter = new Intl.DateTimeFormat(timestampLocale, {
-  month: "numeric",
-  day: "numeric",
-});
-const numericDateWithYearFormatter = new Intl.DateTimeFormat(timestampLocale, {
-  month: "numeric",
-  day: "numeric",
-  year: "numeric",
-});
+function calendarDay(date: Date, timeZone: string | undefined): CalendarDay {
+  if (!timeZone) {
+    const year = date.getFullYear();
+    return { year, index: Date.UTC(year, date.getMonth(), date.getDate()) / 86_400_000 };
+  }
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((entry) => entry.type === type)?.value);
+  const year = part("year");
+  return { year, index: Date.UTC(year, part("month") - 1, part("day")) / 86_400_000 };
+}
+
+function formatNumericDate(date: Date, sameYear: boolean, timeZone: string | undefined): string {
+  if (!timeZone) {
+    return (sameYear ? numericDateFormatter : numericDateWithYearFormatter).format(date);
+  }
+  return new Intl.DateTimeFormat(timestampLocale, {
+    ...(sameYear ? numericDateOptions : numericDateWithYearOptions),
+    timeZone,
+  }).format(date);
+}
 
 export function formatDayAwareTimestamp(
   isoDate: string,
   timestampFormat: TimestampFormat,
   nowMs: number = Date.now(),
+  timeZone?: string,
 ): string {
   const date = parseTimestampDate(isoDate);
   if (!date) return "";
-  const time = getTimestampFormatter(timestampFormat, false).format(date);
+  const time = getTimestampFormatter(timestampFormat, false, timeZone).format(date);
 
-  const now = new Date(nowMs);
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const startOfMessageDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-  // Round so DST-shifted 23/25 hour days still count as whole days.
-  const dayDiff = Math.round((startOfToday - startOfMessageDay) / 86_400_000);
+  const today = calendarDay(new Date(nowMs), timeZone);
+  const messageDay = calendarDay(date, timeZone);
+  const dayDiff = today.index - messageDay.index;
 
   if (dayDiff <= 0) return time;
   if (dayDiff === 1) return `yesterday at ${time}`;
-  const dateFormatter =
-    date.getFullYear() === now.getFullYear() ? numericDateFormatter : numericDateWithYearFormatter;
-  return `${dateFormatter.format(date)} ${time}`;
+  return `${formatNumericDate(date, messageDay.year === today.year, timeZone)} ${time}`;
 }
 
+/** `timeZone` overrides the zone the formatters cached when they were built. */
 export function formatUpcomingTimestamp(
   isoDate: string,
   timestampFormat: TimestampFormat,
   nowMs: number = Date.now(),
+  timeZone?: string,
 ): string {
   const date = parseTimestampDate(isoDate);
   if (!date) return "";
-  const time = getTimestampFormatter(timestampFormat, false).format(date);
+  const time = getTimestampFormatter(timestampFormat, false, timeZone).format(date);
 
-  const now = new Date(nowMs);
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const startOfTargetDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-  const dayDiff = Math.round((startOfTargetDay - startOfToday) / 86_400_000);
+  const today = calendarDay(new Date(nowMs), timeZone);
+  const targetDay = calendarDay(date, timeZone);
+  const dayDiff = targetDay.index - today.index;
 
-  if (dayDiff < 0) return formatDayAwareTimestamp(isoDate, timestampFormat, nowMs);
+  if (dayDiff < 0) return formatDayAwareTimestamp(isoDate, timestampFormat, nowMs, timeZone);
   if (dayDiff === 0) return time;
   if (dayDiff === 1) return `tomorrow at ${time}`;
-  const dateFormatter =
-    date.getFullYear() === now.getFullYear() ? numericDateFormatter : numericDateWithYearFormatter;
-  return `${dateFormatter.format(date)} ${time}`;
+  return `${formatNumericDate(date, targetDay.year === today.year, timeZone)} ${time}`;
 }
 
 type RelativeTimeParts = { value: string; suffix: string | null };
@@ -343,4 +363,16 @@ export function formatExpiresInLabel(isoDate: string, nowMs: number = Date.now()
   if (minutes > 0) tail.push(`${minutes}m`);
   if (seconds > 0) tail.push(`${seconds}s`);
   return tail.length > 0 ? `Expires in ${days}d ${tail.join(" ")}` : `Expires in ${days}d`;
+}
+
+// Same pattern as the scheduled-task `TimeOfDay` contract.
+const TIME_OF_DAY_PATTERN = /^([01]?\d|2[0-3]):([0-5]\d)$/;
+
+/** Formats a 24-hour `HH:MM` wall-clock string, returning it unchanged when malformed. */
+export function formatTimeOfDay(timeOfDay: string, timestampFormat: TimestampFormat): string {
+  const match = TIME_OF_DAY_PATTERN.exec(timeOfDay.trim());
+  if (!match) return timeOfDay;
+  // A fixed local date anchors the wall-clock time; only the time is rendered.
+  const date = new Date(2000, 0, 1, Number(match[1]), Number(match[2]));
+  return formatShortTimestamp(date.toISOString(), timestampFormat);
 }
