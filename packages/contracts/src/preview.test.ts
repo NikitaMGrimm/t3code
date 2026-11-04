@@ -130,7 +130,6 @@ describe("PreviewSessionSnapshot", () => {
   });
 });
 
-
 describe("PreviewEvent page backing", () => {
   it("preserves the headless fallback in a snapshot update sent to clients", () => {
     const event = decodePreviewEvent({

@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import type { EnvironmentId, RuntimeMode } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
 
@@ -31,10 +33,11 @@ export function ComposerContextPermissions(props: {
     props.supportedRuntimeModes,
   );
   const options = resolveRuntimeModeOptions(modes, useManagedPolicy(props.environmentId));
-  const composerMenuProps = useComposerMenuProps();
+  const [open, setOpen] = useState(false);
+  const composerMenuProps = useComposerMenuProps(() => setOpen(false));
   const { icon: Icon, label } = runtimeModeConfig[mode];
   return (
-    <Menu>
+    <Menu open={open} onOpenChange={setOpen}>
       <Tooltip>
         <TooltipTrigger
           render={

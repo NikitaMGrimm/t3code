@@ -342,13 +342,16 @@ describe("evaluatePullRequestWatch", () => {
     const report = evaluatePullRequestWatch(watch(), detail(), [
       remark("reviewer", "2026-10-02T12:06:00Z", body),
     ]);
-    const { text } = pullRequestWatchMessage({
-      number: 1,
-      url: "https://github.com/o/r/pull/1",
-      baseBranch: "main",
-      headSha: null,
-      report,
-    });
+    const { text } = pullRequestWatchMessage([
+      pullRequestWatchNews({
+        repository: "o/r",
+        number: 1,
+        url: "https://github.com/o/r/pull/1",
+        baseBranch: "main",
+        headSha: null,
+        report,
+      }),
+    ]);
     assert.isTrue(text.isWellFormed());
     assert.include(text, `"${"x".repeat(196)}..."`);
   });

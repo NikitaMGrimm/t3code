@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { formatDayAwareTimestamp, formatUpcomingTimestamp, formatFullTimestamp, formatTimeOfDay } from "./timestampFormat";
+import {
+  formatDayAwareTimestamp,
+  formatUpcomingTimestamp,
+  formatFullTimestamp,
+  formatTimeOfDay,
+} from "./timestampFormat";
 
 // ICU can separate the day period with a narrow no-break space.
 const normalize = (value: string) => value.replace(/[  ]/g, " ");

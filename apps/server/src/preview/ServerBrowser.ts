@@ -794,7 +794,9 @@ const make = Effect.gen(function* () {
 
   const currentSnapshot = async (threadId: string, tabId: string) => {
     const { sessions } = await runPromise(manager.list({ threadId: ThreadId.make(threadId) }));
-    const snapshot = sessions.find((session) => session.tabId === tabId && session.runtime === "server");
+    const snapshot = sessions.find(
+      (session) => session.tabId === tabId && session.runtime === "server",
+    );
     if (!snapshot) throw new ServerBrowserTabNotFoundError({ threadId, tabId });
     return snapshot;
   };
@@ -827,11 +829,13 @@ const make = Effect.gen(function* () {
     const native = adopted === undefined && (await desktopRenders(snapshot));
     if (adopted === undefined) {
       // Clients must release their native guest before a headless launch starts.
-      snapshot = await runPromise(manager.setServerPageMode({
-        threadId: ThreadId.make(snapshot.threadId),
-        tabId: snapshot.tabId,
-        mode: native ? "native" : "headless",
-      }));
+      snapshot = await runPromise(
+        manager.setServerPageMode({
+          threadId: ThreadId.make(snapshot.threadId),
+          tabId: snapshot.tabId,
+          mode: native ? "native" : "headless",
+        }),
+      );
     }
     const desktop = native ? await connectDesktop(snapshot) : null;
     if (desktop) {
@@ -1730,7 +1734,7 @@ const make = Effect.gen(function* () {
       try {
         await encoder.evaluate(ServerBrowserPage.recordingEncoderScript(recordingFrameRate));
         // Seed idle pages before returning so an immediate stop has a frame to encode.
-        const firstFrame = await ServerBrowserPage.captureViewport(tab.cdp, {
+        const firstFrame = await ServerBrowserPage.captureViewport(tab.page, tab.cdp, {
           format: "jpeg",
           quality: RECORDING_SCREENCAST.quality,
         });
@@ -2717,7 +2721,12 @@ const make = Effect.gen(function* () {
           }, SNAPSHOT_TIMEOUT_MS);
         });
         return Promise.race([
-          ServerBrowserPage.captureViewport(tab.page, session, { format: "jpeg", quality }, retired.signal),
+          ServerBrowserPage.captureViewport(
+            tab.page,
+            session,
+            { format: "jpeg", quality },
+            retired.signal,
+          ),
           deadline,
         ]).finally(() => clearTimeout(timer));
       }).catch(() => null);

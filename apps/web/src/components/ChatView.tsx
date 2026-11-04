@@ -1844,9 +1844,6 @@ export default function ChatView(props: ChatViewProps) {
     });
   };
   const scheduleComposerFocusStable = useStableCallback(scheduleComposerFocus);
-  const openComposerPermissionsStable = useStableCallback(() =>
-    composerRef.current?.openControl("composer.mode"),
-  );
   const restoreComposerFocus = () => {
     window.requestAnimationFrame(() => composerRef.current?.restoreFocus());
   };

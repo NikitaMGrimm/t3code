@@ -83,7 +83,7 @@ function getTimestampFormatter(
   }
 
   const formatter = new Intl.DateTimeFormat(timestampLocale, {
-    ...(includeDate ? { year: "numeric", month: "short", day: "numeric" } as const : {}),
+    ...(includeDate ? ({ year: "numeric", month: "short", day: "numeric" } as const) : {}),
     ...getTimestampFormatOptions(timestampFormat, includeSeconds),
     ...(timeZone ? { timeZone } : {}),
   });

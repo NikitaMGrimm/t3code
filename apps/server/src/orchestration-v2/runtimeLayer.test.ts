@@ -3422,6 +3422,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         Effect.provide(
           Layer.mergeAll(
             NodeServices.layer,
+            NodeCrypto.layer,
             Layer.mock(PullRequestService.PullRequestService)({
               detail: ({ number }) =>
                 Effect.suspend(() => (number === 24 ? held : duringRead)).pipe(

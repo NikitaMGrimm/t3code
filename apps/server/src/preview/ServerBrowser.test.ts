@@ -2678,13 +2678,16 @@ it.live(
 it.live("late desktop attachment keeps downloads and an active headless recording", () =>
   Effect.scoped(
     Effect.gen(function* () {
-      const { broker, tabId } = yield* ready;
+      const { browser, broker, tabId } = yield* ready;
+      const viewer = yield* browser.attachViewer(viewerInput(tabId, true));
+      yield* viewer.input({ type: "takeControl" });
       const manager = yield* Manager.PreviewManager;
       const page = contexts[0]!.page;
       const saved = Promise.withResolvers<string>();
       const written = Promise.withResolvers<void>();
       page.emit("download", {
         failure: async () => null,
+        delete: async () => {},
         saveAs: (path: string) => {
           saved.resolve(path);
           return written.promise;
@@ -2697,11 +2700,10 @@ it.live("late desktop attachment keeps downloads and an active headless recordin
       written.resolve();
       const status = () =>
         broker.invoke<PreviewAutomationStatus>({ scope, tabId, operation: "status", input: {} });
-      let before = yield* status();
-      while (!before.downloads?.length) {
-        yield* Effect.yieldNow;
-        before = yield* status();
-      }
+      let offered = yield* Queue.take(viewer.output);
+      while (offered._tag !== "download") offered = yield* Queue.take(viewer.output);
+      yield* viewer.input({ type: "releaseControl" });
+      const before = yield* status();
       yield* broker.invoke({ scope, tabId, operation: "recordingStart", input: {} });
       const encoder = scratchPages[0]!;
       const attached = Promise.withResolvers<void>();
@@ -3018,7 +3020,6 @@ it.live("a standalone server still opens a headless page when no desktop channel
   ).pipe(Effect.provide(layer)),
 );
 
-
 it.live("a popup from a person's click is shown to that person, with its opener kept", () =>
   Effect.scoped(
     Effect.gen(function* () {
@@ -3099,7 +3100,6 @@ it.live("a popup closed before adoption does not leave its page behind", () =>
     }),
   ).pipe(Effect.provide(layer)),
 );
-
 
 it.live("a desktop page that comes back reconnects without waiting for a viewer", () =>
   Effect.scoped(
