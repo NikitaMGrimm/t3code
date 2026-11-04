@@ -41,15 +41,21 @@ export function usePreviewAvailable(environmentId: EnvironmentId | null): boolea
   return isPreviewSupportedInRuntime() || serverBrowser;
 }
 
+/**
+ * Whether this client draws a server tab with its own `<webview>`. The desktop
+ * app renders tabs of the server it launched, which drives them over the
+ * desktop browser channel; headless tabs and every other client and environment
+ * stream them.
+ */
 export function rendersServerTabNatively(
   environmentId: EnvironmentId,
   primaryEnvironmentId: EnvironmentId | null,
-  snapshot: Pick<PreviewSessionSnapshot, "runtime" | "headless"> | null | undefined,
+  snapshot: Pick<PreviewSessionSnapshot, "runtime" | "serverPageMode"> | null | undefined,
 ): boolean {
   return (
     isElectron &&
     snapshot?.runtime === "server" &&
-    !snapshot.headless &&
+    snapshot.serverPageMode !== "headless" &&
     primaryEnvironmentId !== null &&
     environmentId === primaryEnvironmentId
   );
@@ -57,7 +63,7 @@ export function rendersServerTabNatively(
 
 export function useRendersServerTabNatively(
   environmentId: EnvironmentId,
-  snapshot: Pick<PreviewSessionSnapshot, "runtime" | "headless"> | null | undefined,
+  snapshot: Pick<PreviewSessionSnapshot, "runtime" | "serverPageMode"> | null | undefined,
 ): boolean {
   return rendersServerTabNatively(environmentId, useAtomValue(primaryEnvironmentIdAtom), snapshot);
 }
