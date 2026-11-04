@@ -160,8 +160,9 @@ export const PreviewSessionSnapshot = Schema.Struct({
   /** Fixed at open; Electron cannot change a webview partition after attach without losing page state. */
   profileId: Schema.optional(BrowserProfileId),
   runtime: Schema.optional(PreviewRuntime),
-  /** The server runs this tab in headless Chromium, so the desktop streams it like other clients. */
-  headless: Schema.optional(Schema.Boolean),
+  /** Server-selected page backing. Absent preserves clients' existing host-based rendering choice. */
+  serverPageMode: Schema.optional(Schema.Literals(["native", "headless"])),
+  /** Authenticated provider session owning an isolated server tab. */
   automationOwner: Schema.optional(Schema.String),
   reveal: Schema.optional(Schema.Boolean),
   revealRequest: Schema.optional(Schema.Struct({ id: Schema.String, force: Schema.Boolean })),
