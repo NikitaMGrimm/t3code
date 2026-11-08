@@ -3107,7 +3107,7 @@ it.live("drives the desktop's own page for a tab the desktop renders", () =>
       expect(evaluated).toMatchObject({ tabId: opened.tabId });
       // Closing the session lets go of the desktop's page without closing it.
       yield* manager.close({ threadId: scope.thread.threadId, tabId: opened.tabId });
-      while (releasedDesktopTabs.length === 0) yield* Effect.yieldNow;
+      yield* Effect.promise(() => desktopReleased.promise);
       expect(releasedDesktopTabs).toEqual([opened.tabId]);
       expect(page.close).not.toHaveBeenCalled();
     }),

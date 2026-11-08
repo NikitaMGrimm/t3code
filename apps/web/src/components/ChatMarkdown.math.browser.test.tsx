@@ -1,6 +1,5 @@
-import { act, type ReactElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
+import { act, render } from "../../test/render";
 
 import { setMarkdownTaskChecked } from "@t3tools/shared/markdownTaskList";
 
@@ -33,27 +32,6 @@ vi.mock(import("../remoteOpen"), async (original) => ({
 
 import ChatMarkdown from "./ChatMarkdown";
 
-const roots: Root[] = [];
-
-beforeEach(() => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-});
-
-afterEach(async () => {
-  settingsOverrides.mathRenderingEnabled = false;
-  for (const root of roots.splice(0)) await act(async () => root.unmount());
-  document.body.replaceChildren();
-  vi.unstubAllGlobals();
-});
-
-async function render(element: ReactElement) {
-  const container = document.body.appendChild(document.createElement("div"));
-  const root = createRoot(container);
-  roots.push(root);
-  await act(async () => root.render(element));
-  return container;
-}
-
 const formulas = (container: HTMLElement) =>
   [...container.querySelectorAll("span[data-markdown-math]")].map((formula) =>
     formula.getAttribute("data-markdown-copy"),
@@ -62,24 +40,24 @@ const formulas = (container: HTMLElement) =>
 describe("ChatMarkdown math", () => {
   it("typesets only when enabled, keeping prices and task offsets intact", async () => {
     const text = "Area $\\pi r^2$ costs $5 and $10.\n\n\\[\nE = mc^2\n\\]\n\n- [ ] check \\(x\\)";
-    expect(formulas(await render(<ChatMarkdown cwd="/tmp/project" text={text} />))).toEqual([]);
+    await using plain = await render(<ChatMarkdown cwd="/tmp/project" text={text} />);
+    expect(formulas(plain.container)).toEqual([]);
     // Raw HTML carrying the math classes stays code while the setting is off.
-    expect(
-      formulas(
-        await render(
-          <ChatMarkdown
-            cwd="/tmp/project"
-            text={'<code class="language-math math-inline">x</code>'}
-          />,
-        ),
-      ),
-    ).toEqual([]);
+    await using raw = await render(
+      <ChatMarkdown cwd="/tmp/project" text={'<code class="language-math math-inline">x</code>'} />,
+    );
+    expect(formulas(raw.container)).toEqual([]);
+    using _settings = {
+      [Symbol.dispose]: () => {
+        settingsOverrides.mathRenderingEnabled = false;
+      },
+    };
 
     settingsOverrides.mathRenderingEnabled = true;
     // Both the sanitized raw-HTML pipeline and the literal one keep the math classes.
     for (const parseRawHtml of [true, false]) {
       let edited: string | undefined;
-      const container = await render(
+      await using screen = await render(
         <ChatMarkdown
           cwd="/tmp/project"
           text={text}
@@ -89,22 +67,23 @@ describe("ChatMarkdown math", () => {
           }}
         />,
       );
-      expect(formulas(container)).toEqual(["\\(\\pi r^2\\)", "\\[\nE = mc^2\n\\]\n\n", "\\(x\\)"]);
+      expect(formulas(screen.container)).toEqual([
+        "\\(\\pi r^2\\)",
+        "\\[\nE = mc^2\n\\]\n\n",
+        "\\(x\\)",
+      ]);
       await act(async () =>
-        container.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click(),
+        screen.container.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click(),
       );
       expect(edited).toBe(text.replace("- [ ]", "- [x]"));
     }
     // List indentation recovery parses blocks again; they still typeset.
-    expect(
-      formulas(
-        await render(
-          <ChatMarkdown
-            cwd="/tmp/project"
-            text={"-       intro\n\n        $$\n        x^2\n        $$"}
-          />,
-        ),
-      ),
-    ).toEqual(["\\[\nx^2\n\\]\n\n"]);
+    await using indented = await render(
+      <ChatMarkdown
+        cwd="/tmp/project"
+        text={"-       intro\n\n        $$\n        x^2\n        $$"}
+      />,
+    );
+    expect(formulas(indented.container)).toEqual(["\\[\nx^2\n\\]\n\n"]);
   });
 });
