@@ -18,6 +18,7 @@ import { beginAcpMockPrompt } from "./acpMockCancellationState.ts";
 import { timelineFollowFixture, waitForTimelineFixtureRelease } from "./timeline-follow-fixture.ts";
 
 const requestLogPath = process.env.T3_ACP_REQUEST_LOG_PATH;
+const timelineFixtureRoot = process.env.T3_ACP_TIMELINE_FIXTURE_DIRECTORY;
 const antigravityProfile = process.env.T3_ACP_ANTIGRAVITY === "1";
 // GitHub Copilot CLI advertises URL-shaped session mode ids.
 const copilotModesProfile = process.env.T3_ACP_COPILOT_MODES === "1";
@@ -96,9 +97,7 @@ const permissionOptionIds = {
   rejectOnce: "reject-once",
 };
 const sessionId =
-  process.env.T3_ACP_TIMELINE_FIXTURE_DIRECTORY === undefined
-    ? "mock-session-1"
-    : `timeline-fixture-${process.pid}`;
+  timelineFixtureRoot === undefined ? "mock-session-1" : `timeline-fixture-${process.pid}`;
 
 let currentModeId = antigravityProfile
   ? "default"
@@ -952,7 +951,6 @@ const program = Effect.gen(function* () {
         );
         return {};
       }
-      const timelineFixtureRoot = process.env.T3_ACP_TIMELINE_FIXTURE_DIRECTORY;
       if (timelineFixtureRoot !== undefined) {
         const timelineFixtureDirectory = `${timelineFixtureRoot}/${process.pid}-${promptCount}`;
         const kind = request.prompt.some(
