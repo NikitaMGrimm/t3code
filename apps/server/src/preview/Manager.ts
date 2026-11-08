@@ -35,6 +35,8 @@ export class PreviewManager extends Context.Service<
     readonly open: (
       input: PreviewOpenInput & {
         readonly automationOwner?: string;
+        /** Only the server browser selects how its page is presented. */
+        readonly serverPageMode?: PreviewSessionSnapshot["serverPageMode"];
         /** Runs before the `opened` event publishes, so subscribers find state keyed by the tab. */
         readonly beforePublish?: (snapshot: PreviewSessionSnapshot) => void;
       },
@@ -42,10 +44,13 @@ export class PreviewManager extends Context.Service<
     readonly reportStatus: (
       input: PreviewReportStatusInput & { readonly serverControlled?: boolean },
     ) => Effect.Effect<void, PreviewError>;
-    /** Records that a server tab runs headless. It stays headless until it closes. */
-    readonly markHeadless: (
-      input: PreviewCloseInput & { readonly tabId: string },
-    ) => Effect.Effect<void, PreviewError>;
+    /** Publishes the backing page selected by the server; headless cannot be promoted later. */
+    readonly setServerPageMode: (
+      input: PreviewCloseInput & {
+        readonly tabId: string;
+        readonly mode: "native" | "headless";
+      },
+    ) => Effect.Effect<PreviewSessionSnapshot, PreviewError>;
     readonly requestReveal: (
       input: PreviewCloseInput & { readonly tabId: string; readonly force: boolean },
     ) => Effect.Effect<void, PreviewError>;
@@ -189,6 +194,9 @@ export const make = Effect.gen(function* PreviewManagerMake() {
         viewport: input.viewport ?? FILL_PREVIEW_VIEWPORT,
         ...(input.profileId === undefined ? {} : { profileId: input.profileId }),
         ...(runtime === undefined ? {} : { runtime }),
+        ...(runtime === "server" && input.serverPageMode !== undefined
+          ? { serverPageMode: input.serverPageMode }
+          : {}),
         ...(runtime === "server" && input.automationOwner !== undefined
           ? { automationOwner: input.automationOwner }
           : {}),
@@ -270,17 +278,23 @@ export const make = Effect.gen(function* PreviewManagerMake() {
     );
   });
 
-  const markHeadless: PreviewManager["Service"]["markHeadless"] = Effect.fn(
-    "PreviewManager.markHeadless",
+  const setServerPageMode: PreviewManager["Service"]["setServerPageMode"] = Effect.fn(
+    "PreviewManager.setServerPageMode",
   )(function* (input) {
     return yield* mutateExistingSession(
       input.threadId,
       input.tabId,
-      Effect.fn("PreviewManager.markSessionHeadless")(function* (session) {
-        if (session.snapshot.headless) return { next: session, emit: null, result: undefined };
+      Effect.fn("PreviewManager.setSessionPageMode")(function* (session) {
+        if (session.snapshot.runtime !== "server")
+          return yield* new PreviewControlRequiredError({ tabId: input.tabId });
+        if (
+          session.snapshot.serverPageMode === input.mode ||
+          session.snapshot.serverPageMode === "headless"
+        )
+          return { next: session, emit: null, result: session.snapshot };
         const snapshot: PreviewSessionSnapshot = {
           ...session.snapshot,
-          headless: true,
+          serverPageMode: input.mode,
           updatedAt: yield* currentIsoTimestamp,
         };
         return {
@@ -292,7 +306,7 @@ export const make = Effect.gen(function* PreviewManagerMake() {
             createdAt: snapshot.updatedAt,
             snapshot,
           },
-          result: undefined,
+          result: snapshot,
         };
       }),
     );
@@ -404,7 +418,8 @@ export const make = Effect.gen(function* PreviewManagerMake() {
 
   const list: PreviewManager["Service"]["list"] = Effect.fn("PreviewManager.list")(
     function* (input) {
-      return yield* SynchronizedRef.get(stateRef).pipe(
+      // Events publish inside a mutation; their consumers must wait for its state commit.
+      return yield* SynchronizedRef.modify(stateRef, (state) => [state, state] as const).pipe(
         Effect.map((state): PreviewListResult => ({
           sessions: sessionsForThread(state, input.threadId)
             .map((s) => s.snapshot)
@@ -451,7 +466,7 @@ export const make = Effect.gen(function* PreviewManagerMake() {
     open,
     requestReveal,
     reportStatus,
-    markHeadless,
+    setServerPageMode,
     resize,
     adjust,
     close,
