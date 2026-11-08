@@ -23,6 +23,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
+import * as Semaphore from "effect/Semaphore";
 import type * as Scope from "effect/Scope";
 
 import {
@@ -44,6 +45,8 @@ import {
 /** Checks take minutes; faster sweeps waste the account's shared host quota. */
 const SWEEP_MINUTES = 2;
 const READ_FAILURE_LIMIT = 8;
+/** Group reads in flight at once, inside the host's own request limit. */
+const GROUP_READS = 4;
 /** Without fingerprints, reread quiet PRs on snapshot changes or this interval to catch edits. */
 const QUIET_REREAD_MS = 10 * 60_000;
 /** Reread despite unchanged fingerprints; they miss review-thread comment edits. */
@@ -711,24 +714,26 @@ export const make = Effect.gen(function* () {
       deliverAll,
       { discard: true },
     );
-    const fingerprints = yield* Effect.forEach(groups, fingerprintOf, {
-      concurrency: "unbounded",
-    });
+    // Every fingerprint is asked for at once so the host can batch them, and each group reads
+    // as soon as its own answer lands rather than waiting on the slowest host.
+    const reads = yield* Semaphore.make(GROUP_READS);
     yield* Effect.forEach(
       groups,
-      (group, index) =>
+      (group) =>
         Effect.gen(function* () {
-          const fingerprint = fingerprints[index]!;
+          const fingerprint = yield* fingerprintOf(group);
           const updates =
             fingerprint === "paused"
               ? []
-              : yield* readGroup(group, fingerprint).pipe(
-                  Effect.catchCause((cause) =>
-                    logFailure("pull request watch check failed", { pullRequest: group.key })(
-                      cause,
-                    ).pipe(Effect.as<ReadonlyArray<WatchUpdate>>([])),
-                  ),
-                );
+              : yield* reads
+                  .withPermit(readGroup(group, fingerprint))
+                  .pipe(
+                    Effect.catchCause((cause) =>
+                      logFailure("pull request watch check failed", { pullRequest: group.key })(
+                        cause,
+                      ).pipe(Effect.as<ReadonlyArray<WatchUpdate>>([])),
+                    ),
+                  );
           for (const update of updates) {
             if (update.ends === "unreadable") unreadableGroups.add(group.key);
             waitingOf(update.target).updates.push(update);
@@ -740,7 +745,7 @@ export const make = Effect.gen(function* () {
           });
           yield* Effect.forEach(ready, deliverAll, { discard: true });
         }),
-      { concurrency: 4, discard: true },
+      { concurrency: "unbounded", discard: true },
     );
     // A thread that did not get its update must not wait for the quiet reread.
     for (const key of lost) lastReads.delete(key);

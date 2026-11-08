@@ -324,13 +324,17 @@ const encoderStreams: Array<{ frameRate: number | undefined; bitsPerSecond: numb
 const scratchPages: ReturnType<typeof makeEncoderPage>[] = [];
 const contextRequests: Array<{ profileId: string; isolated: boolean }> = [];
 let contextGate: PromiseWithResolvers<void> | null = null;
-let contextRequested: PromiseWithResolvers<void> | null = null;
 let pageCopy = "";
 let keyCopy = "";
 let focusedFrame: ReturnType<typeof makeFrame> | null = null;
+let contextRequested: PromiseWithResolvers<void> | null = null;
 let contextFailure: Error | null = null;
 let pageSetupFailure: Error | null = null;
 let initialNavigation: (() => Promise<void>) | null = null;
+let desktopRendersNext = false;
+let desktopPageUrl = "about:blank";
+/** Replaces the answer to the desktop page's size reads. */
+let desktopSizeAnswer: (() => Promise<Record<string, unknown>>) | null = null;
 let desktopAvailable = false;
 let desktopConnectionFailure: Error | null = null;
 let desktopSetupFailure: "cdp" | "rendering" | null = null;
@@ -340,10 +344,7 @@ let desktopAttachGate: PromiseWithResolvers<boolean> | null = null;
 let desktopAttachStarted: PromiseWithResolvers<void> | null = null;
 let desktopDetachConsumed: PromiseWithResolvers<void> | null = null;
 const desktopAttachRequests: string[] = [];
-let desktopRendersNext = false;
-let desktopPageUrl = "about:blank";
-/** Replaces the answer to the desktop page's size reads. */
-let desktopSizeAnswer: (() => Promise<Record<string, unknown>>) | null = null;
+/** Pages the fake desktop takes back or returns; the channel's streams emit them. */
 const desktopDetaches = new NodeEvents.EventEmitter();
 let desktopDetachReady = Promise.withResolvers<void>();
 const desktopTabs = new Set<string>();
@@ -354,6 +355,7 @@ const desktopRenders = (tabId: string) => {
   }
   return desktopTabs.has(tabId);
 };
+const shownDesktopTabs = new Set<string>();
 const releasedDesktopTabs: Array<string> = [];
 const desktopTurns = new NodeEvents.EventEmitter();
 let desktopConnected = Promise.withResolvers<void>();
@@ -428,10 +430,12 @@ const dependencies = Layer.mergeAll(
       ),
     ),
     isAttached: (key) => Effect.sync(() => desktopRenders(key.tabId)),
+    isShown: (key) => shownDesktopTabs.has(key.tabId),
     endpoint: (key) =>
       Effect.acquireRelease(Effect.succeed(`ws://desktop/${key.tabId}`), () =>
         Effect.sync(() => {
           releasedDesktopTabs.push(key.tabId);
+          desktopDetaches.emit("release", key.tabId);
           desktopReleased.resolve();
         }),
       ),
@@ -513,7 +517,12 @@ beforeEach(() => {
   keyCopy = "";
   focusedFrame = null;
   desktopTabs.clear();
+  shownDesktopTabs.clear();
   desktopRendersNext = false;
+  desktopPageUrl = "about:blank";
+  desktopSizeAnswer = null;
+  desktopDetachReady = Promise.withResolvers<void>();
+  desktopReleased = Promise.withResolvers<void>();
   desktopAvailable = false;
   desktopConnectionFailure = null;
   desktopSetupFailure = null;
@@ -523,10 +532,6 @@ beforeEach(() => {
   desktopAttachStarted = null;
   desktopDetachConsumed = null;
   desktopAttachRequests.length = 0;
-  desktopPageUrl = "about:blank";
-  desktopSizeAnswer = null;
-  desktopDetachReady = Promise.withResolvers<void>();
-  desktopReleased = Promise.withResolvers<void>();
   releasedDesktopTabs.length = 0;
   desktopConnections.length = 0;
   desktopConnected = Promise.withResolvers<void>();
@@ -2397,6 +2402,75 @@ it.live("failed session and browser launches release capacity, as does closing a
   ).pipe(Effect.provide(layer)),
 );
 
+it.live("a full server takes back the slot of the longest idle agent tab nobody views", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const broker = yield* Broker.PreviewAutomationBroker;
+      const manager = yield* Manager.PreviewManager;
+      yield* ServerBrowser.ServerBrowser;
+      yield* Effect.yieldNow;
+      const now = vi.spyOn(Date, "now").mockReturnValue(0);
+      yield* Effect.addFinalizer(() => Effect.sync(() => now.mockRestore()));
+      const open = (providerSessionId: string) => {
+        desktopRendersNext = true;
+        return broker.invoke<PreviewAutomationStatus>({
+          scope: asSession(providerSessionId),
+          operation: "open",
+          input: { reuseExistingTab: false, open: false },
+        });
+      };
+      const opened: Array<string> = [];
+      for (let index = 0; index < 32; index++) {
+        now.mockReturnValue(index);
+        opened.push((yield* open(`agent-${Math.floor(index / 8)}`)).tabId!);
+      }
+
+      now.mockReturnValue(100);
+      yield* broker.invoke<PreviewAutomationStatus>({
+        scope: asSession("agent-observer"),
+        operation: "status",
+        tabId: PreviewTabId.make(opened[0]!),
+        input: {},
+      });
+
+      // Inside the idle window every desktop tab keeps its slot.
+      now.mockReturnValue(29 * 60 * 1000);
+      expect(yield* open("agent-new").pipe(Effect.flip)).toMatchObject({ reason: "tabLimit" });
+      expect(releasedDesktopTabs).toEqual([]);
+
+      now.mockReturnValue(31 * 60 * 1000);
+      // A session at its own limit couldn't use a freed slot, so nothing closes for it.
+      expect(yield* open("agent-3").pipe(Effect.flip)).toMatchObject({ reason: "tabLimit" });
+      expect(releasedDesktopTabs).toEqual([]);
+      // Tabs a desktop window shows keep their slots however long they sit idle.
+      for (const tabId of opened) shownDesktopTabs.add(tabId);
+      expect(yield* open("agent-new").pipe(Effect.flip)).toMatchObject({ reason: "tabLimit" });
+      expect(releasedDesktopTabs).toEqual([]);
+      shownDesktopTabs.clear();
+      shownDesktopTabs.add(opened[1]!);
+      const events = yield* manager.subscribeEvents;
+      const releases = yield* Queue.unbounded<string>();
+      const recordRelease = (tabId: string) => Queue.offerUnsafe(releases, tabId);
+      desktopDetaches.on("release", recordRelease);
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => desktopDetaches.off("release", recordRelease)),
+      );
+      const fresh = yield* open("agent-new");
+      expect(fresh.tabId).toBeDefined();
+      expect(yield* Queue.take(releases)).toBe(opened[2]);
+      yield* Stream.fromSubscription(events).pipe(
+        Stream.filter((event) => event.type === "closed" && event.tabId === opened[2]),
+        Stream.runHead,
+      );
+      expect(releasedDesktopTabs).toEqual([opened[2]]);
+      const { sessions } = yield* manager.list({ threadId: scope.thread.threadId });
+      expect(sessions.map((session) => session.tabId).toSorted()).toEqual(
+        [...opened.filter((tabId) => tabId !== opened[2]), fresh.tabId!].toSorted(),
+      );
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
 it.live.each(["wait", "pause", "capture", "resume"] as const)(
   "a stalled snapshot %s releases the tab queue and capture lock without leaking a paused viewer",
   (stage) =>
@@ -2674,104 +2748,83 @@ it.live(
       }),
     ).pipe(Effect.provide(layer)),
 );
-
-it.live("late desktop attachment keeps downloads and an active headless recording", () =>
+it.live("a popup from a person's click is shown to that person, with its opener kept", () =>
   Effect.scoped(
     Effect.gen(function* () {
-      const { browser, broker, tabId } = yield* ready;
-      const viewer = yield* browser.attachViewer(viewerInput(tabId, true));
-      yield* viewer.input({ type: "takeControl" });
+      const browser = yield* ServerBrowser.ServerBrowser;
       const manager = yield* Manager.PreviewManager;
-      const page = contexts[0]!.page;
-      const saved = Promise.withResolvers<string>();
-      const written = Promise.withResolvers<void>();
-      page.emit("download", {
-        failure: async () => null,
-        delete: async () => {},
-        saveAs: (path: string) => {
-          saved.resolve(path);
-          return written.promise;
-        },
-        suggestedFilename: () => "report.csv",
-        url: () => "blob:http://localhost/1",
-      });
-      const fs = yield* FileSystem.FileSystem;
-      yield* fs.writeFileString(yield* Effect.promise(() => saved.promise), "a,b");
-      written.resolve();
-      const status = () =>
-        broker.invoke<PreviewAutomationStatus>({ scope, tabId, operation: "status", input: {} });
-      let offered = yield* Queue.take(viewer.output);
-      while (offered._tag !== "download") offered = yield* Queue.take(viewer.output);
-      yield* viewer.input({ type: "releaseControl" });
-      const before = yield* status();
-      yield* broker.invoke({ scope, tabId, operation: "recordingStart", input: {} });
-      const encoder = scratchPages[0]!;
-      const attached = Promise.withResolvers<void>();
-      const list = manager.list;
-      const spy = vi
-        .spyOn(manager, "list")
-        .mockImplementation((input) =>
-          list(input).pipe(Effect.tap(() => Effect.sync(() => attached.resolve()))),
-        );
-      yield* Effect.addFinalizer(() => Effect.sync(() => spy.mockRestore()));
-      desktopTabs.add(tabId);
-      desktopDetaches.emit("attach", { threadId: scope.thread.threadId, tabId });
-      // The stream processes this missing tab after the real attach, providing a completion barrier.
-      desktopDetaches.emit("attach", { threadId: scope.thread.threadId, tabId: "attach-barrier" });
-      yield* Effect.promise(() => attached.promise);
-      expect(page.close).not.toHaveBeenCalled();
-      expect(encoder.close).not.toHaveBeenCalled();
+      yield* Effect.yieldNow;
+      desktopAvailable = true;
+      const opened = yield* manager.open({ threadId: scope.thread.threadId, runtime: "server" });
+      const watcher = yield* browser.attachViewer(viewerInput(opened.tabId, false));
+      const viewer = yield* browser.attachViewer(viewerInput(opened.tabId, true));
+      yield* viewer.input({ type: "takeControl" });
+      const opener = contexts[0]!.page;
+      const popup = makeContext();
+      const events = yield* manager.subscribeEvents;
+      opener.emit("popup", popup.page);
+      let shown = yield* Queue.take(viewer.output);
+      while (shown._tag !== "popup") shown = yield* Queue.take(viewer.output);
+      const sessions = (yield* manager.list({ threadId: scope.thread.threadId })).sessions;
+      expect(sessions.map((session) => session.tabId)).toEqual(
+        expect.arrayContaining([opened.tabId, shown.tabId]),
+      );
+      expect(sessions.find((session) => session.tabId === shown.tabId)?.serverPageMode).toBe(
+        "headless",
+      );
+      expect(
+        (yield* PubSub.takeUpTo(events, 10)).find((event) => event.type === "opened"),
+      ).toMatchObject({ snapshot: { tabId: shown.tabId, serverPageMode: "headless" } });
+      yield* browser.attachViewer(viewerInput(shown.tabId, false));
+      expect(desktopAttachRequests).toEqual([opened.tabId]);
       expect(desktopConnections).toEqual([]);
-      expect((yield* status()).downloads).toEqual(before.downloads);
-      expect((yield* status()).serverPageMode).toBe("headless");
-      encoder.evaluate
-        .mockResolvedValueOnce({ mimeType: "video/webm", bytes: 5, count: 1 })
-        .mockResolvedValueOnce("dmlkZW8=");
-      const recording = yield* broker.invoke<{ path: string; sizeBytes: number }>({
-        scope,
-        tabId,
-        operation: "recordingStop",
-        input: {},
-      });
-      expect(recording.sizeBytes).toBe(5);
-      expect(yield* fs.readFileString(recording.path)).toBe("video");
-      expect(yield* fs.exists(before.downloads?.[0]?.path ?? "")).toBe(true);
+      expect(contexts).toHaveLength(1);
+      expect((yield* Queue.clear(watcher.output)).some((item) => item._tag === "popup")).toBe(
+        false,
+      );
+      expect(opener.close).not.toHaveBeenCalled();
     }),
   ).pipe(Effect.provide(layer)),
 );
 
-it.live("a capture timeout releases the tab so the next agent action works", () =>
+it.live("a popup closed before adoption does not leave its page behind", () =>
   Effect.scoped(
     Effect.gen(function* () {
-      const { broker, tabId } = yield* ready;
-      const cdp = contexts[0]!.sessions[0]!;
-      const started = Promise.withResolvers<void>();
-      const captured = Promise.withResolvers<Record<string, unknown>>();
-      const send = cdp.send.getMockImplementation()!;
-      cdp.send.mockImplementation((method, input) => {
-        if (method !== "Page.captureScreenshot") return send(method, input);
-        started.resolve();
-        return captured.promise;
-      });
-      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const { tabId } = yield* ready;
+      const manager = yield* Manager.PreviewManager;
+      const events = yield* manager.subscribeEvents;
+      const reading = Promise.withResolvers<void>();
+      const read = Promise.withResolvers<void>();
+      const closed = Promise.withResolvers<void>();
+      const list = manager.list;
+      const spy = vi.spyOn(manager, "list").mockImplementationOnce((input) =>
+        Effect.promise(async () => {
+          reading.resolve();
+          await read.promise;
+        }).pipe(Effect.andThen(list(input))),
+      );
       yield* Effect.addFinalizer(() =>
         Effect.sync(() => {
-          captured.resolve({ data: "ZnJhbWU=" });
-          vi.useRealTimers();
+          read.resolve();
+          spy.mockRestore();
         }),
       );
-      const snapshot = yield* broker
-        .invoke<PreviewAutomationSnapshot>({ scope, tabId, operation: "snapshot", input: {} })
-        .pipe(Effect.flip, Effect.forkScoped);
-      yield* Effect.promise(() => started.promise);
-      yield* Effect.promise(() => vi.advanceTimersByTimeAsync(5_000));
-      expect(yield* Fiber.join(snapshot)).toMatchObject({
-        _tag: "PreviewAutomationExecutionError",
-        reason: expect.stringContaining("did not draw a frame"),
-      });
+      const popup = makeContext();
+      popup.page.once("close", () => closed.resolve());
+      contexts[0]!.page.emit("popup", popup.page);
+      yield* Effect.promise(() => reading.promise);
+      const opened = yield* PubSub.take(events);
+      expect(opened.type).toBe("opened");
+      yield* manager.close({ threadId: scope.thread.threadId, tabId: opened.tabId });
+      read.resolve();
+      yield* Effect.promise(() => closed.promise);
+      expect(popup.page.isClosed()).toBe(true);
+      expect(contexts[0]!.page.isClosed()).toBe(false);
       expect(
-        yield* broker.invoke({ scope, tabId, operation: "evaluate", input: { expression: "42" } }),
-      ).toBe("evaluated");
+        (yield* manager.list({ threadId: scope.thread.threadId })).sessions.map(
+          (session) => session.tabId,
+        ),
+      ).toEqual([tabId]);
     }),
   ).pipe(Effect.provide(layer)),
 );
@@ -3020,83 +3073,43 @@ it.live("a standalone server still opens a headless page when no desktop channel
   ).pipe(Effect.provide(layer)),
 );
 
-it.live("a popup from a person's click is shown to that person, with its opener kept", () =>
+it.live("drives the desktop's own page for a tab the desktop renders", () =>
   Effect.scoped(
     Effect.gen(function* () {
       const browser = yield* ServerBrowser.ServerBrowser;
+      const broker = yield* Broker.PreviewAutomationBroker;
       const manager = yield* Manager.PreviewManager;
       yield* Effect.yieldNow;
-      desktopAvailable = true;
+      desktopRendersNext = true;
       const opened = yield* manager.open({ threadId: scope.thread.threadId, runtime: "server" });
-      const watcher = yield* browser.attachViewer(viewerInput(opened.tabId, false));
       const viewer = yield* browser.attachViewer(viewerInput(opened.tabId, true));
+      expect(
+        (yield* manager.list({ threadId: scope.thread.threadId })).sessions[0]?.serverPageMode,
+      ).toBe("native");
+      expect(desktopConnections.map((connection) => connection.endpoint)).toEqual([
+        `ws://desktop/${opened.tabId}`,
+      ]);
+      // No headless context was launched for it.
+      expect(contexts).toEqual([]);
+      const page = desktopConnections[0]!.context.page;
+      // The desktop panel sizes its page, so a viewer resize leaves it alone.
       yield* viewer.input({ type: "takeControl" });
-      const opener = contexts[0]!.page;
-      const popup = makeContext();
-      const events = yield* manager.subscribeEvents;
-      opener.emit("popup", popup.page);
-      let shown = yield* Queue.take(viewer.output);
-      while (shown._tag !== "popup") shown = yield* Queue.take(viewer.output);
-      const sessions = (yield* manager.list({ threadId: scope.thread.threadId })).sessions;
-      expect(sessions.map((session) => session.tabId)).toEqual(
-        expect.arrayContaining([opened.tabId, shown.tabId]),
-      );
-      expect(sessions.find((session) => session.tabId === shown.tabId)?.serverPageMode).toBe(
-        "headless",
-      );
-      expect(
-        (yield* PubSub.takeUpTo(events, 10)).find((event) => event.type === "opened"),
-      ).toMatchObject({ snapshot: { tabId: shown.tabId, serverPageMode: "headless" } });
-      yield* browser.attachViewer(viewerInput(shown.tabId, false));
-      expect(desktopAttachRequests).toEqual([opened.tabId]);
-      expect(desktopConnections).toEqual([]);
-      expect(contexts).toHaveLength(1);
-      expect((yield* Queue.clear(watcher.output)).some((item) => item._tag === "popup")).toBe(
-        false,
-      );
-      expect(opener.close).not.toHaveBeenCalled();
-    }),
-  ).pipe(Effect.provide(layer)),
-);
-
-it.live("a popup closed before adoption does not leave its page behind", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const { tabId } = yield* ready;
-      const manager = yield* Manager.PreviewManager;
-      const events = yield* manager.subscribeEvents;
-      const reading = Promise.withResolvers<void>();
-      const read = Promise.withResolvers<void>();
-      const closed = Promise.withResolvers<void>();
-      const list = manager.list;
-      const spy = vi.spyOn(manager, "list").mockImplementationOnce((input) =>
-        Effect.promise(async () => {
-          reading.resolve();
-          await read.promise;
-        }).pipe(Effect.andThen(list(input))),
-      );
-      yield* Effect.addFinalizer(() =>
-        Effect.sync(() => {
-          read.resolve();
-          spy.mockRestore();
-        }),
-      );
-      const popup = makeContext();
-      popup.page.once("close", () => closed.resolve());
-      contexts[0]!.page.emit("popup", popup.page);
-      yield* Effect.promise(() => reading.promise);
-      const opened = yield* PubSub.take(events);
-      expect(opened.type).toBe("opened");
+      yield* viewer.input({ type: "resize", width: 390, height: 844 });
+      expect(page.setViewportSize).not.toHaveBeenCalled();
+      yield* viewer.input({ type: "releaseControl" });
+      // Agents reach it through the same engine as a headless tab.
+      const evaluated = yield* broker.invoke({
+        scope: asSession("agent-desktop"),
+        operation: "status",
+        input: {},
+        tabId: PreviewTabId.make(opened.tabId),
+      });
+      expect(evaluated).toMatchObject({ tabId: opened.tabId });
+      // Closing the session lets go of the desktop's page without closing it.
       yield* manager.close({ threadId: scope.thread.threadId, tabId: opened.tabId });
-      read.resolve();
-      yield* Effect.promise(() => closed.promise);
-      expect(popup.page.isClosed()).toBe(true);
-      expect(contexts[0]!.page.isClosed()).toBe(false);
-      expect(
-        (yield* manager.list({ threadId: scope.thread.threadId })).sessions.map(
-          (session) => session.tabId,
-        ),
-      ).toEqual([tabId]);
+      while (releasedDesktopTabs.length === 0) yield* Effect.yieldNow;
+      expect(releasedDesktopTabs).toEqual([opened.tabId]);
+      expect(page.close).not.toHaveBeenCalled();
     }),
   ).pipe(Effect.provide(layer)),
 );
@@ -3120,6 +3133,106 @@ it.live("a desktop page that comes back reconnects without waiting for a viewer"
   ).pipe(Effect.provide(layer)),
 );
 
+it.live("late desktop attachment keeps downloads and an active headless recording", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { browser, broker, tabId } = yield* ready;
+      const viewer = yield* browser.attachViewer(viewerInput(tabId, true));
+      yield* viewer.input({ type: "takeControl" });
+      const manager = yield* Manager.PreviewManager;
+      const page = contexts[0]!.page;
+      const saved = Promise.withResolvers<string>();
+      const written = Promise.withResolvers<void>();
+      page.emit("download", {
+        failure: async () => null,
+        delete: async () => {},
+        saveAs: (path: string) => {
+          saved.resolve(path);
+          return written.promise;
+        },
+        suggestedFilename: () => "report.csv",
+        url: () => "blob:http://localhost/1",
+      });
+      const fs = yield* FileSystem.FileSystem;
+      yield* fs.writeFileString(yield* Effect.promise(() => saved.promise), "a,b");
+      written.resolve();
+      const status = () =>
+        broker.invoke<PreviewAutomationStatus>({ scope, tabId, operation: "status", input: {} });
+      let offered = yield* Queue.take(viewer.output);
+      while (offered._tag !== "download") offered = yield* Queue.take(viewer.output);
+      yield* viewer.input({ type: "releaseControl" });
+      const before = yield* status();
+      yield* broker.invoke({ scope, tabId, operation: "recordingStart", input: {} });
+      const encoder = scratchPages[0]!;
+      const attached = Promise.withResolvers<void>();
+      const list = manager.list;
+      const spy = vi
+        .spyOn(manager, "list")
+        .mockImplementation((input) =>
+          list(input).pipe(Effect.tap(() => Effect.sync(() => attached.resolve()))),
+        );
+      yield* Effect.addFinalizer(() => Effect.sync(() => spy.mockRestore()));
+      desktopTabs.add(tabId);
+      desktopDetaches.emit("attach", { threadId: scope.thread.threadId, tabId });
+      // The stream processes this missing tab after the real attach, providing a completion barrier.
+      desktopDetaches.emit("attach", { threadId: scope.thread.threadId, tabId: "attach-barrier" });
+      yield* Effect.promise(() => attached.promise);
+      expect(page.close).not.toHaveBeenCalled();
+      expect(encoder.close).not.toHaveBeenCalled();
+      expect(desktopConnections).toEqual([]);
+      expect((yield* status()).downloads).toEqual(before.downloads);
+      expect((yield* status()).serverPageMode).toBe("headless");
+      encoder.evaluate
+        .mockResolvedValueOnce({ mimeType: "video/webm", bytes: 5, count: 1 })
+        .mockResolvedValueOnce("dmlkZW8=");
+      const recording = yield* broker.invoke<{ path: string; sizeBytes: number }>({
+        scope,
+        tabId,
+        operation: "recordingStop",
+        input: {},
+      });
+      expect(recording.sizeBytes).toBe(5);
+      expect(yield* fs.readFileString(recording.path)).toBe("video");
+      expect(yield* fs.exists(before.downloads?.[0]?.path ?? "")).toBe(true);
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
+it.live("a capture timeout releases the tab so the next agent action works", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { broker, tabId } = yield* ready;
+      const cdp = contexts[0]!.sessions[0]!;
+      const started = Promise.withResolvers<void>();
+      const captured = Promise.withResolvers<Record<string, unknown>>();
+      const send = cdp.send.getMockImplementation()!;
+      cdp.send.mockImplementation((method, input) => {
+        if (method !== "Page.captureScreenshot") return send(method, input);
+        started.resolve();
+        return captured.promise;
+      });
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          captured.resolve({ data: "ZnJhbWU=" });
+          vi.useRealTimers();
+        }),
+      );
+      const snapshot = yield* broker
+        .invoke<PreviewAutomationSnapshot>({ scope, tabId, operation: "snapshot", input: {} })
+        .pipe(Effect.flip, Effect.forkScoped);
+      yield* Effect.promise(() => started.promise);
+      yield* Effect.promise(() => vi.advanceTimersByTimeAsync(5_000));
+      expect(yield* Fiber.join(snapshot)).toMatchObject({
+        _tag: "PreviewAutomationExecutionError",
+        reason: expect.stringContaining("did not draw a frame"),
+      });
+      expect(
+        yield* broker.invoke({ scope, tabId, operation: "evaluate", input: { expression: "42" } }),
+      ).toBe("evaluated");
+    }),
+  ).pipe(Effect.provide(layer)),
+);
 it.live("an explicit visible profile open refuses to visit the URL through headless fallback", () =>
   Effect.scoped(
     Effect.gen(function* () {
