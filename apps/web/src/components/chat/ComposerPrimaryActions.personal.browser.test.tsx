@@ -19,8 +19,6 @@ function Actions() {
           pendingAction={null}
           isRunning={false}
           canInterrupt={false}
-          showPlanFollowUpPrompt={false}
-          promptHasText
           isSendBusy={false}
           sendDisabledReason={null}
           isEnvironmentUnavailable={false}
@@ -28,7 +26,6 @@ function Actions() {
           hasSendableContent
           onPreviousPendingQuestion={() => {}}
           onInterrupt={() => {}}
-          onImplementPlanInNewThread={() => {}}
           compactBeforeSendTokens={tokens}
           keepFullHistory={keepFullHistory}
           onToggleKeepFullHistory={() => setKeepFullHistory((current) => !current)}
