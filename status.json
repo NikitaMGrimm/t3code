@@ -1,17 +1,15 @@
 {
   "schema": 1,
-  "phase": "conflict",
+  "phase": "building",
   "upstreamTag": "v0.1.8-nightly.20261109.4392",
-  "conflicts": [
-    "apps/web/src/components/chat/ComposerFooterControls.tsx",
-    "apps/web/src/components/chat/ComposerPrimaryActions.tsx"
-  ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/42543742799",
+  "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/42546436784",
   "releasedVersion": "0.1.8-nightly.20261108.1794164196205",
-  "baseCommit": "a703f923ee6452abcb71fbc3ab971f538e349429",
-  "sequence": 1794186389024,
-  "conflictStage": "personal",
-  "conflictIdentity": "8ed6526b143d59c66f4b2cad4ed47d39cf3e52d1e148a43d53b78875dd2ee7e4",
+  "baseCommit": "a82253c5c69b32452c529658a819ed23a048d622",
+  "sequence": 1794188184573,
+  "resolvedTestImports": [],
+  "candidateCommit": "7157b59241388301bf0b307d18e1e016f17825b5",
+  "candidateVersion": "0.1.8-nightly.20261109.1794188184573",
   "inputs": {
     "upstreamTag": "v0.1.8-nightly.20261109.4392",
     "pullRequests": [
@@ -41,7 +39,7 @@
         "baseRef": "main"
       }
     ],
-    "resolutions": "ebc8a8f860a83b02fb7db07e93df8ec4b05d0f52473926c1e7a87348da53d78a"
+    "resolutions": "38d696246cfce9a2035041037e402612b9c1b82c9da84464fa3d79e78834ec2f"
   },
   "pullRequests": [
     {
