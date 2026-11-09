@@ -1,18 +1,19 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.8-nightly.20261109.4399",
+  "upstreamTag": "v0.1.8-nightly.20261109.4429",
   "conflicts": [
-    "apps/server/src/provider/agentContextBudget.json"
+    "apps/web/src/components/chat/MessagesTimeline.tsx"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/42559961567",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/42679983391",
   "releasedVersion": "0.1.8-nightly.20261109.1794188184573",
   "baseCommit": "7157b59241388301bf0b307d18e1e016f17825b5",
-  "sequence": 1794197210237,
-  "conflictStage": "personal",
-  "conflictIdentity": "ecb7803b9a1de41ffd9d6b0e93daa781f724cdb69cfd934bb9d0d4a1abe7bd57",
+  "sequence": 1794251135921,
+  "conflictPullRequest": 22788,
+  "conflictStage": "pull_request",
+  "conflictIdentity": "7111afc1919935d020723748c7d5d19490eddc0f9c9a26e89fe380ea1c00b8fb",
   "inputs": {
-    "upstreamTag": "v0.1.8-nightly.20261109.4399",
+    "upstreamTag": "v0.1.8-nightly.20261109.4429",
     "pullRequests": [
       {
         "number": 17871,
