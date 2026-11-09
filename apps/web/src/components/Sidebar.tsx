@@ -2019,6 +2019,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     );
   };
   const sortableIds = sidebarListItems.map(sidebarListItemId);
+  const sectionDividersEnabled = useClientSettings((s) => s.sidebarSectionDividersEnabled);
   // Keep non-drag orders constant to preserve sorting strategy and row identity during streaming.
   const { settledOrder: draggedSettledOrder, activeOrder: draggedActiveOrder } =
     dragState === null
@@ -3502,7 +3503,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 key="pinned-header"
                                 marker="pinned-header"
                                 label="Pinned"
-                                visible={from !== null}
+                                visible={sectionDividersEnabled || from !== null}
+                                persistent={sectionDividersEnabled}
                                 isDropTarget={dragTargetSection === "pinned"}
                               />,
                             );
@@ -3513,7 +3515,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 key="pinned-divider"
                                 marker="pinned-divider"
                                 label="Active"
-                                visible={from !== null}
+                                visible={sectionDividersEnabled || from !== null}
+                                persistent={sectionDividersEnabled}
                                 isDropTarget={dragTargetSection === "active"}
                               />,
                             );
