@@ -1,17 +1,19 @@
 {
   "schema": 1,
-  "phase": "ready",
-  "upstreamTag": "v0.1.8-nightly.20261108.4380",
-  "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/42512481056",
+  "phase": "conflict",
+  "upstreamTag": "v0.1.8-nightly.20261109.4392",
+  "conflicts": [
+    "apps/web/src/components/chat/ComposerFooterControls.tsx",
+    "apps/web/src/components/chat/ComposerPrimaryActions.tsx"
+  ],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/42543742799",
   "releasedVersion": "0.1.8-nightly.20261108.1794164196205",
-  "baseCommit": "f05c9ff5be8788eb88a873328c53b79aae87cce3",
-  "sequence": 1794164196205,
-  "resolvedTestImports": [],
-  "candidateCommit": "a703f923ee6452abcb71fbc3ab971f538e349429",
-  "candidateVersion": "0.1.8-nightly.20261108.1794164196205",
+  "baseCommit": "a703f923ee6452abcb71fbc3ab971f538e349429",
+  "sequence": 1794186389024,
+  "conflictStage": "personal",
+  "conflictIdentity": "8ed6526b143d59c66f4b2cad4ed47d39cf3e52d1e148a43d53b78875dd2ee7e4",
   "inputs": {
-    "upstreamTag": "v0.1.8-nightly.20261108.4380",
+    "upstreamTag": "v0.1.8-nightly.20261109.4392",
     "pullRequests": [
       {
         "number": 17871,
