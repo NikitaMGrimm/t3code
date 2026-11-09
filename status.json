@@ -5,10 +5,10 @@
   "conflicts": [
     "apps/web/src/components/chat/MessagesTimeline.tsx"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/42694196569",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/42701106375",
   "releasedVersion": "0.1.8-nightly.20261109.1794188184573",
   "baseCommit": "7157b59241388301bf0b307d18e1e016f17825b5",
-  "sequence": 1794256457492,
+  "sequence": 1794259062595,
   "conflictPullRequest": 22788,
   "conflictStage": "pull_request",
   "conflictIdentity": "7111afc1919935d020723748c7d5d19490eddc0f9c9a26e89fe380ea1c00b8fb",
@@ -37,7 +37,7 @@
       },
       {
         "number": 24138,
-        "headSha": "ef4cfa7fa1cb67abd460ae95ca2a7f1cc963b4ad",
+        "headSha": "daface29c781d617e623820570ca7c5333271010",
         "baseRef": "main"
       }
     ],
@@ -95,8 +95,8 @@
     {
       "number": 24138,
       "title": "fix(composer): steer instead of queueing during automatic compaction",
-      "headSha": "ef4cfa7fa1cb67abd460ae95ca2a7f1cc963b4ad",
-      "baseSha": "becf853defb6127dbe4447860383777d69346b6f",
+      "headSha": "daface29c781d617e623820570ca7c5333271010",
+      "baseSha": "ad9e87111fd9b2f10ec320b4de0a6ad3a092278a",
       "headRef": "fix/steer-during-auto-compaction",
       "baseRef": "main",
       "author": "NikitaMGrimm",
