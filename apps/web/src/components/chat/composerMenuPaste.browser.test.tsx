@@ -81,19 +81,14 @@ function ComposerHarness({ draft }: { draft: string }) {
         onPaste={() => {}}
       />
       <ComposerFooterModeControls
-        showInteractionModeToggle
-        interactionMode="default"
         runtimeMode="approval-required"
         runtimeModeOptions={runtimeModeOptions}
-        onToggleInteractionMode={() => {}}
         onRuntimeModeChange={() => {}}
       />
       <CompactComposerControlsMenu
-        interactionMode="default"
+        showPermissions
         runtimeMode="approval-required"
         runtimeModeOptions={runtimeModeOptions}
-        showInteractionModeToggle
-        onToggleInteractionMode={() => {}}
         onRuntimeModeChange={() => {}}
       />
       <BranchControl />
@@ -218,7 +213,7 @@ describe("composer picker paste", () => {
 
   it("routes a paste on a focused composer control only while no popup is open", async () => {
     await using screen = await renderComposer();
-    const toggle = screen.getByRole("button", { name: /click to enter plan mode/i });
+    const toggle = screen.getByRole("button", { name: "More composer controls" });
     (toggle.element() as HTMLElement).focus();
     const listener = (event: ClipboardEvent) => {
       routed.push(isComposerControlPaste(event));
