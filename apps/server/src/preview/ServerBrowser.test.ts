@@ -3238,7 +3238,7 @@ it.live("drives the desktop's own page for a tab the desktop renders", () =>
       expect(evaluated).toMatchObject({ tabId: opened.tabId });
       // Closing the session lets go of the desktop's page without closing it.
       yield* manager.close({ threadId: scope.thread.threadId, tabId: opened.tabId });
-      while (releasedDesktopTabs.length === 0) yield* Effect.yieldNow;
+      yield* Effect.promise(() => desktopReleased.promise);
       expect(releasedDesktopTabs).toEqual([opened.tabId]);
       expect(page.close).not.toHaveBeenCalled();
     }),
@@ -3256,7 +3256,7 @@ it.live("a desktop page that comes back reconnects without waiting for a viewer"
       yield* Effect.promise(() => desktopDetachListening.promise);
       desktopConnected = Promise.withResolvers<void>();
       desktopDetaches.emit("detach", { threadId: scope.thread.threadId, tabId: opened.tabId });
-      while (releasedDesktopTabs.length === 0) yield* Effect.yieldNow;
+      yield* Effect.promise(() => desktopReleased.promise);
       desktopDetaches.emit("attach", { threadId: scope.thread.threadId, tabId: opened.tabId });
       yield* Effect.promise(() => desktopConnected.promise);
       expect(desktopConnections).toHaveLength(2);
