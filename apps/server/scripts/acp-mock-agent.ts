@@ -100,7 +100,7 @@ const sessionId =
   timelineFixtureRoot === undefined ? "mock-session-1" : `timeline-fixture-${process.pid}`;
 
 let currentModeId = antigravityProfile
-  ? "default"
+  ? (process.env.T3_ACP_INITIAL_MODE ?? "default")
   : copilotModesProfile
     ? copilotModeId("agent")
     : "ask";
