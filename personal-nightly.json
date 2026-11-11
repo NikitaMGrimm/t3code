@@ -2,7 +2,7 @@
   "repository": "NikitaMGrimm/t3code",
   "branch": "personal-nightly",
   "upstreamRepository": "pingdotgg/t3code",
-  "upstreamTag": "v0.1.9-nightly.20261110.4478",
+  "upstreamTag": "v0.1.10-nightly.20261111.4544",
   "pullRequests": [
     {
       "number": 17871,
@@ -51,19 +51,7 @@
       "url": "https://github.com/pingdotgg/t3code/pull/23673",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 24138,
-      "title": "fix(composer): steer instead of queueing during automatic compaction",
-      "headSha": "daface29c781d617e623820570ca7c5333271010",
-      "baseSha": "ad9e87111fd9b2f10ec320b4de0a6ad3a092278a",
-      "headRef": "fix/steer-during-auto-compaction",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/24138",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "1ad1ad74dc2d48ef1c698ade02a018727f0c8168"
+  "prBaseline": "74187b6f53c28856c80ac6098f2aef3b60c43923"
 }
