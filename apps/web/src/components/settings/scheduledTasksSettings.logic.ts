@@ -1,3 +1,5 @@
+import type { TimestampFormat } from "@t3tools/contracts/settings";
+import { formatTimeOfDay } from "../../timestampFormat";
 import { isListedThreadLineage, isWebhookDedupeTemplate } from "@t3tools/contracts";
 import {
   EnvironmentId,
@@ -44,6 +46,7 @@ export function scheduleLabel(
   schedule: ScheduledTaskSchedule,
   timeZone?: string,
   runAt?: string | null,
+  timestampFormat?: TimestampFormat,
 ): string {
   if (schedule.type === "webhook") return "On webhook";
   if (schedule.type === "once") return `Once, ${ONCE_FORMATTER.format(new Date(schedule.runAt))}`;
@@ -61,7 +64,7 @@ export function scheduleLabel(
         ? "Weekdays"
         : weekdays.map((day) => WEEKDAY_LABELS[day]).join(", ");
   const zone = scheduleTimeZoneLabel(timeZone, runAt);
-  return `${days} at ${schedule.timeOfDay}${zone === undefined ? "" : ` ${zone}`}`;
+  return `${days} at ${timestampFormat === undefined ? schedule.timeOfDay : formatTimeOfDay(schedule.timeOfDay, timestampFormat)}${zone === undefined ? "" : ` ${zone}`}`;
 }
 
 export function matchesScheduledTaskScope(

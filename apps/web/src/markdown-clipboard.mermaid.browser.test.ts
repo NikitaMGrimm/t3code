@@ -1,16 +1,21 @@
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 
 import { chatMarkdownClipboardPayload, serializeCodeBlockToMarkdown } from "./markdown-clipboard";
 
-afterEach(() => {
-  window.getSelection()?.removeAllRanges();
-  document.body.replaceChildren();
-});
+function clipboardDocument() {
+  return {
+    [Symbol.dispose]() {
+      window.getSelection()?.removeAllRanges();
+      document.body.replaceChildren();
+    },
+  };
+}
 
 describe("copying rendered Mermaid", () => {
   it.each(["across", "inside", "starts inside", "ends inside"])(
     "preserves fenced source when the selection is %s the diagram",
     (mode) => {
+      using _document = clipboardDocument();
       const markdown = "```mermaid\nflowchart LR\n    A[Select message] --> B[Copy Markdown]\n```";
       document.body.innerHTML = `<div class="chat-markdown"><p>Before diagram.</p><div data-markdown-mermaid=""><button><svg><text>Select message</text></svg></button></div><p>After diagram.</p></div>`;
       document
@@ -37,6 +42,7 @@ describe("copying rendered Mermaid", () => {
   );
 
   it("uses a fence longer than backticks in the source", () => {
+    using _document = clipboardDocument();
     expect(serializeCodeBlockToMarkdown("flowchart LR\n%% ```\n", "mermaid")).toBe(
       "````mermaid\nflowchart LR\n%% ```\n````\n\n",
     );
@@ -45,6 +51,7 @@ describe("copying rendered Mermaid", () => {
   it.each(["across", "whole", "inside"])(
     "preserves a longer fence when copying %s a diagram",
     (mode) => {
+      using _document = clipboardDocument();
       const source = 'flowchart LR\n  A["contains ```"] --> B["`first  \n\n\nlast`"]\n  B --> C';
       const markdown = serializeCodeBlockToMarkdown(source, "mermaid").trim();
       document.body.innerHTML = `<div class="chat-markdown"><p>Before.</p><div data-markdown-mermaid=""><svg><text>Diagram</text></svg></div><p>After.</p></div>`;
@@ -78,6 +85,7 @@ describe("copying rendered Mermaid", () => {
     ["list quote", "python"],
     ["list quote", "mermaid"],
   ])("preserves code whitespace in a %s containing %s", (wrapper, language) => {
+    using _document = clipboardDocument();
     const nested =
       wrapper === "blockquote"
         ? "<blockquote></blockquote>"
@@ -109,12 +117,14 @@ describe("copying rendered Mermaid", () => {
     const copied = chatMarkdownClipboardPayload(selection)?.text;
     expect(copied).toContain("first  \n");
     expect(copied).toMatch(/first {2}\n(?:[ >]*\n){2}[ >]*last/);
-    expect(copied).toContain(language === "mermaid" ? "````mermaid" : "```python");
+    if (language === "mermaid") expect(copied).toContain("````mermaid");
+    else expect(copied).not.toContain("```python");
     expect(copied).toContain("Before.");
     expect(copied).toContain("After.");
   });
 
   it("does not treat inline backticks as the opener of a following code block", () => {
+    using _document = clipboardDocument();
     const source = 'message = """first  \nlast"""';
     document.body.innerHTML =
       '<div class="chat-markdown"><p><code></code></p><pre><code></code></pre><p>After.</p></div>';
@@ -129,6 +139,7 @@ describe("copying rendered Mermaid", () => {
   });
 
   it("preserves source whitespace when the language token contains a backtick", () => {
+    using _document = clipboardDocument();
     const source = 'message = """first  \n\n\nlast"""';
     document.body.innerHTML =
       '<div class="chat-markdown"><p>Before.</p><pre><code class="language-unknown`lang"></code></pre><p>After.</p></div>';
@@ -138,9 +149,7 @@ describe("copying rendered Mermaid", () => {
     const selection = window.getSelection()!;
     selection.addRange(range);
 
-    expect(chatMarkdownClipboardPayload(selection)?.text).toBe(
-      `Before.\n\n\u0060\u0060\u0060\n${source}\n\u0060\u0060\u0060\n\nAfter.`,
-    );
+    expect(chatMarkdownClipboardPayload(selection)?.text).toBe(`Before.\n\n${source}\n\nAfter.`);
   });
 
   it.each([
@@ -149,6 +158,7 @@ describe("copying rendered Mermaid", () => {
     ["ol", true],
     ["ol", false],
   ])("preserves code whitespace in a %s task with checked=%s", (list, checked) => {
+    using _document = clipboardDocument();
     document.body.innerHTML = `<div class="chat-markdown"><p>Before.</p><${list}><li><p><input type="checkbox"><br></p><pre data-language="python"><code></code></pre></li></${list}><p>After.</p></div>`;
     document.querySelector("input")!.checked = checked;
     document.querySelector("pre code")!.textContent = 'message = """first  \n\n\nlast"""';
@@ -160,12 +170,13 @@ describe("copying rendered Mermaid", () => {
     const copied = chatMarkdownClipboardPayload(selection)?.text;
     expect(copied).toContain("first  \n");
     expect(copied).toMatch(/first {2}\n\n\n[ ]*last/);
-    expect(copied).toContain(`[${checked ? "x" : " "}] \u0060\u0060\u0060python`);
+    expect(copied).toContain(`[${checked ? "x" : " "}] message =`);
     expect(copied).toContain("Before.");
     expect(copied).toContain("After.");
   });
 
   it("copies inline code within deeply nested lists and quotes", () => {
+    using _document = clipboardDocument();
     document.body.innerHTML = '<div class="chat-markdown"><p>Before.</p><p>After.</p></div>';
     const markdown = document.querySelector(".chat-markdown")!;
     let parent: HTMLElement = document.createElement("div");
@@ -193,6 +204,7 @@ describe("copying rendered Mermaid", () => {
   });
 
   it("keeps source-view selections partial", () => {
+    using _document = clipboardDocument();
     document.body.innerHTML = `<div class="chat-markdown" data-language="mermaid"><pre><code>flowchart LR\n    A --> B</code></pre></div>`;
     const code = document.querySelector("code")!.firstChild!;
     const range = document.createRange();

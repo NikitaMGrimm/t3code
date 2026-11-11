@@ -48,9 +48,8 @@ import {
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
 
-import { formatRelativeTime, formatTimeOfDay } from "../../timestampFormat";
+import { formatRelativeTime } from "../../timestampFormat";
 import { useClientSettings, useEnvironmentSettings } from "../../hooks/useSettings";
-import type { TimestampFormat } from "@t3tools/contracts/settings";
 import { TimeInput } from "../TimeInput";
 import { getCustomModelOptionsByInstance } from "../../modelSelection";
 import { providerInstanceEntriesFor } from "../../providerInstances";
@@ -2058,7 +2057,6 @@ function ScheduledTaskEditorForm({
                     aria-describedby={
                       runAtZone === undefined ? undefined : "scheduled-task-time-zone"
                     }
-                    nativeInput
                     className="w-32"
                     value={draft.timeOfDay}
                     onChange={(event) =>

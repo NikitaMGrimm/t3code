@@ -3824,7 +3824,11 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       );
       const wakes = (threadId: ThreadId) =>
         Effect.map(orchestrator.getThreadRecords(threadId, ["messages"]), ({ messages }) =>
-          messages.flatMap((message) => message.notification ?? []),
+          messages.flatMap((message) =>
+            message.notification
+              ? [{ ...message.notification, source: { kind: message.notification.source.kind } }]
+              : [],
+          ),
         );
       const watched = (threadId: ThreadId) =>
         Effect.map(orchestrator.getThreadShell(threadId), (thread) =>
@@ -3844,6 +3848,30 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         { source: { kind: "monitor" }, outcome: "completed", summary: "#22: checks passed" },
       ]);
       const { messages } = yield* orchestrator.getThreadRecords(many, ["messages"]);
+      assert.deepEqual(
+        messages[0]?.notification?.source.kind === "monitor"
+          ? messages[0].notification.source.pullRequests?.map(({ number, headSha }) => ({
+              number,
+              headSha,
+            }))
+          : [],
+        [
+          { number: 21, headSha: "abc1234def" },
+          { number: 22, headSha: "abc1234def" },
+        ],
+      );
+      assert.deepEqual(
+        messages[0]?.notification?.source.kind === "monitor"
+          ? messages[0].notification.source.pullRequests?.map(({ number, headSha }) => ({
+              number,
+              headSha,
+            }))
+          : [],
+        [
+          { number: 21, headSha: "abc1234def" },
+          { number: 22, headSha: "abc1234def" },
+        ],
+      );
       assert.include(messages[0]?.text ?? "", "news on 2 pull requests");
       assert.include(messages[0]?.text ?? "", "pull/21");
       assert.include(messages[0]?.text ?? "", "pull/22");
@@ -5045,9 +5073,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         type: "thread.pull-request-watch.sync",
         commandId: CommandId.make(`${threadId}-end-watch`),
         threadId,
-        ...key,
-        startedAt: watch.startedAt,
-        watch: null,
+        watches: [{ ...key, startedAt: watch.startedAt, watch: null }],
       });
       yield* TestClock.adjust("1 millis");
       yield* orchestrator.dispatch({
@@ -5076,6 +5102,8 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
     "closed notice",
     "closed notice unlinked and relinked",
     "reopened",
+    "combined one watched",
+    "combined none watched",
   ] as const)("revalidates a queued pull-request wake before promotion: %s", (mode) =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -5084,9 +5112,24 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         `queued-${mode}`,
         mode === "reopened",
       );
+      const combined = mode === "combined one watched" || mode === "combined none watched";
+      const otherKey = { ...key, number: 8 };
+      if (combined)
+        yield* orchestrator.dispatch({
+          type: "thread.pull-request.watch",
+          commandId: CommandId.make(`${threadId}-other-watch`),
+          threadId,
+          ...otherKey,
+          watching: true,
+          link: { url: "https://github.com/pingdotgg/t3code/pull/8", source: "agent" },
+        });
+      const otherWatch = (yield* orchestrator.getThreadShell(threadId))?.pullRequests?.find(
+        (link) => link.number === 8,
+      )?.watch;
       const finalNotice =
         mode === "closed notice" || mode === "closed notice unlinked and relinked";
       const deliverable =
+        mode === "combined one watched" ||
         mode === "still watching" ||
         mode === "closed notice" ||
         mode === "reopened" ||
@@ -5110,9 +5153,18 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         type: "thread.pull-request-watch.sync",
         commandId: CommandId.make(`${threadId}-wake`),
         threadId,
-        ...key,
-        startedAt: watch.startedAt,
-        watch: finalNotice ? null : recordedWatch,
+        watches: [
+          { ...key, startedAt: watch.startedAt, watch: finalNotice ? null : recordedWatch },
+          ...(otherWatch
+            ? [
+                {
+                  ...otherKey,
+                  startedAt: otherWatch.startedAt,
+                  watch: { ...otherWatch, headSha: "abc123" },
+                },
+              ]
+            : []),
+        ],
         wake: {
           messageId: wakeMessageId,
           text: finalNotice ? "Closed, stopped watching" : "Checks failed",
@@ -5149,7 +5201,17 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       assert.equal(wakeRun.status, "queued");
       assert.equal(userRun.status, "queued");
 
-      if (mode === "unwatch" || mode === "new watch") {
+      if (combined) {
+        for (const stoppedKey of mode === "combined none watched" ? [key, otherKey] : [key]) {
+          yield* orchestrator.dispatch({
+            type: "thread.pull-request.watch",
+            commandId: CommandId.make(`${threadId}-stop-${stoppedKey.number}`),
+            threadId,
+            ...stoppedKey,
+            watching: false,
+          });
+        }
+      } else if (mode === "unwatch" || mode === "new watch") {
         yield* orchestrator.dispatch({
           type: "thread.pull-request.watch",
           commandId: CommandId.make(`${threadId}-unwatch`),
@@ -5174,9 +5236,13 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
             type: "thread.pull-request-watch.sync",
             commandId: CommandId.make(`${threadId}-same-head`),
             threadId,
-            ...key,
-            startedAt: restarted.startedAt,
-            watch: { ...restarted, headSha: recordedWatch.headSha },
+            watches: [
+              {
+                ...key,
+                startedAt: restarted.startedAt,
+                watch: { ...restarted, headSha: recordedWatch.headSha },
+              },
+            ],
           });
         }
       } else if (mode === "unlink" || mode === "closed notice unlinked and relinked") {
@@ -5224,10 +5290,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           type: "thread.pull-request-watch.sync",
           commandId: CommandId.make(`${threadId}-exhausted`),
           threadId,
-          ...key,
-          startedAt: watch.startedAt,
-          watch: null,
-          endedWatch: recordedWatch,
+          watches: [{ ...key, startedAt: watch.startedAt, watch: null, endedWatch: recordedWatch }],
           wake: {
             messageId: MessageId.make(`${threadId}-exhausted`),
             text: "New comments, stopped watching",
@@ -5244,9 +5307,9 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           type: "thread.pull-request-watch.sync",
           commandId: CommandId.make(`${threadId}-advance`),
           threadId,
-          ...key,
-          startedAt: watch.startedAt,
-          watch: { ...recordedWatch, headSha: "def456" },
+          watches: [
+            { ...key, startedAt: watch.startedAt, watch: { ...recordedWatch, headSha: "def456" } },
+          ],
         });
       }
 
@@ -5333,9 +5396,13 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           type: "thread.pull-request-watch.sync",
           commandId: CommandId.make(`${threadId}-wake`),
           threadId,
-          ...key,
-          startedAt: watch.startedAt,
-          watch: mode === "closed notice" ? null : { ...watch, headSha: "abc123", wakes: 1 },
+          watches: [
+            {
+              ...key,
+              startedAt: watch.startedAt,
+              watch: mode === "closed notice" ? null : { ...watch, headSha: "abc123", wakes: 1 },
+            },
+          ],
           wake: {
             messageId: wakeMessageId,
             text: mode === "closed notice" ? "Closed, stopped watching" : "Checks failed",

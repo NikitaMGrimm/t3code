@@ -281,6 +281,7 @@ const SUMMARY: Record<PullRequestWatchChange["kind"], string> = {
 
 /** What a pass has to tell a thread's agent about one pull request it watches. */
 export interface PullRequestWatchNews {
+  readonly includesRemarks?: boolean;
   readonly repository: string;
   readonly number: number;
   /** The news itself, complete without the other pull requests' news. */
@@ -312,6 +313,9 @@ export function pullRequestWatchNews(input: {
   const summary = changes.map((change) => SUMMARY[change.kind]);
   if (exhausted) summary.push("stopped watching");
   return {
+    ...(input.report.changes.some((change) => change.kind === "remarks")
+      ? { includesRemarks: true }
+      : {}),
     repository: input.repository,
     number: input.number,
     text: [

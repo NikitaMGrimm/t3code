@@ -321,6 +321,21 @@ export const make = Effect.gen(function* () {
         : {
             wake: {
               ...pullRequestWatchMessage(news),
+              includesRemarks: news.some((item) => item.includesRemarks === true),
+              notification: {
+                ...pullRequestWatchMessage(news).notification,
+                source: {
+                  kind: "monitor",
+                  pullRequests: updates
+                    .filter((update) => update.news !== undefined)
+                    .map(({ target, next, news }) => ({
+                      ...identityOf(target.link),
+                      watchStartedAt: target.watch.startedAt,
+                      headSha: news?.includesRemarks === true ? null : (next?.headSha ?? null),
+                      ...(next === null ? { watchEnded: true } : {}),
+                    })),
+                },
+              },
               messageId: MessageId.make(`message:pr-watch:${uuid}`),
             },
           }),
@@ -379,7 +394,7 @@ export const make = Effect.gen(function* () {
       news: {
         repository: target.link.repository,
         number: target.link.number,
-        text: `T3 Code stopped watching pull request #${target.link.number} (${target.link.url}) because it failed to read it from the host ${READ_FAILURE_LIMIT} times in a row. Check it yourself, and call watch_pull_request to watch it again.`,
+        text: `T3 Code stopped watching pull request #${target.link.number} (${target.link.url}) because it failed to read it from the host ${READ_FAILURE_LIMIT} times in a row. Check it yourself, and call watch_pull_request only if it is still open.`,
         watching: false,
         outcome: "failed",
         summary: "stopped watching, could not read it",
@@ -745,12 +760,22 @@ export const make = Effect.gen(function* () {
       (group) =>
         Effect.gen(function* () {
           // A change feed invalidates its cached fingerprint before reading it.
-          if (changed !== undefined) yield* pullRequests.invalidate({ reference: referenceOf(group) });
+          if (changed !== undefined)
+            yield* pullRequests.invalidate({ reference: referenceOf(group) });
           const fingerprint = yield* fingerprintOf(group);
           const last = lastReads.get(group.key);
-          if (changed !== undefined && fingerprint !== null && fingerprint !== "paused" &&
-              (last === undefined || last.status !== fingerprint.status || last.remarks !== fingerprint.remarks)) {
-            yield* pullRequests.invalidate({ reference: referenceOf(group) }, { notifyReaders: true });
+          if (
+            changed !== undefined &&
+            fingerprint !== null &&
+            fingerprint !== "paused" &&
+            (last === undefined ||
+              last.status !== fingerprint.status ||
+              last.remarks !== fingerprint.remarks)
+          ) {
+            yield* pullRequests.invalidate(
+              { reference: referenceOf(group) },
+              { notifyReaders: true },
+            );
           }
           const updates =
             fingerprint === "paused"

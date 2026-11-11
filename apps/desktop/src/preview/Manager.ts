@@ -845,7 +845,13 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
   });
 
   const deliverEvent = (
-    eventKind: "state-change" | "recording-input" | "pointer-event" | "frame-request" | "open-link" | "find-result",
+    eventKind:
+      | "state-change"
+      | "recording-input"
+      | "pointer-event"
+      | "frame-request"
+      | "open-link"
+      | "find-result",
     tabId: string,
     delivery: () => Effect.Effect<void>,
   ) =>

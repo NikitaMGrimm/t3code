@@ -961,39 +961,50 @@ function isStalePullRequestWatchWake(
 ): boolean {
   const source = projection.messages.find((message) => message.id === run.userMessageId)
     ?.notification?.source;
-  if (source?.kind !== "monitor" || source.pullRequest === undefined) return false;
-  const stamp = source.pullRequest;
-  const link = threadPullRequestsOf(projection.thread).find(
-    (candidate) =>
-      candidate.source !== "stack-dismissed" && threadPullRequestKeysEqual(candidate, stamp),
-  );
-  if (link === undefined) return true;
-  if (stamp.watchEnded === true) {
-    // The final notice outlives its watch, but a replacement watch supersedes it.
-    const latestWatch = link.watch ?? link.endedWatch;
-    return latestWatch?.startedAt !== stamp.watchStartedAt;
-  }
-  if (link.watch === undefined) {
-    // A watch the server ended with a final notice still owes the wakes it queued before it.
-    const endedWithNotice = projection.messages.some((message) => {
-      const ending = message.notification?.source;
-      return (
-        ending?.kind === "monitor" &&
-        ending.pullRequest?.watchEnded === true &&
-        ending.pullRequest.watchStartedAt === stamp.watchStartedAt &&
-        threadPullRequestKeysEqual(ending.pullRequest, stamp)
-      );
-    });
-    return (
-      !endedWithNotice ||
-      link.endedWatch?.startedAt !== stamp.watchStartedAt ||
-      pullRequestSnapshotEndsWatch(link.snapshot, stamp.watchStartedAt)
-    );
-  }
+  if (source?.kind !== "monitor") return false;
+  const stamps = source.pullRequests ?? (source.pullRequest ? [source.pullRequest] : []);
   return (
-    link.watch.startedAt !== stamp.watchStartedAt ||
-    (stamp.headSha !== null && link.watch.headSha !== stamp.headSha) ||
-    pullRequestSnapshotEndsWatch(link.snapshot, link.watch.startedAt)
+    stamps.length > 0 &&
+    stamps.every((stamp) => {
+      const link = threadPullRequestsOf(projection.thread).find(
+        (candidate) =>
+          candidate.source !== "stack-dismissed" && threadPullRequestKeysEqual(candidate, stamp),
+      );
+      if (link === undefined) return true;
+      if (stamp.watchEnded === true) {
+        // The final notice outlives its watch, but a replacement watch supersedes it.
+        const latestWatch = link.watch ?? link.endedWatch;
+        return latestWatch?.startedAt !== stamp.watchStartedAt;
+      }
+      if (link.watch === undefined) {
+        // A watch the server ended with a final notice still owes the wakes it queued before it.
+        const endedWithNotice = projection.messages.some((message) => {
+          const ending = message.notification?.source;
+          return (
+            ending?.kind === "monitor" &&
+            [
+              ...(ending.pullRequests ?? []),
+              ...(ending.pullRequest ? [ending.pullRequest] : []),
+            ].some(
+              (ended) =>
+                ended.watchEnded === true &&
+                ended.watchStartedAt === stamp.watchStartedAt &&
+                threadPullRequestKeysEqual(ended, stamp),
+            )
+          );
+        });
+        return (
+          !endedWithNotice ||
+          link.endedWatch?.startedAt !== stamp.watchStartedAt ||
+          pullRequestSnapshotEndsWatch(link.snapshot, stamp.watchStartedAt)
+        );
+      }
+      return (
+        link.watch.startedAt !== stamp.watchStartedAt ||
+        (stamp.headSha !== null && link.watch.headSha !== stamp.headSha) ||
+        pullRequestSnapshotEndsWatch(link.snapshot, link.watch.startedAt)
+      );
+    })
   );
 }
 
@@ -3479,14 +3490,45 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       }
       yield* dispatchThreadMutation(command, events, effects);
       if (command.wake === undefined) return;
-      // An idle thread dispatches immediately, bypassing queued-wake validation.
+      const source = command.wake.notification.source;
+      const announced =
+        source.kind === "monitor"
+          ? (source.pullRequests ?? (source.pullRequest ? [source.pullRequest] : undefined))
+          : undefined;
+      const stamps = command.watches
+        .filter(
+          (update) =>
+            announced === undefined ||
+            announced.some((stamp) => threadPullRequestKeysEqual(stamp, update)),
+        )
+        .map((update) => {
+          const stamp = announced?.find((entry) => threadPullRequestKeysEqual(entry, update));
+          return {
+            ...normalizeThreadPullRequestKey(update),
+            watchStartedAt: update.startedAt,
+            headSha:
+              stamp === undefined
+                ? command.wake?.includesRemarks === true
+                  ? null
+                  : (update.watch?.headSha ?? null)
+                : stamp.headSha,
+            ...(update.watch === null ? { watchEnded: true } : {}),
+          };
+        });
+      // An idle thread bypasses queued-wake validation too. Keep a combined wake if any
+      // of its news is still actionable; a final notice outlives the watch it ended.
       if (
-        command.wake.notification.source.kind === "monitor" &&
-        command.watch !== null &&
-        pullRequestSnapshotEndsWatch(link.snapshot, command.startedAt)
-      ) {
+        source.kind === "monitor" &&
+        stamps.every(
+          (stamp) =>
+            stamp.watchEnded !== true &&
+            pullRequestSnapshotEndsWatch(
+              links.find((link) => threadPullRequestKeysEqual(link, stamp))?.snapshot ?? null,
+              stamp.watchStartedAt,
+            ),
+        )
+      )
         return;
-      }
       yield* dispatchMessage(
         {
           type: "message.dispatch",
@@ -3500,15 +3542,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
               command.wake.notification.source.kind === "monitor"
                 ? {
                     kind: "monitor",
-                    pullRequest: {
-                      ...key,
-                      watchStartedAt: command.startedAt,
-                      headSha:
-                        command.wake.includesRemarks === true
-                          ? null
-                          : (command.watch?.headSha ?? null),
-                      ...(command.watch === null ? { watchEnded: true } : {}),
-                    },
+                    ...(stamps.length === 1
+                      ? { pullRequest: stamps[0] }
+                      : { pullRequests: stamps }),
                   }
                 : command.wake.notification.source,
           },

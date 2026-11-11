@@ -1266,6 +1266,14 @@ const SubagentNotificationSource = Schema.Struct({
 const CommandNotificationSource = Schema.Struct({ kind: Schema.Literal("command") });
 
 /** Encode legacy background_command/background_task shapes first so older clients accept command/subagent sources. */
+const PullRequestWatchWakeStamp = Schema.Struct({
+  ...ThreadPullRequestKey.fields,
+  watchStartedAt: IsoDateTime,
+  /** Null when the wake is not about one head, so a newer push does not outdate it. */
+  headSha: Schema.NullOr(TrimmedNonEmptyString),
+  watchEnded: Schema.optional(Schema.Boolean),
+});
+
 export const OrchestrationV2NotificationSource = kindUnionWithFallback(
   [
     Schema.Struct({
@@ -1296,15 +1304,9 @@ export const OrchestrationV2NotificationSource = kindUnionWithFallback(
     CommandNotificationSource,
     Schema.Struct({
       kind: Schema.Literal("monitor"),
-      pullRequest: Schema.optional(
-        Schema.Struct({
-          ...ThreadPullRequestKey.fields,
-          watchStartedAt: IsoDateTime,
-          /** Null when the wake is not about one head, so a newer push does not outdate it. */
-          headSha: Schema.NullOr(TrimmedNonEmptyString),
-          watchEnded: Schema.optional(Schema.Boolean),
-        }),
-      ),
+      pullRequest: Schema.optional(PullRequestWatchWakeStamp),
+      /** A combined wake remains useful while at least one of its PRs still needs attention. */
+      pullRequests: Schema.optional(Schema.Array(PullRequestWatchWakeStamp)),
     }),
     Schema.Struct({ kind: Schema.Literal("background_task") }),
     Schema.Struct({ kind: Schema.Literal("system") }),

@@ -98,7 +98,7 @@ it.each(["stop", "question"] as const)(
     ).toEqual(
       mode === "stop"
         ? ["Attach", "Dictate", "Stop generation"]
-        : ["Attach", "Stop generation", "Previous", "Dictate", "Next question"],
+        : ["Attach", "Previous", "Dictate", "Next question", "Stop generation"],
     );
     const dictate = buttons.find((button) => button.textContent === "Dictate")!;
     await act(() => dictate.click());
