@@ -23,6 +23,7 @@ import {
   createRef,
   Profiler,
   StrictMode,
+  useRef,
   useState,
   type ComponentProps,
   type ReactElement,
@@ -37,6 +38,7 @@ import { environmentThreadDetails } from "../../state/threads";
 import { act, fakeTimers, render, stubGlobal } from "../../../test/render";
 import { ChangedFilesCard } from "./ChangedFilesTree";
 import { MessagesTimeline } from "./MessagesTimeline";
+import { useTimelineFollow } from "./useTimelineFollow";
 import { resolveTimelineIsAtEnd } from "./MessagesTimeline.logic";
 import { makeStreamingTimelineFixture } from "../../test-fixtures";
 import {
@@ -213,6 +215,42 @@ function renderTimeline(entries: ReadonlyArray<Entry>, props: Partial<TimelinePr
 
 async function click(element: HTMLElement) {
   await act(async () => element.click());
+}
+
+function FollowHarness({ entries, loading }: { entries: Entry[]; loading: boolean }) {
+  const listRef = useRef<LegendListRef | null>(null);
+  const [routeThreadKey] = useState(() => baseProps().routeThreadKey);
+  const follow = useTimelineFollow({
+    legendListRef: listRef,
+    composerTimelineInset: 0,
+    routeThreadKey,
+    activeThreadKey: routeThreadKey,
+    isServerThread: false,
+    serverProjection: null,
+    threadStatus: "live",
+    activeActivityRun: null,
+    activeRunningTurnId: null,
+    timelineEntries: entries,
+    timelineAnchorMessageId: null,
+    setTimelineAnchor: () => {},
+  });
+  return (
+    <div
+      data-live-follow={String(follow.timelineLiveFollowEnabled)}
+      style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}
+    >
+      <MessagesTimeline
+        {...baseProps()}
+        listRef={listRef}
+        routeThreadKey={routeThreadKey}
+        timelineEntries={loading ? [] : entries}
+        hideEmptyPlaceholder={loading}
+        liveFollowEnabled={follow.timelineLiveFollowEnabled}
+        onIsAtEndChange={follow.onIsAtEndChangeStable}
+        onViewportAttach={follow.attachTimelineViewport}
+      />
+    </div>
+  );
 }
 
 function setup({ scheduledTasks = [] as ReadonlyArray<{ id: string; title: string }> } = {}) {
