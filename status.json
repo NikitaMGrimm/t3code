@@ -1,20 +1,19 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.9-nightly.20261111.4515",
+  "upstreamTag": "v0.1.10-nightly.20261111.4529",
   "conflicts": [
-    "apps/web/src/components/chat/MessagesTimeline.browser.test.tsx",
-    "apps/web/src/components/chat/MessagesTimeline.tsx"
+    "apps/desktop/src/preview/Manager.ts"
   ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/42996594046",
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/43053692118",
   "releasedVersion": "0.1.9-nightly.20261110.1794330304221",
   "baseCommit": "453d82f98fc0285ef49440cc888d39546afc342f",
-  "sequence": 1794389792071,
-  "conflictPullRequest": 22788,
+  "sequence": 1794412734167,
+  "conflictPullRequest": 18873,
   "conflictStage": "pull_request",
-  "conflictIdentity": "33544d632d5974ba86ef2147e2c942f36ca1ffff34d9e6406f1b6a7eda9f69e8",
+  "conflictIdentity": "f49d9faeaad50122267c6957f2629de274ca28862e1289b1f563d9605831251e",
   "inputs": {
-    "upstreamTag": "v0.1.9-nightly.20261111.4515",
+    "upstreamTag": "v0.1.10-nightly.20261111.4529",
     "pullRequests": [
       {
         "number": 17871,
@@ -34,11 +33,6 @@
       {
         "number": 23673,
         "headSha": "f3f0631636444e7bfb0d2c70f9c0f323b37bce09",
-        "baseRef": "main"
-      },
-      {
-        "number": 24138,
-        "headSha": "d6f79e8aba5b0c305453f3d3fdf0bc5da484c0f1",
         "baseRef": "main"
       }
     ],
@@ -90,18 +84,6 @@
       "baseRef": "main",
       "author": "NikitaMGrimm",
       "url": "https://github.com/pingdotgg/t3code/pull/23673",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 24138,
-      "title": "fix(composer): steer instead of queueing during automatic compaction",
-      "headSha": "d6f79e8aba5b0c305453f3d3fdf0bc5da484c0f1",
-      "baseSha": "a03d9bce026ef11930b35e9855adc1cdb5ea6eb7",
-      "headRef": "fix/steer-during-auto-compaction",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/24138",
       "headRepository": "NikitaMGrimm/t3code",
       "baseRepository": "pingdotgg/t3code"
     }
