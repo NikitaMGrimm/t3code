@@ -464,7 +464,7 @@ const readPageMetrics = async (cdp: CDPSession) => {
 
 // Never pass a clip scale: Chromium mirrors the top-left of the page into a `backdrop-filter`
 // in any capture it shrinks.
-export const captureViewport = async (
+const captureFrame = async (
   cdp: CDPSession,
   options: { readonly format: "png" | "jpeg"; readonly quality?: number },
 ) => {
@@ -473,6 +473,29 @@ export const captureViewport = async (
     ...(options.quality === undefined ? {} : { quality: options.quality }),
   });
   return data;
+};
+
+const CAPTURE_TIMEOUT_MS = 5_000;
+const NO_FRAME_MESSAGE =
+  "The page did not draw a frame within 5 seconds, so no screenshot was taken. Use preview_evaluate to read the page, or open the tab in the Browser panel and retry.";
+// A timed-out CDP request still owns Chromium's capture until it answers.
+const pendingCaptures = new WeakSet<CDPSession>();
+
+export const captureViewport = (
+  cdp: CDPSession,
+  options: { readonly format: "png" | "jpeg"; readonly quality?: number },
+): Promise<string> => {
+  const noFrame = () =>
+    new ServerBrowserOperationError({ tag: "PreviewAutomationExecutionError", message: NO_FRAME_MESSAGE });
+  if (pendingCaptures.has(cdp)) return Promise.reject(noFrame());
+  pendingCaptures.add(cdp);
+  const capture = captureFrame(cdp, options).finally(() => pendingCaptures.delete(cdp));
+  void capture.catch(constVoid);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const limit = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(noFrame()), CAPTURE_TIMEOUT_MS);
+  });
+  return Promise.race([capture, limit]).finally(() => clearTimeout(timer));
 };
 
 /** Runs in the page's own isolated world, as the server has no image library. */
