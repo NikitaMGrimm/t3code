@@ -1,6 +1,6 @@
 {
   "inputs": {
-    "upstreamTag": "v0.1.9-nightly.20261111.4501",
+    "upstreamTag": "v0.1.9-nightly.20261111.4515",
     "pullRequests": [
       {
         "number": 17871,
@@ -30,5 +30,5 @@
     ],
     "resolutions": "845c96bc6ff90a84d33bec82c09519987ca50b554bbb4225fcac7923da3334c1"
   },
-  "observedAt": 1794379955.9593
+  "observedAt": 1794389853.201907
 }
