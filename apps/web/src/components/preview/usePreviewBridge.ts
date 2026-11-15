@@ -1,6 +1,7 @@
 import type {
   DesktopPreviewTabState,
   PreviewReportStatusInput,
+  PreviewSessionSnapshot,
   ScopedThreadRef,
   ThreadId,
 } from "@t3tools/contracts";
@@ -9,11 +10,7 @@ import { useEffect, useEffectEvent, useRef } from "react";
 import { recordFaviconForThread } from "~/browserFaviconStore";
 import { useBrowserPointerStore } from "~/browser/browserPointerStore";
 import { acquireBrowserSurfaceActivity } from "~/browser/browserSurfaceStore";
-import {
-  applyPreviewDesktopState,
-  readThreadPreviewState,
-  type DesktopPreviewOverlay,
-} from "~/previewStateStore";
+import { applyPreviewDesktopState, type DesktopPreviewOverlay } from "~/previewStateStore";
 import { previewEnvironment } from "~/state/preview";
 import { useAtomCommand } from "~/state/use-atom-command";
 
@@ -58,16 +55,12 @@ export function usePreviewBridge(input: {
 
   const lastReportedUrl = useRef<string | null>(null);
   const lastReportedKind = useRef<DesktopPreviewTabState["navStatus"]["kind"] | null>(null);
+  const lastReportedTitle = useRef<string | null>(null);
   const lastDesktopNavStatus = useRef<DesktopPreviewTabState["navStatus"] | null>(null);
   const captureActivity = useRef<ReturnType<typeof createCaptureActivity> | null>(null);
   const handleStateChange = useEffectEvent(
     (changedTabId: string, state: DesktopPreviewTabState): void => {
       if (changedTabId !== runtimeTabId) return;
-      // A late native guest must not override the headless page's stream state.
-      if (readThreadPreviewState(stableThreadRef).sessions[tabId]?.serverPageMode === "headless") {
-        applyPreviewDesktopState(stableThreadRef, tabId, null);
-        return;
-      }
       if (shouldClearBrowserPointer(lastDesktopNavStatus.current, state.navStatus)) {
         clearBrowserPointer(runtimeTabId);
       }
@@ -83,10 +76,12 @@ export function usePreviewBridge(input: {
         state,
         lastReportedUrl: lastReportedUrl.current,
         lastReportedKind: lastReportedKind.current,
+        lastReportedTitle: lastReportedTitle.current,
       });
       if (!reported || serverDriven) return;
       lastReportedUrl.current = reported.lastReportedUrl;
       lastReportedKind.current = reported.lastReportedKind;
+      lastReportedTitle.current = reported.lastReportedTitle;
       void reportStatus({
         environmentId: stableThreadRef.environmentId,
         input: reported.input,
@@ -98,6 +93,7 @@ export function usePreviewBridge(input: {
     if (!previewBridge || typeof window === "undefined") return;
     lastReportedUrl.current = null;
     lastReportedKind.current = null;
+    lastReportedTitle.current = null;
     lastDesktopNavStatus.current = null;
     const activity = createCaptureActivity(runtimeTabId);
     captureActivity.current = activity;
@@ -106,9 +102,6 @@ export function usePreviewBridge(input: {
       unsubscribe();
       activity.release();
       if (captureActivity.current === activity) captureActivity.current = null;
-      if (readThreadPreviewState(stableThreadRef).sessions[tabId]?.serverPageMode === "headless") {
-        applyPreviewDesktopState(stableThreadRef, tabId, null);
-      }
     };
   }, [
     runtimeTabId,
@@ -129,10 +122,30 @@ function shouldClearBrowserPointer(
   return current.url !== previous.url;
 }
 
+function projectDesktopNavStatus(
+  status: DesktopPreviewTabState["navStatus"],
+): PreviewSessionSnapshot["navStatus"] {
+  switch (status.kind) {
+    case "Idle":
+      return { _tag: "Idle" };
+    case "LoadFailed":
+      return {
+        _tag: "LoadFailed",
+        url: status.url,
+        title: status.title,
+        code: status.code,
+        description: status.description,
+      };
+    default:
+      return { _tag: status.kind, url: status.url, title: status.title };
+  }
+}
+
 export function projectDesktopState(state: DesktopPreviewTabState): DesktopPreviewOverlay {
   const navOrigin = state.navStatus.kind === "Idle" ? null : originOf(state.navStatus.url);
   return {
     hasWebContents: state.webContentsId !== null,
+    navStatus: projectDesktopNavStatus(state.navStatus),
     canGoBack: state.canGoBack,
     canGoForward: state.canGoForward,
     loading: state.navStatus.kind === "Loading",
@@ -146,25 +159,28 @@ export function projectDesktopState(state: DesktopPreviewTabState): DesktopPrevi
   };
 }
 
-function buildReportInput(args: {
+export function buildReportInput(args: {
   readonly threadId: ThreadId;
   readonly tabId: string;
   readonly state: DesktopPreviewTabState;
   readonly lastReportedUrl: string | null;
   readonly lastReportedKind: DesktopPreviewTabState["navStatus"]["kind"] | null;
+  readonly lastReportedTitle: string | null;
 }): {
   readonly input: PreviewReportStatusInput;
   readonly lastReportedUrl: string;
   readonly lastReportedKind: DesktopPreviewTabState["navStatus"]["kind"];
+  readonly lastReportedTitle: string;
 } | null {
-  const { threadId, tabId, state, lastReportedUrl, lastReportedKind } = args;
+  const { threadId, tabId, state, lastReportedUrl, lastReportedKind, lastReportedTitle } = args;
   const status = state.navStatus;
   if (status.kind === "Idle") return null;
 
   const sameAsLast =
     status.kind !== "LoadFailed" &&
     status.kind === lastReportedKind &&
-    status.url === lastReportedUrl;
+    status.url === lastReportedUrl &&
+    status.title === lastReportedTitle;
   if (sameAsLast) return null;
 
   const base = {
@@ -173,28 +189,13 @@ function buildReportInput(args: {
     canGoBack: state.canGoBack,
     canGoForward: state.canGoForward,
   };
-  if (status.kind === "LoadFailed") {
-    return {
-      input: {
-        ...base,
-        navStatus: {
-          _tag: "LoadFailed",
-          url: status.url,
-          title: status.title,
-          code: status.code,
-          description: status.description,
-        },
-      },
-      lastReportedUrl: status.url,
-      lastReportedKind: "LoadFailed",
-    };
-  }
   return {
     input: {
       ...base,
-      navStatus: { _tag: status.kind, url: status.url, title: status.title },
+      navStatus: projectDesktopNavStatus(status),
     },
     lastReportedUrl: status.url,
     lastReportedKind: status.kind,
+    lastReportedTitle: status.title,
   };
 }

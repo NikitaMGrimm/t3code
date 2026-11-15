@@ -29,6 +29,7 @@ interface HarnessOptions {
   readonly beforeExternalUpdate?: Effect.Effect<void>;
   readonly mode?: "web" | "desktop";
   readonly managed?: boolean;
+  readonly launcherProtocol?: 3 | typeof SERVICE_LAUNCHER_PROTOCOL;
   readonly preflight?: "ready" | "blocked";
   readonly preflightDuration?: Duration.Input;
   readonly preflightStarted?: Deferred.Deferred<void>;
@@ -68,6 +69,7 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
   const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-self-update-test-" });
   const order: string[] = [];
   const urls: string[] = [];
+  const preflightProtocols: Array<string | undefined> = [];
   const runner = ProcessRunner.ProcessRunner.of({
     run: (input) =>
       Effect.gen(function* () {
@@ -132,14 +134,13 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
           }
         }
         order.push("preflight");
+        // Like a release, report back the launcher protocol the server named.
+        const named = input.args[input.args.indexOf("--launcher-protocol") + 1];
+        preflightProtocols.push(named);
         const result =
           options.preflight === "blocked"
             ? { status: "blocked", version: "1.1.0", reason: "local update required" }
-            : {
-                status: "ready",
-                version: "1.1.0",
-                launcherProtocol: SERVICE_LAUNCHER_PROTOCOL,
-              };
+            : { status: "ready", version: "1.1.0", launcherProtocol: Number(named) };
         return {
           stdout: JSON.stringify(result),
           stderr: "",
@@ -152,8 +153,10 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
         };
       }),
   });
+  const managed = options.managed ?? true;
   const launcher = ServiceLauncherClient.ServiceLauncherClient.of({
-    managed: options.managed ?? true,
+    managed,
+    protocol: managed ? (options.launcherProtocol ?? SERVICE_LAUNCHER_PROTOCOL) : undefined,
     requestUpdate:
       options.requestUpdate ??
       (() =>
@@ -161,7 +164,7 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
           order.push("accept");
           return "launcher-id";
         })),
-    prepareTrial: Effect.undefined,
+    prepareTrial: () => Effect.undefined,
   });
   const config = yield* ServerConfig.ServerConfig.pipe(
     Effect.provide(ServerConfig.layerTest(process.cwd(), baseDir)),
@@ -198,7 +201,7 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
       ),
     ),
   );
-  return { selfUpdate, order, urls, baseDir };
+  return { selfUpdate, order, urls, baseDir, preflightProtocols };
 });
 
 it.layer(NodeServices.layer)("server self update", (it) => {
@@ -209,21 +212,29 @@ it.layer(NodeServices.layer)("server self update", (it) => {
   ])("reports an HTTP $status downloading $asset and allows retry", ({ asset, status }) =>
     Effect.gen(function* () {
       let failDownload = true;
+      const downloadFailed = yield* Deferred.make<void>();
       const { selfUpdate, order, baseDir } = yield* makeHarness({
         httpClient: releaseHttpClient([], []).pipe(
-          HttpClient.transform((response, request) =>
-            failDownload && request.url.endsWith("/SHA256SUMS") === (asset === "checksums")
-              ? Effect.succeed(
-                  HttpClientResponse.fromWeb(
-                    HttpClientRequest.get("https://user:password@cdn.example/private?token=secret"),
-                    new Response("private response body", { status }),
-                  ),
-                )
-              : response,
-          ),
+          HttpClient.transform((response, request) => {
+            if (!failDownload || request.url.endsWith("/SHA256SUMS") !== (asset === "checksums"))
+              return response;
+            Deferred.doneUnsafe(downloadFailed, Effect.void);
+            return Effect.succeed(
+              HttpClientResponse.fromWeb(
+                HttpClientRequest.get("https://user:password@cdn.example/private?token=secret"),
+                new Response("private response body", { status }),
+              ),
+            );
+          }),
         ),
       });
-      const error = yield* selfUpdate.update({ targetVersion: "1.1.0" }).pipe(Effect.flip);
+      const failing = yield* selfUpdate
+        .update({ targetVersion: "1.1.0" })
+        .pipe(Effect.flip, Effect.forkScoped);
+      yield* Deferred.await(downloadFailed);
+      // A 5xx is retried after 2, 4, then 8 seconds before the update gives up.
+      yield* TestClock.adjust("14 seconds");
+      const error = yield* Fiber.join(failing);
       expect(error.reason).toBe(
         `Could not prepare t3@1.1.0 while downloading the t3 release ${asset} (HTTP ${status} from cdn.example).`,
       );
@@ -234,6 +245,26 @@ it.layer(NodeServices.layer)("server self update", (it) => {
       failDownload = false;
       expect((yield* selfUpdate.update({ targetVersion: "1.1.0" })).updateId).toBe("launcher-id");
       expect(order).toEqual(["extract", "preflight", "accept"]);
+    }),
+  );
+
+  // regression: #34502 a remote update never replaces the launcher, so it can be older than the server
+  it.effect("names its launcher's protocol to the staged preflight, not its own", () =>
+    Effect.gen(function* () {
+      const { selfUpdate, preflightProtocols, baseDir } = yield* makeHarness({
+        launcherProtocol: 3,
+      });
+      yield* TestClock.setTime(5_000);
+      expect((yield* selfUpdate.update({ targetVersion: "1.1.0" })).updateId).toBe("launcher-id");
+      expect(preflightProtocols).toEqual(["3"]);
+      // That launcher holds no lock between its servers; SSH launches wait on this marker instead.
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      expect(
+        JSON.parse(
+          yield* fs.readFileString(path.join(baseDir, "runtime", "desktop-update-in-progress")),
+        ),
+      ).toEqual({ startedAt: 5_000, expiresAt: 65_000 });
     }),
   );
 
@@ -472,6 +503,19 @@ it.layer(NodeServices.layer)("server self update", (it) => {
       expect((yield* selfUpdate.update({ targetVersion: "1.1.1" }).pipe(Effect.flip)).reason).toBe(
         "A server update is already in progress.",
       );
+    }),
+  );
+
+  it.effect("stages the runtime without asking the launcher to restart", () =>
+    Effect.gen(function* () {
+      const { selfUpdate, order } = yield* makeHarness();
+      expect(yield* selfUpdate.update({ targetVersion: "1.1.0", stageOnly: true })).toEqual({
+        targetVersion: "1.1.0",
+        method: "boot-service",
+      });
+      expect(order).toEqual(["download", "extract", "preflight"]);
+      expect((yield* selfUpdate.update({ targetVersion: "1.1.0" })).updateId).toBe("launcher-id");
+      expect(order).toEqual(["download", "extract", "preflight", "preflight", "accept"]);
     }),
   );
 

@@ -2,7 +2,7 @@
   "repository": "NikitaMGrimm/t3code",
   "branch": "personal-nightly",
   "upstreamRepository": "pingdotgg/t3code",
-  "upstreamTag": "v0.1.10-nightly.20261111.4544",
+  "upstreamTag": "v0.1.10-nightly.20261115.4736",
   "pullRequests": [
     {
       "number": 17871,
@@ -14,18 +14,6 @@
       "author": "TDanks2000",
       "url": "https://github.com/pingdotgg/t3code/pull/17871",
       "headRepository": "TDanks2000/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 18873,
-      "title": "fix(preview): keep one browser page across thread switches",
-      "headSha": "b9fa58f765e44c374c2bfbffaa07f9d0f240b102",
-      "baseSha": "5d6e4192bfcf9eca09741605e12c72b5970025e4",
-      "headRef": "t3/takeover-pr-18584-fixes",
-      "baseRef": "main",
-      "author": "t3dotgg",
-      "url": "https://github.com/pingdotgg/t3code/pull/18873",
-      "headRepository": "pingdotgg/t3code",
       "baseRepository": "pingdotgg/t3code"
     },
     {
@@ -53,5 +41,5 @@
       "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "0b642998232a11e79d7dd00a4e359bb2714544c4"
+  "prBaseline": "105d2be186270ff9b6bcdc01b60ceb2b0c56ec51"
 }

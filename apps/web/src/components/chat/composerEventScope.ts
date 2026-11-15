@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { useComposerHandleContext } from "../../composerHandleContext";
+import { useMediaQuery } from "../../hooks/useMediaQuery";
 import {
   COMPOSER_PASTE_PASSTHROUGH_ATTRIBUTE,
   isComposerControl,
@@ -20,38 +21,42 @@ export const composerFloatingLayerProps = {
  * Props for the popup of a composer-owned picker. `close` closes its root:
  * a text paste the popup does not own goes to the draft and dismisses it.
  */
-export function useComposerMenuProps(close: () => void) {
+export function useComposerMenuProps(close?: () => void) {
   const composerRef = useComposerHandleContext();
+  const isCoarsePointer = useMediaQuery({ pointer: "coarse" });
   if (!composerRef) return { ...composerFloatingLayerProps, finalFocus: undefined };
 
   return {
     ...composerFloatingLayerProps,
-    finalFocus: (closeType: string) => {
-      const activeElement = document.activeElement;
-      // A pointer toggle on the trigger leaves focus on it. A trigger that
-      // just opened its own picker keeps focus.
-      const pointerClosedOnControl =
-        closeType !== "keyboard" &&
-        isComposerControl(activeElement) &&
-        activeElement?.getAttribute("aria-expanded") !== "true";
-      if (activeElement === document.body || isInsideComposerFloatingLayer(activeElement)) {
-        composerRef.current?.restoreFocus();
-      } else if (pointerClosedOnControl) {
-        // This runs mid-commit, and React refocuses a still-mounted trigger
-        // after the commit, so the move waits for it.
-        queueMicrotask(() => {
-          if (document.activeElement === activeElement) composerRef.current?.restoreFocus();
-        });
-      }
-      return false;
-    },
+    // Focusing the editor on a touch device opens the on-screen keyboard, so the menu keeps its own focus return.
+    finalFocus: isCoarsePointer
+      ? undefined
+      : (closeType: string) => {
+          const activeElement = document.activeElement;
+          // A pointer toggle on the trigger leaves focus on it. A trigger that
+          // just opened its own picker keeps focus.
+          const pointerClosedOnControl =
+            closeType !== "keyboard" &&
+            isComposerControl(activeElement) &&
+            activeElement?.getAttribute("aria-expanded") !== "true";
+          if (activeElement === document.body || isInsideComposerFloatingLayer(activeElement)) {
+            composerRef.current?.restoreFocus();
+          } else if (pointerClosedOnControl) {
+            // This runs mid-commit, and React refocuses a still-mounted trigger
+            // after the commit, so the move waits for it.
+            queueMicrotask(() => {
+              if (document.activeElement === activeElement) composerRef.current?.restoreFocus();
+            });
+          }
+          return false;
+        },
     onPasteCapture: (event: React.ClipboardEvent<HTMLElement>) => {
       if (!isComposerMenuPaste(event.nativeEvent)) return;
       // The paste focuses the editor first, so the closing popup returns no focus.
       if (!composerRef.current?.pasteClipboardEvent(event.nativeEvent)) return;
       event.preventDefault();
       event.stopPropagation();
-      close();
+      close?.();
     },
   };
 }

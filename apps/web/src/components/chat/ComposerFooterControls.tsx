@@ -216,6 +216,7 @@ export const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryA
   onPreviousPendingQuestion: () => void;
   onInterrupt: () => void;
   compactBeforeSendTokens: number | null;
+  hideCompactToggle: boolean;
   keepFullHistory: boolean;
   onToggleKeepFullHistory: () => void;
   /** The attach button, or null to hide it. */
@@ -248,6 +249,7 @@ export const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryA
         onPreviousPendingQuestion={props.onPreviousPendingQuestion}
         onInterrupt={props.onInterrupt}
         compactBeforeSendTokens={props.compactBeforeSendTokens}
+        hideCompactToggle={props.hideCompactToggle}
         keepFullHistory={props.keepFullHistory}
         onToggleKeepFullHistory={props.onToggleKeepFullHistory}
       >
