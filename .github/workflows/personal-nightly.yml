@@ -179,14 +179,6 @@ jobs:
             arch: x64
             rust_target: x86_64-pc-windows-msvc
             resource_key: win32-x64
-          - label: Windows arm64
-            runner: ubuntu-24.04
-            verify_runner: windows-11-arm
-            platform: win
-            target: nsis
-            arch: arm64
-            rust_target: aarch64-pc-windows-msvc
-            resource_key: win32-arm64
     uses: ./.github/workflows/release-desktop.yml
     secrets: inherit
     with:
@@ -237,10 +229,9 @@ jobs:
         with:
           node-version-file: package.json
           cache: true
-      - name: Merge Windows updater manifests
-        run: |
-          node scripts/merge-update-manifests.ts --platform win release-assets/nightly-win-x64.yml release-assets/nightly-win-arm64.yml release-assets/nightly.yml
-          rm release-assets/nightly-win-x64.yml release-assets/nightly-win-arm64.yml
+      # Windows arm64 is not built, so the x64 manifest is the whole Windows feed.
+      - name: Name the Windows updater manifest
+        run: mv release-assets/nightly-win-x64.yml release-assets/nightly.yml
       - name: Verify the candidate before publishing
         id: verify
         env:
@@ -283,7 +274,7 @@ jobs:
           path: ${{ runner.temp }}/release-assets
           merge-multiple: true
       - name: Use the verified Windows updater manifest
-        run: rm "$RUNNER_TEMP/release-assets/nightly-win-x64.yml" "$RUNNER_TEMP/release-assets/nightly-win-arm64.yml"
+        run: rm "$RUNNER_TEMP/release-assets/nightly-win-x64.yml"
       - uses: actions/download-artifact@v8
         with:
           name: merged-update-manifest
