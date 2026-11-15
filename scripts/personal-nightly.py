@@ -10,6 +10,7 @@ import re
 import subprocess
 import tempfile
 import time
+from datetime import datetime
 from pathlib import Path
 
 
@@ -98,19 +99,79 @@ def pull_request_numbers(value, repository):
     return numbers
 
 
+# A selected PR its author closed unmerged stays this long, then leaves unless
+# it was selected again after closing.
+CLOSED_SELECTION_GRACE = 7 * 24 * 3600
+
+
 def update_selected_pull_requests(repo, config, include, remove, sequence):
+    """Selecting a PR again also accepts its latest head as the reviewed pin."""
     additions = pull_request_numbers(include, config["upstreamRepository"])
     removals = pull_request_numbers(remove, config["upstreamRepository"])
     if additions & removals:
         raise ValueError("A PR cannot be included and removed in the same request")
     selected = read_state(repo, "included-prs.json")
     current = set(selected.get("numbers", []))
-    updated = (current | additions) - removals
-    if updated != current:
+    pins = {number: pin for number, pin in selected.get("pins", {}).items()
+            if int(number) not in additions | removals}
+    updated = {"numbers": sorted((current | additions) - removals), "pins": pins}
+    if updated != {"numbers": sorted(current), "pins": selected.get("pins", {})}:
         # Selection is independent of candidates: a conflict must not discard the
         # user's request to follow this PR when its owner next pushes a fix.
-        write_state(repo, "included-prs.json", {"numbers": sorted(updated), "sequence": sequence})
-    return updated
+        write_state(repo, "included-prs.json", {**updated, "sequence": sequence})
+        selected = updated
+    return selected
+
+
+def pin_selected_pull_requests(pulls, selection, owner, now):
+    """Other authors' selected PRs build their reviewed head, not whatever they push next.
+
+    Returns the pulls to build, the updated selection, newer heads awaiting review,
+    and selections dropped after their PR closed unmerged.
+    """
+    numbers = set(selection.get("numbers", []))
+    pins = dict(selection.get("pins", {}))
+    built, updates, expired = [], [], []
+    for pull in pulls:
+        key = str(pull["number"])
+        if pull["number"] not in numbers or pull.get("author", owner).casefold() == owner.casefold():
+            built.append(pull)
+            continue
+        pin = pins.get(key)
+        closed = pull.get("closedAt")
+        if closed is not None and now >= closed + CLOSED_SELECTION_GRACE and (pin is None or pin["pinnedAt"] < closed):
+            numbers.discard(pull["number"])
+            pins.pop(key, None)
+            expired.append(pull["number"])
+            continue
+        if pin is None:
+            # A selection that predates pins was already reviewed at its current head;
+            # one already closed still gets the grace period, not a fresh confirmation.
+            pin = pins[key] = {"headSha": pull["headSha"], "baseSha": pull["baseSha"],
+                               "pinnedAt": 0 if closed is not None else now}
+        elif pin["headSha"] != pull["headSha"]:
+            updates.append({"number": pull["number"], "pinnedSha": pin["headSha"], "headSha": pull["headSha"]})
+        built.append({**pull, "headSha": pin["headSha"], "baseSha": pin["baseSha"]})
+    return built, {"numbers": sorted(numbers), "pins": pins}, updates, expired
+
+
+def selected_pull_requests(repo, config, tag, selection, sequence, now, closing=None):
+    pulls = discover_included_pull_requests(repo, config, tag, set(selection.get("numbers", [])))
+    pulls, updated, updates, expired = pin_selected_pull_requests(
+        pulls, selection, config["repository"].split("/")[0], now)
+    if closing is not None:
+        closing.extend(closing_selections(pulls, updated))
+    if updated != {"numbers": sorted(selection.get("numbers", [])), "pins": selection.get("pins", {})}:
+        write_state(repo, "included-prs.json", {**updated, "sequence": sequence})
+    return [{key: value for key, value in pull.items() if key != "closedAt"} for pull in pulls], updates, expired
+
+
+def closing_selections(pulls, selection):
+    """Selected PRs closed unmerged and not selected again since, with when they leave."""
+    pins = selection.get("pins", {})
+    return [{"number": pull["number"], "expiresAt": pull["closedAt"] + CLOSED_SELECTION_GRACE}
+            for pull in pulls if pull.get("closedAt") is not None and str(pull["number"]) in pins
+            and pins[str(pull["number"])]["pinnedAt"] < pull["closedAt"]]
 
 
 def discover_pull_requests(config):
@@ -201,8 +262,14 @@ def discover_included_pull_requests(repo, config, tag, selected):
                          "headRef": pull["head"]["ref"], "baseRef": pull["base"]["ref"],
                          "author": pull["user"]["login"], "url": pull["html_url"],
                          "headRepository": (pull["head"].get("repo") or {}).get("full_name"),
-                         "baseRepository": (pull["base"].get("repo") or {}).get("full_name")}
+                         "baseRepository": (pull["base"].get("repo") or {}).get("full_name"),
+                         **({"closedAt": iso_timestamp(pull["closed_at"])}
+                            if pull["state"] == "closed" and not pull["merged"] else {})}
     return sorted(pulls.values(), key=lambda pull: pull["number"])
+
+
+def iso_timestamp(value):
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
 
 
 def pull_request_inputs(pulls):
@@ -242,11 +309,8 @@ def fetch_pull_requests(repo, config, pulls):
     if pulls:
         git("fetch", remote, *[f"+refs/pull/{pull['number']}/head:refs/personal-sync/{pull['number']}"
                                for pull in pulls], cwd=repo)
-    for pull in pulls:
-        fetched = git("rev-parse", f"refs/personal-sync/{pull['number']}", cwd=repo).stdout.strip()
-        if fetched != pull["headSha"]:
-            raise RuntimeError(f"PR #{pull['number']} changed while fetching; retry discovery")
-    missing = [sha for sha in sorted({pull["baseSha"] for pull in pulls})
+    # A pinned head, or one that moved since discovery, is fetched by its exact commit.
+    missing = [sha for sha in sorted({pull[key] for pull in pulls for key in ("headSha", "baseSha")})
                if git("cat-file", "-e", f"{sha}^{{commit}}", cwd=repo, check=False).returncode]
     if missing:
         git("fetch", remote, *missing, cwd=repo)
@@ -622,6 +686,13 @@ def prime_checkout(checkout, start, resolutions):
         cache.mkdir(parents=True)
         for name, content in files.items():
             (cache / name).write_text(content)
+            # Git refreshes a postimage's time when it replays it; see used_resolutions.
+            os.utime(cache / name, (0, 0))
+
+
+def used_resolutions(checkout, resolutions):
+    cache = Path(checkout) / ".git" / "rr-cache"
+    return sorted(key for key in resolutions if (cache / key / "postimage").stat().st_mtime > 0)
 
 
 @contextlib.contextmanager
@@ -769,6 +840,8 @@ def assemble(repo, tag, config, pulls, resolutions):
     upstream = git("rev-parse", f"{tag}^{{commit}}", cwd=repo).stdout.strip()
     with assembly_checkout(repo, upstream, resolutions) as checkout:
         result = assemble_into(repo, checkout, tag, upstream, original, config, pulls, resolutions)
+        if not result["conflicts"] and "waiting" not in result:
+            result["usedResolutions"] = used_resolutions(checkout, resolutions)
         if result.pop("candidate", None):
             git("fetch", str(checkout), "refs/heads/candidate", cwd=repo)
             git("reset", "--hard", "FETCH_HEAD", cwd=repo)
@@ -795,7 +868,7 @@ def reproduce(repo, status, resolutions, directory):
     directory = Path(directory).resolve()
     if directory.exists():
         raise ValueError(f"{directory} already exists")
-    fork = re.fullmatch(r"https://github\.com/([^/]+/[^/]+)/actions/runs/\d+", status["runUrl"])
+    fork = re.fullmatch(r"https://github\.com/([^/]+/[^/]+)/(?:actions/runs/\d+|releases/tag/[^/]+)", status["runUrl"])
     pulls = status["pullRequests"]
     if fork is None or status["inputs"]["pullRequests"] != pull_request_inputs(pulls):
         raise ValueError("The status does not record a complete PR snapshot")
@@ -833,6 +906,63 @@ def record_resolutions(directory, resolutions):
         if re.fullmatch(r"[0-9a-f]{40}", entry.name) and all((entry / name).is_file() for name in ("preimage", "postimage")):
             updated[entry.name] = {name: (entry / name).read_text() for name in ("preimage", "postimage")}
     return updated
+
+
+def latest_upstream_nightly(config):
+    page = 1
+    while True:
+        releases = json.loads(subprocess.run(
+            ["gh", "api", f"repos/{config['upstreamRepository']}/releases?per_page=100&page={page}"],
+            check=True, capture_output=True, text=True).stdout)
+        if not releases:
+            raise RuntimeError("No published upstream nightly found")
+        for release in releases:
+            if not release["draft"] and re.fullmatch(r"v\d+\.\d+\.\d+-nightly\.\d{8}\.\d+", release["tag_name"]):
+                return release["tag_name"]
+        page += 1
+
+
+def check(repo, assemble_candidate):
+    """The VPS checker's view of the next build, from this checkout of the integration branch.
+
+    With assemble_candidate, it also merges the snapshot locally. A conflict or wait
+    is published here, so it costs no Actions run; the checker dispatches only a
+    snapshot that assembles.
+    """
+    config = json.loads((repo / "personal-nightly.json").read_text())
+    tag = latest_upstream_nightly(config)
+    # Discovery decides whether merged PRs are already in this tag.
+    git("fetch", "--no-tags", f"https://github.com/{config['upstreamRepository']}.git",
+        f"+refs/tags/{tag}:refs/tags/{tag}", cwd=repo)
+    sequence = time.time_ns() // 1_000_000
+    closing = []
+    pulls, updates, expired = selected_pull_requests(
+        repo, config, tag, read_state(repo, "included-prs.json"), sequence, time.time(), closing)
+    resolutions = read_state(repo, "resolutions.json")
+    base = git("rev-parse", "HEAD", cwd=repo).stdout.strip()
+    inputs = {"upstreamTag": tag, "pullRequests": pull_request_inputs(pulls),
+              "resolutions": resolutions_fingerprint(resolutions)}
+    previous = read_state(repo, "status.json")
+    result = {"baseCommit": base, "inputs": inputs, "status": previous,
+              "timing": read_state(repo, "build-timing.json"),
+              "pinnedUpdates": updates, "expiredPullRequests": expired, "closingPullRequests": closing}
+    if not assemble_candidate:
+        return result
+    fetch_pull_requests(repo, config, pulls)
+    status = prepare(repo, tag, "local", (), pulls, resolutions)
+    status.pop("usedResolutions", None)
+    result["phase"] = status["phase"]
+    if status["phase"] in ("conflict", "waiting"):
+        released = previous.get("releasedVersion")
+        status.update(inputs=inputs, pullRequests=pulls, baseCommit=base, sequence=sequence,
+                      # The status schema links a run or a release; no run exists for this result.
+                      runUrl=f"https://github.com/{config['repository']}/releases/tag/v{released}"
+                      if released else previous.get("runUrl"))
+        if updates:
+            status["pinnedUpdates"] = updates
+        write_status(repo, status)
+        result["status"] = status
+    return result
 
 
 def prepare(repo, tag, run_number, published_releases=(), pull_requests=None, resolutions=None):
@@ -1050,7 +1180,8 @@ def verify_import_tests(repo, status):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["prepare", "status", "notes", "verify", "reproduce", "record", "verify-imports"])
+    parser.add_argument("command", choices=["prepare", "status", "notes", "verify", "reproduce", "record", "verify-imports", "check"])
+    parser.add_argument("--assemble", action="store_true", help="check: also merge the snapshot locally")
     parser.add_argument("--tag")
     parser.add_argument("--run-number", default=os.environ.get("GITHUB_RUN_ID"))
     parser.add_argument("--phase", choices=["ready", "failed", "conflict", "superseded"])
@@ -1071,6 +1202,9 @@ def main():
         if not args.status:
             parser.error("verify-imports requires --status")
         verify_import_tests(repo, json.loads(args.status.read_text()))
+        return
+    if args.command == "check":
+        print(json.dumps(check(repo, args.assemble)))
         return
     if args.command in ("reproduce", "record"):
         # Local repair tooling: reads the given files and writes only the kept checkout or output.
@@ -1111,14 +1245,14 @@ def main():
         pulls, resolutions, inputs = None, None, None
         if args.sync_prs:
             config = json.loads((repo / "personal-nightly.json").read_text())
+            sequence = int(os.environ.get("PERSONAL_NIGHTLY_SEQUENCE") or time.time_ns() // 1_000_000)
             if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
-                selected = update_selected_pull_requests(repo, config,
+                selection = update_selected_pull_requests(repo, config,
                     os.environ.get("PERSONAL_NIGHTLY_INCLUDE_PRS", ""),
-                    os.environ.get("PERSONAL_NIGHTLY_REMOVE_PRS", ""),
-                    int(os.environ.get("PERSONAL_NIGHTLY_SEQUENCE") or time.time_ns() // 1_000_000))
+                    os.environ.get("PERSONAL_NIGHTLY_REMOVE_PRS", ""), sequence)
             else:
-                selected = set(read_state(repo, "included-prs.json").get("numbers", []))
-            pulls = discover_included_pull_requests(repo, config, args.tag, selected)
+                selection = read_state(repo, "included-prs.json")
+            pulls, pinned_updates, _ = selected_pull_requests(repo, config, args.tag, selection, sequence, time.time())
             resolutions = read_state(repo, "resolutions.json")
             # A newly recorded resolution can settle a conflict without any PR or branch change.
             inputs = {"upstreamTag": args.tag, "pullRequests": pull_request_inputs(pulls),
@@ -1146,9 +1280,19 @@ def main():
                 return
             fetch_pull_requests(repo, config, pulls)
         status = prepare(repo, args.tag, args.run_number, releases, pulls, resolutions)
+        used = status.pop("usedResolutions", None)
         if inputs is not None:
+            if used is not None and len(used) < len(resolutions):
+                # Keep only what this candidate replayed; the rest belonged to conflicts
+                # an earlier candidate already absorbed. The status records the pruned
+                # set so the checker does not see a change and rebuild.
+                resolutions = {key: resolutions[key] for key in used}
+                write_state(repo, "resolutions.json", resolutions)
+                inputs["resolutions"] = resolutions_fingerprint(resolutions)
             status["inputs"] = inputs
             status["pullRequests"] = pulls
+            if pinned_updates:
+                status["pinnedUpdates"] = pinned_updates
         status_path.write_text(json.dumps(status))
         output = os.environ.get("GITHUB_OUTPUT")
         if output:

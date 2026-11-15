@@ -508,6 +508,24 @@ class PrSynchronizationTests(unittest.TestCase):
         changed = self.pull(2, {"shared.txt": "different change\n"})
         self.assertEqual(self.prepare([first, changed], resolutions=resolutions)["phase"], "conflict")
 
+    def test_a_clean_candidate_reports_only_the_resolutions_it_replayed(self):
+        first = self.pull(1, {"shared.txt": "one\n"})
+        second = self.pull(2, {"shared.txt": "two\n"})
+        recording = Path(self.temp.name) / "recording"
+        nightly.git("clone", "--shared", "--no-checkout", str(self.repo), str(recording))
+        nightly.git("config", "user.name", "test", cwd=recording)
+        nightly.git("config", "user.email", "test@example.invalid", cwd=recording)
+        nightly.git("checkout", "--detach", first["headSha"], cwd=recording)
+        nightly.merge_delta(recording, second["baseSha"], second["headSha"])
+        (recording / "shared.txt").write_text("one and two\n")
+        nightly.git("-c", "rerere.enabled=true", "rerere", cwd=recording)
+        folder = next((recording / ".git" / "rr-cache").iterdir())
+        used = {name: (folder / name).read_text() for name in ("preimage", "postimage")}
+        stale = {"preimage": "<<<<<<<\nold\n=======\nolder\n>>>>>>>\n", "postimage": "old\n"}
+        status = self.prepare([first, second], resolutions={folder.name: used, "f" * 40: stale})
+        self.assertEqual(status["phase"], "building")
+        self.assertEqual(status["usedResolutions"], [folder.name])
+
     def test_a_reviewed_upstream_deletion_survives_a_pr_that_still_modifies_the_file(self):
         nightly.git("checkout", "upstream", cwd=self.repo)
         (self.repo / "old.test.txt").write_text("old test\n")
@@ -713,8 +731,9 @@ class InputDiscoveryTests(unittest.TestCase):
             "issueCount": 2, "nodes": [self.node(number) for number in numbers],
             "pageInfo": {"hasNextPage": more, "endCursor": cursor}}}}), "")
 
-    def rest_pull(self, number, state="open", head="a" * 40):
+    def rest_pull(self, number, state="open", head="a" * 40, closed_at="2026-11-01T00:00:00Z"):
         return {"number": number, "title": f"Someone else's fix {number}", "state": state, "merged": False,
+                "closed_at": closed_at if state == "closed" else None,
                 "head": {"sha": head, "ref": "main", "repo": {"full_name": "someone/t3code"}},
                 "base": {"sha": "b" * 40, "ref": "main", "repo": {"full_name": "pingdotgg/t3code"}},
                 "user": {"login": "someone"}, "html_url": f"https://github.com/pingdotgg/t3code/pull/{number}"}
@@ -744,6 +763,45 @@ class InputDiscoveryTests(unittest.TestCase):
             closed = nightly.discover_included_pull_requests(Path("unused"), self.config, "tag", {2})
         self.assertNotEqual(nightly.pull_request_inputs(first), nightly.pull_request_inputs(updated))
         self.assertEqual(nightly.pull_request_inputs(updated), nightly.pull_request_inputs(closed))
+
+    def test_other_authors_selected_pr_builds_its_pinned_head_until_selected_again(self):
+        pull = {"number": 2, "headSha": "c" * 40, "baseSha": "b" * 40, "baseRef": "main", "author": "someone"}
+        built, selection, updates, _ = nightly.pin_selected_pull_requests([pull], {"numbers": [2]}, "NikitaMGrimm", 100)
+        self.assertEqual(selection["pins"]["2"], {"headSha": "c" * 40, "baseSha": "b" * 40, "pinnedAt": 100})
+        pushed = {**pull, "headSha": "d" * 40, "baseSha": "e" * 40}
+        built, kept, updates, _ = nightly.pin_selected_pull_requests([pushed], selection, "NikitaMGrimm", 200)
+        self.assertEqual((built[0]["headSha"], built[0]["baseSha"]), ("c" * 40, "b" * 40))
+        self.assertEqual(kept, selection)
+        self.assertEqual(updates, [{"number": 2, "pinnedSha": "c" * 40, "headSha": "d" * 40}])
+        with patch.object(nightly, "read_state", return_value={**selection, "sequence": 1}), \
+                patch.object(nightly, "write_state") as write:
+            accepted = nightly.update_selected_pull_requests(Path("unused"), self.config, "2", "", 2)
+        self.assertEqual(write.call_args.args[2]["pins"], {})
+        built, _, updates, _ = nightly.pin_selected_pull_requests([pushed], accepted, "NikitaMGrimm", 300)
+        self.assertEqual(built[0]["headSha"], "d" * 40)
+        self.assertEqual(updates, [])
+
+    def test_own_prs_follow_their_latest_head(self):
+        pull = {"number": 1, "headSha": "c" * 40, "baseSha": "b" * 40, "baseRef": "main", "author": "NikitaMGrimm"}
+        built, selection, _, _ = nightly.pin_selected_pull_requests([pull], {"numbers": [1]}, "NikitaMGrimm", 100)
+        self.assertEqual(built, [pull])
+        self.assertEqual(selection["pins"], {})
+
+    def test_a_pr_closed_unmerged_leaves_the_selection_after_a_week_unless_selected_again(self):
+        closed = 1_000_000
+        pull = {"number": 2, "headSha": "c" * 40, "baseSha": "b" * 40, "baseRef": "main",
+                "author": "someone", "closedAt": closed}
+        week = nightly.CLOSED_SELECTION_GRACE
+        built, selection, _, expired = nightly.pin_selected_pull_requests([pull], {"numbers": [2]}, "x", closed + 10)
+        self.assertEqual(len(built), 1)
+        self.assertEqual(selection["pins"]["2"]["pinnedAt"], 0)
+        built, dropped, _, expired = nightly.pin_selected_pull_requests([pull], selection, "x", closed + week)
+        self.assertEqual((built, dropped, expired), ([], {"numbers": [], "pins": {}}, [2]))
+        self.assertEqual(nightly.closing_selections([pull], selection), [{"number": 2, "expiresAt": closed + week}])
+        confirmed = {"numbers": [2], "pins": {"2": {"headSha": "c" * 40, "baseSha": "b" * 40, "pinnedAt": closed + 5}}}
+        self.assertEqual(nightly.closing_selections([pull], confirmed), [])
+        built, _, _, expired = nightly.pin_selected_pull_requests([pull], confirmed, "x", closed + 10 * week)
+        self.assertEqual((len(built), expired), (1, []))
 
     def test_owned_pr_closed_unmerged_leaves_unless_it_was_selected(self):
         config = {**self.config, "pullRequests": [{"number": 1, "author": "NikitaMGrimm"}]}
