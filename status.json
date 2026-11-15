@@ -1,16 +1,15 @@
 {
   "schema": 1,
-  "phase": "conflict",
+  "phase": "building",
   "upstreamTag": "v0.1.10-nightly.20261115.4749",
-  "conflicts": [
-    "apps/server/src/provider/agentContextBudget.json"
-  ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.1.10-nightly.20261111.1794439053770",
+  "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/43756077077",
   "releasedVersion": "0.1.10-nightly.20261111.1794439053770",
-  "baseCommit": "7f18c7e4b48d63a559e1e5454186aef7a0d9733c",
-  "sequence": 1794768999624,
-  "conflictStage": "personal",
-  "conflictIdentity": "2969575332af73339399dae255a46de16304c410e99f60522ed4a738c7fb8490",
+  "baseCommit": "544efbf82202f6982314b117818069408a3c545b",
+  "sequence": 1794773145248,
+  "resolvedTestImports": [],
+  "candidateCommit": "86bdf6e303eda44389b93f4e0c1c60b4c011147e",
+  "candidateVersion": "0.1.10-nightly.20261115.1794773145248",
   "inputs": {
     "upstreamTag": "v0.1.10-nightly.20261115.4749",
     "pullRequests": [
@@ -30,7 +29,7 @@
         "baseRef": "main"
       }
     ],
-    "resolutions": "43bce81d70eabe9da064cc87e8a0258ffe9327c4482233c584e6cdfcb407dd8a"
+    "resolutions": "9a8bb287b2cdfb7048588bcd5c9081e4354206ee34f83e50318f744cf07eb11d"
   },
   "pullRequests": [
     {
