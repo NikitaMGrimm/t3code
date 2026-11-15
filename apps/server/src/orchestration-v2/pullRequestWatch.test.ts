@@ -9,7 +9,6 @@ import {
   PULL_REQUEST_WATCH_WAKE_LIMIT,
   evaluatePullRequestWatch as evaluate,
   pullRequestWatchMessage,
-  pullRequestWatchNews,
 } from "./pullRequestWatch.ts";
 
 // These cases read the head once or at one moment, so the no-checks notice never comes due.
@@ -725,16 +724,13 @@ describe("evaluatePullRequestWatch", () => {
     const report = evaluatePullRequestWatch(watch(), detail(), [
       remark("reviewer", "2026-10-02T12:06:00Z", body),
     ]);
-    const { text } = pullRequestWatchMessage([
-      pullRequestWatchNews({
-        repository: "o/r",
-        number: 1,
-        url: "https://github.com/o/r/pull/1",
-        baseBranch: "main",
-        headSha: null,
-        report,
-      }),
-    ]);
+    const { text } = pullRequestWatchMessage({
+      number: 1,
+      url: "https://github.com/o/r/pull/1",
+      baseBranch: "main",
+      headSha: null,
+      report,
+    });
     assert.isTrue(text.isWellFormed());
     assert.include(text, `"${"x".repeat(196)}..."`);
   });
@@ -1010,87 +1006,5 @@ describe("evaluatePullRequestWatch", () => {
       ).next.checksPending;
     assert.isFalse(unanswered(null));
     assert.isTrue(unanswered(STARTED));
-  });
-});
-
-describe("pullRequestWatchMessage", () => {
-  it("tells the agent what changed and marks failures for the timeline", () => {
-    const report = evaluatePullRequestWatch(
-      watch(),
-      detail({ checks: [check("lint", "failure")] }),
-      [remark("reviewer", "2026-10-02T12:10:00Z", "<!-- bot -->Needs a test.")],
-    );
-    const news = pullRequestWatchNews({
-      repository: "o/r",
-      number: 12,
-      url: "https://github.com/o/r/pull/12",
-      baseBranch: "main",
-      headSha: report.next.headSha,
-      report,
-    });
-    const message = pullRequestWatchMessage([news]);
-    assert.include(message.text, "- Checks failed on aaaaaaa:\n  - lint https://ci.example/lint");
-    assert.include(message.text, '  - reviewer on src/index.ts: "Needs a test."');
-    assert.include(message.text, "unwatch_pull_request");
-    assert.deepEqual(message.notification, {
-      source: { kind: "monitor" },
-      outcome: "failed",
-      summary: "#12: checks failed, new comments",
-    });
-  });
-
-  it("puts one pass's news on several pull requests in one wake", () => {
-    const commented = evaluatePullRequestWatch(watch(), detail(), [
-      remark("reviewer", "2026-10-02T12:10:00Z"),
-    ]);
-    const news = (number: number, report = commented, repository = "o/r") =>
-      pullRequestWatchNews({
-        repository,
-        number,
-        url: `https://github.com/o/r/pull/${number}`,
-        baseBranch: "main",
-        headSha: report.next.headSha,
-        report,
-      });
-    const exhausted = evaluatePullRequestWatch(
-      watch({ wakes: PULL_REQUEST_WATCH_WAKE_LIMIT - 1, headSha: "aaaaaaaaaa" }),
-      detail(),
-      [remark("reviewer", "2026-10-02T12:10:00Z")],
-    );
-    const closed = {
-      repository: "o/r",
-      number: 8,
-      text: "Pull request #8 was closed.",
-      watching: false,
-      outcome: "updated" as const,
-      summary: "closed, stopped watching",
-    };
-
-    const message = pullRequestWatchMessage([news(14), closed, news(9, exhausted), news(7)]);
-    assert.deepEqual(message.notification, {
-      source: { kind: "monitor" },
-      outcome: "updated",
-      summary:
-        "#7, #14: new comments; #8: closed, stopped watching; #9: new comments, stopped watching",
-    });
-    const parts = message.text.split("\n\n");
-    assert.equal(parts[0], "T3 Code has news on 4 pull requests it is watching for you.");
-    assert.deepEqual(
-      [7, 8, 9, 14].map((number) => message.text.indexOf(`#${number}`)),
-      [7, 8, 9, 14].map((number) => message.text.indexOf(`#${number}`)).toSorted((a, b) => a - b),
-    );
-    // The closing instruction is said once, and only while a watch is still on.
-    assert.equal(message.text.split("unwatch_pull_request").length, 2);
-    assert.include(message.text, "T3 Code stopped watching after");
-    assert.include(
-      message.text,
-      "For PRs that are still watched, do not link, watch, or list them again.",
-    );
-    assert.notInclude(pullRequestWatchMessage([closed, news(9, exhausted)]).text, "unwatch");
-    // The same number in two repositories is told apart on the timeline.
-    assert.equal(
-      pullRequestWatchMessage([news(7), news(7, commented, "o/web"), news(9)]).notification.summary,
-      "o/r#7, o/web#7, #9: new comments",
-    );
   });
 });

@@ -142,7 +142,7 @@ it("on a touch tablet, tapping outside the Permissions menu leaves the editor un
   await userEvent.click(screen.getByText("Timeline"));
   await expect.element(permissionsTrigger).not.toBeInTheDocument();
   // Focusing the editor after a tap opens the on-screen keyboard on Android tablets.
-  expect(handle.focusAtEnd).not.toHaveBeenCalled();
+  expect(handle.restoreFocus).not.toHaveBeenCalled();
 });
 
 it("opens on the checked permission when composer.mode marked the trigger", async () => {

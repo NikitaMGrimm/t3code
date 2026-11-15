@@ -229,7 +229,7 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
     }
     // The target must accept the launcher that will run it, which can be older than this server.
     const launcherProtocol = launcher.protocol;
-    if (capability === null || launcherProtocol === undefined) {
+    if (capability === null || (launcherProtocol === undefined && externalCommand === undefined)) {
       return yield* failWith(
         "Remote updates require the T3 Code background service. Run `t3 service install` on the server machine.",
       );
@@ -286,6 +286,11 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
         // The coordinator ID is not a boot-launcher trial ID. Remote clients
         // verify the requested version when this container reconnects.
         return { targetVersion, method: "respawn" as const };
+      }
+      if (launcherProtocol === undefined) {
+        return yield* failWith(
+          "Remote updates require the T3 Code background service. Run `t3 service install` on the server machine.",
+        );
       }
       const paths = yield* ensurePinnedRuntimeInstalled({
         baseDir: serverConfig.baseDir,
