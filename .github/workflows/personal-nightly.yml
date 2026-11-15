@@ -97,6 +97,7 @@ jobs:
           path: |
             ${{ runner.temp }}/personal-nightly-status.json
             ${{ runner.temp }}/personal-nightly-notes.md
+            ${{ runner.temp }}/personal-nightly-notes.full.md
           if-no-files-found: error
 
   bundle:
@@ -292,6 +293,7 @@ jobs:
           set -euo pipefail
           (cd "$RUNNER_TEMP/release-assets" && sha256sum t3-* > SHA256SUMS)
           cp "$RUNNER_TEMP/personal-nightly-status.json" "$RUNNER_TEMP/release-assets/provenance.json"
+          cp "$RUNNER_TEMP/personal-nightly-notes.full.md" "$RUNNER_TEMP/release-assets/CHANGELOG.md"
           if gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION" > "$RUNNER_TEMP/existing-release.json"; then
             python3 -I -c 'import json,os; r=json.load(open(os.environ["RUNNER_TEMP"]+"/existing-release.json")); assert r["target_commitish"] == os.environ["REF"]'
             if python3 -I -c 'import json,os; r=json.load(open(os.environ["RUNNER_TEMP"]+"/existing-release.json")); assert r["draft"] is False'; then

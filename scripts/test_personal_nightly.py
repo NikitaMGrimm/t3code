@@ -183,6 +183,53 @@ class NightlyIntegrationTests(unittest.TestCase):
             nightly.main()
         self.assertIn("personal fix", output.read_text())
         self.assertNotIn("a later unreleased change", output.read_text())
+        self.assertEqual(output.with_suffix(".full.md").read_text(), output.read_text())
+
+    def test_notes_command_links_oversized_upstream_history_and_preserves_every_change(self):
+        self.upstream("first\n")
+        nightly.prepare(self.repo, self.tag, "123")
+        config_path = self.repo / "personal-nightly.json"
+        config = json.loads(config_path.read_text())
+        config.update(prBaseline=nightly.git("rev-parse", "HEAD", cwd=self.repo).stdout.strip(),
+                      pullRequests=[{"number": 42, "headSha": "a" * 40, "title": "selected feature"}])
+        config_path.write_text(json.dumps(config))
+        self.commit("record selected feature")
+        detail = "upstream feature " + "é" * 125_000
+        releases = [self.official_release(body=f"- {detail}")]
+        index = Path(self.temp.name) / "personal.json"
+        official = Path(self.temp.name) / "official.json"
+        output = Path(self.temp.name) / "notes.md"
+        version = "0.0.46-nightly.20261007.200"
+        index.write_text("[]")
+        official.write_text(json.dumps(releases))
+        arguments = ["personal-nightly", "notes", "--version", version, "--release-index", str(index),
+                     "--upstream-release-index", str(official), "--notes-file", str(output)]
+        with patch.object(Path, "cwd", return_value=self.repo), patch.object(sys, "argv", arguments):
+            nightly.main()
+        full, body = output.with_suffix(".full.md").read_text(), output.read_text()
+        self.assertEqual(full, nightly.release_notes(self.repo, "HEAD", version, [], releases))
+        self.assertIn(detail, full)
+        self.assertLessEqual(len(body), 125_000)
+        self.assertNotIn(detail, body)
+        self.assertIn(f"https://github.com/pingdotgg/t3code/releases/tag/{self.tag}", body)
+        self.assertIn(f"https://github.com/NikitaMGrimm/t3code/releases/download/v{version}/CHANGELOG.md", body)
+        self.assertIn("## PR changes", body)
+        self.assertIn("selected feature", body)
+        self.assertIn("## Personal changes", body)
+        self.assertIn("personal fix", body)
+
+    def test_oversized_personal_notes_fail_without_truncating_or_writing_a_partial_body(self):
+        self.upstream("first\n")
+        nightly.prepare(self.repo, self.tag, "123")
+        message = Path(self.temp.name) / "commit-message.txt"
+        message.write_text("personal fix " + "x" * 125_000)
+        nightly.git("commit", "--allow-empty", "-F", str(message), cwd=self.repo)
+        output = Path(self.temp.name) / "notes.md"
+        with self.assertRaisesRegex(ValueError, "still exceed GitHub's limit"):
+            nightly.write_release_notes(self.repo, "HEAD", "0.0.46-nightly.20261007.200", [],
+                                        [self.official_release()], output)
+        self.assertFalse(output.exists())
+        self.assertFalse(output.with_suffix(".full.md").exists())
 
     def test_notes_fail_when_official_metadata_is_missing_or_empty(self):
         self.upstream("first\n")

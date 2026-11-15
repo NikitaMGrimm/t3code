@@ -1055,7 +1055,7 @@ def release_change_items(body):
     return items
 
 
-def release_notes(repo, ref, version, personal_releases, upstream_releases):
+def release_notes(repo, ref, version, personal_releases, upstream_releases, *, upstream_details=True):
     """Compare with the last published build, including fixes outside the PR manifest."""
     version_key = nightly_version_key(version)
     if version_key is None:
@@ -1100,13 +1100,15 @@ def release_notes(repo, ref, version, personal_releases, upstream_releases):
         key=lambda release: nightly_version_key(release["tag_name"]),
     )
     lines = ["## Upstream changes"]
+    if included and not upstream_details:
+        lines += ["", "Full upstream change lists are in the linked official releases."]
     seen = set()
     for release in included:
         items = release_change_items(release.get("body"))
         if not items:
             raise ValueError(f"Missing official change notes for {release['tag_name']}")
         lines += ["", f"### [{release['tag_name']}](https://github.com/{config['upstreamRepository']}/releases/tag/{release['tag_name']})", ""]
-        for item in items:
+        for item in items if upstream_details else ():
             if item not in seen:
                 lines.append(f"- {item}")
                 seen.add(item)
@@ -1143,6 +1145,20 @@ def release_notes(repo, ref, version, personal_releases, upstream_releases):
     else:
         lines += ["", "## Personal changes (none)"]
     return "\n".join(lines).rstrip() + "\n"
+
+
+def write_release_notes(repo, ref, version, personal_releases, upstream_releases, notes_file):
+    full = release_notes(repo, ref, version, personal_releases, upstream_releases)
+    body = full
+    # GitHub rejects release bodies above 125,000 characters. Keep the full history as an asset.
+    if len(body) > 125_000:
+        body = release_notes(repo, ref, version, personal_releases, upstream_releases, upstream_details=False)
+        config = json.loads(git("show", f"{ref}:personal-nightly.json", cwd=repo).stdout)
+        body += f"\n[Full changelog](https://github.com/{config['repository']}/releases/download/v{version}/CHANGELOG.md)\n"
+        if len(body) > 125_000:
+            raise ValueError("Release notes still exceed GitHub's limit after linking upstream changes")
+    notes_file.with_suffix(".full.md").write_text(full)
+    notes_file.write_text(body)
 
 
 def verify_import_tests(repo, status):
@@ -1237,8 +1253,7 @@ def main():
         upstream = json.loads(args.upstream_release_index.read_text())
         if upstream and isinstance(upstream[0], list):
             upstream = [release for page in upstream for release in page]
-        notes = release_notes(repo, args.ref, args.version, json.loads(args.release_index.read_text()), upstream)
-        args.notes_file.write_text(notes)
+        write_release_notes(repo, args.ref, args.version, json.loads(args.release_index.read_text()), upstream, args.notes_file)
         return
     if args.command == "prepare":
         releases = json.loads(args.release_index.read_text()) if args.release_index else []
