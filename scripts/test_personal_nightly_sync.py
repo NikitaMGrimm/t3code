@@ -122,6 +122,17 @@ class PrSynchronizationTests(unittest.TestCase):
         self.assertEqual(status["phase"], "building")
         self.assertEqual((self.repo / "pr.txt").read_text(), "new\n")
 
+    def test_successful_prepare_preserves_resolutions_unused_by_the_current_snapshot(self):
+        self.remote()
+        pull = self.pull(1, {"pr.txt": "new\n"})
+        resolutions = {"a" * 40: {"preimage": "old conflict\n", "postimage": "old resolution\n"}}
+        nightly.write_state(self.repo, "resolutions.json", resolutions)
+        status, _ = self.run_prepare([pull], 500, forced=True)
+        self.assertEqual(status["phase"], "building")
+        self.assertEqual(nightly.read_state(self.repo, "resolutions.json"), resolutions)
+        self.assertEqual(status["inputs"]["resolutions"], nightly.resolutions_fingerprint(resolutions))
+        self.assertNotIn("usedResolutions", status)
+
     def test_vps_digest_skips_duplicate_debounce_but_preserves_cooldown(self):
         self.remote()
         first = self.pull(1, {"pr.txt": "new\n"})

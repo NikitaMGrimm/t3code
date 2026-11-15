@@ -1295,15 +1295,9 @@ def main():
                 return
             fetch_pull_requests(repo, config, pulls)
         status = prepare(repo, args.tag, args.run_number, releases, pulls, resolutions)
-        used = status.pop("usedResolutions", None)
+        # Other retained PR snapshots can still need resolutions this candidate did not replay.
+        status.pop("usedResolutions", None)
         if inputs is not None:
-            if used is not None and len(used) < len(resolutions):
-                # Keep only what this candidate replayed; the rest belonged to conflicts
-                # an earlier candidate already absorbed. The status records the pruned
-                # set so the checker does not see a change and rebuild.
-                resolutions = {key: resolutions[key] for key in used}
-                write_state(repo, "resolutions.json", resolutions)
-                inputs["resolutions"] = resolutions_fingerprint(resolutions)
             status["inputs"] = inputs
             status["pullRequests"] = pulls
             if pinned_updates:
