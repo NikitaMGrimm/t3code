@@ -1,19 +1,21 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.11-nightly.20261117.4814",
+  "upstreamTag": "v0.1.11-nightly.20261117.4825",
   "conflicts": [
+    "apps/server/src/cloud/selfUpdate.ts",
+    "apps/server/src/provider/agentContextBudget.json",
     "apps/web/src/timestampFormat.test.ts",
     "apps/web/src/timestampFormat.ts"
   ],
   "runUrl": "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.1.10-nightly.20261116.1794864284469",
   "releasedVersion": "0.1.10-nightly.20261116.1794864284469",
   "baseCommit": "143b6ad7090c061e771e0cd9ace0961f614d1e2f",
-  "sequence": 1794887117772,
+  "sequence": 1794902475328,
   "conflictStage": "personal",
-  "conflictIdentity": "e014f4edf54e56696c947b726f2cc6ab1ab010cdc79ff1040e92038742ee3a01",
+  "conflictIdentity": "d6663572e1a8ec04564c56ef5653a8f92ec964dd4f9aa6d553b6b3fc55fe0d16",
   "inputs": {
-    "upstreamTag": "v0.1.11-nightly.20261117.4814",
+    "upstreamTag": "v0.1.11-nightly.20261117.4825",
     "pullRequests": [
       {
         "number": 17871,
