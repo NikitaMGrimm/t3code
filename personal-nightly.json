@@ -2,7 +2,7 @@
   "repository": "NikitaMGrimm/t3code",
   "branch": "personal-nightly",
   "upstreamRepository": "pingdotgg/t3code",
-  "upstreamTag": "v0.1.10-nightly.20261116.4800",
+  "upstreamTag": "v0.1.11-nightly.20261117.4851",
   "pullRequests": [
     {
       "number": 17871,
@@ -27,19 +27,7 @@
       "url": "https://github.com/pingdotgg/t3code/pull/22788",
       "headRepository": "pingdotgg/t3code",
       "baseRepository": "pingdotgg/t3code"
-    },
-    {
-      "number": 23673,
-      "title": "feat(web): optionally keep thread section dividers visible",
-      "headSha": "f3f0631636444e7bfb0d2c70f9c0f323b37bce09",
-      "baseSha": "37fbefd147197fab9d88f9c120560c3f21b52cfc",
-      "headRef": "feat/sidebar-section-dividers",
-      "baseRef": "main",
-      "author": "NikitaMGrimm",
-      "url": "https://github.com/pingdotgg/t3code/pull/23673",
-      "headRepository": "NikitaMGrimm/t3code",
-      "baseRepository": "pingdotgg/t3code"
     }
   ],
-  "prBaseline": "c21e54ac8b9261289f169585dbaee8db50a4d047"
+  "prBaseline": "2058261ab3f0f89ce98d7f15f5297c3fc4e5336d"
 }

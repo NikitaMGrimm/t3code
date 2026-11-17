@@ -1,11 +1,25 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
+  formatChatTimestampTooltip,
   formatDayAwareTimestamp,
-  formatUpcomingTimestamp,
   formatFullTimestamp,
   formatTimeOfDay,
+  formatTimestamp,
+  formatUpcomingTimestamp,
 } from "./timestampFormat";
+
+// Node re-resolves the default zone when TZ is assigned, like a renderer after the OS zone changes.
+function useTimeZone(timeZone: string): Disposable {
+  const previous = process.env.TZ;
+  process.env.TZ = timeZone;
+  return {
+    [Symbol.dispose]: () => {
+      if (previous === undefined) delete process.env.TZ;
+      else process.env.TZ = previous;
+    },
+  };
+}
 
 // ICU can separate the day period with a narrow no-break space.
 const normalize = (value: string) => value.replace(/[  ]/g, " ");
@@ -94,6 +108,77 @@ describe("timestamps in an explicit time zone", () => {
     );
     expect(formatDayAwareTimestamp("2026-07-01T03:30:00.000Z", "12-hour", now, zone)).toMatch(
       /^yesterday at /,
+    );
+  });
+});
+
+describe("timestamps after the system time zone changes", () => {
+  // Built fresh with an explicit zone, so expectations follow the host locale but not a stale zone.
+  const timeIn = (iso: string, timeZone: string) =>
+    new Intl.DateTimeFormat(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZone,
+    }).format(new Date(iso));
+  const dayIn = (iso: string, timeZone: string) =>
+    new Intl.DateTimeFormat(undefined, { month: "numeric", day: "numeric", timeZone }).format(
+      new Date(iso),
+    );
+
+  it("renders the gutter label in the new zone", () => {
+    const sameDay = "2026-11-07T04:45:43.877Z";
+    const earlierInWeek = "2026-11-04T20:00:00.000Z";
+    const now = Date.parse(sameDay);
+    using _zone = useTimeZone("America/New_York");
+    expect([
+      formatDayAwareTimestamp(sameDay, "12-hour", now),
+      formatDayAwareTimestamp(earlierInWeek, "12-hour", now),
+    ]).toEqual([
+      timeIn(sameDay, "America/New_York"),
+      `${dayIn(earlierInWeek, "America/New_York")} ${timeIn(earlierInWeek, "America/New_York")}`,
+    ]);
+
+    process.env.TZ = "Asia/Bangkok";
+    expect([
+      formatDayAwareTimestamp(sameDay, "12-hour", now),
+      formatDayAwareTimestamp(earlierInWeek, "12-hour", now),
+    ]).toEqual([
+      timeIn(sameDay, "Asia/Bangkok"),
+      `${dayIn(earlierInWeek, "Asia/Bangkok")} ${timeIn(earlierInWeek, "Asia/Bangkok")}`,
+    ]);
+  });
+
+  it("renders detailed timestamps in the new zone", () => {
+    const instant = "2026-10-31T20:00:09.000Z";
+    const expected = (timeZone: string, includeDate: boolean) =>
+      new Intl.DateTimeFormat(undefined, {
+        ...(includeDate ? { year: "numeric", month: "short", day: "numeric" } : {}),
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+        timeZone,
+      }).format(new Date(instant));
+    using _zone = useTimeZone("America/New_York");
+    expect(formatTimestamp(instant, "12-hour")).toBe(expected("America/New_York", false));
+    expect(formatFullTimestamp(instant, "12-hour")).toBe(expected("America/New_York", true));
+
+    process.env.TZ = "Asia/Bangkok";
+    expect(formatTimestamp(instant, "12-hour")).toBe(expected("Asia/Bangkok", false));
+    expect(formatFullTimestamp(instant, "12-hour")).toBe(expected("Asia/Bangkok", true));
+  });
+
+  it("renders the tooltip in the new zone", () => {
+    const monthEnd = "2026-10-31T20:00:00.000Z";
+    using _zone = useTimeZone("America/New_York");
+    expect(formatChatTimestampTooltip(monthEnd, "12-hour")).toBe(
+      `${timeIn(monthEnd, "America/New_York")}, 31st October 2026`,
+    );
+
+    process.env.TZ = "Asia/Bangkok";
+    expect(formatChatTimestampTooltip(monthEnd, "12-hour")).toBe(
+      `${timeIn(monthEnd, "Asia/Bangkok")}, 1st November 2026`,
     );
   });
 });

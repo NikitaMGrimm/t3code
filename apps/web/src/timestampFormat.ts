@@ -68,15 +68,21 @@ function resolveWeekStartsOn(locale: string | undefined): WeekdayIndex | undefin
 
 export const weekStartsOn = resolveWeekStartsOn(timestampLocale);
 
+// A formatter keeps the default zone it was built in, so default-zone formatters run in UTC
+// on the wall-clock time, which Date reads from the current zone.
+function wallClockAsUtc(date: Date): Date {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+}
+
 const timestampFormatterCache = new Map<string, Intl.DateTimeFormat>();
 
 function getTimestampFormatter(
   timestampFormat: TimestampFormat,
   includeSeconds: boolean,
-  timeZone?: string,
+  timeZone = "UTC",
   includeDate = false,
 ): Intl.DateTimeFormat {
-  const cacheKey = `${timestampFormat}:${includeSeconds ? "seconds" : "minutes"}:${timeZone ?? ""}:${includeDate ? "date" : "time"}`;
+  const cacheKey = `${timestampFormat}:${includeSeconds ? "seconds" : "minutes"}:${timeZone}:${includeDate ? "date" : "time"}`;
   const cachedFormatter = timestampFormatterCache.get(cacheKey);
   if (cachedFormatter) {
     return cachedFormatter;
@@ -85,10 +91,16 @@ function getTimestampFormatter(
   const formatter = new Intl.DateTimeFormat(timestampLocale, {
     ...(includeDate ? ({ year: "numeric", month: "short", day: "numeric" } as const) : {}),
     ...getTimestampFormatOptions(timestampFormat, includeSeconds),
-    ...(timeZone ? { timeZone } : {}),
+    timeZone,
   });
   timestampFormatterCache.set(cacheKey, formatter);
   return formatter;
+}
+
+function formatTime(date: Date, timestampFormat: TimestampFormat, timeZone?: string): string {
+  return timeZone
+    ? getTimestampFormatter(timestampFormat, false, timeZone).format(date)
+    : getTimestampFormatter(timestampFormat, false).format(wallClockAsUtc(date));
 }
 
 export function resolveHour12(timestampFormat: TimestampFormat): boolean {
@@ -103,7 +115,7 @@ export function parseTimestampDate(isoDate: string): Date | null {
 export function formatTimestamp(isoDate: string, timestampFormat: TimestampFormat): string {
   const date = parseTimestampDate(isoDate);
   if (!date) return "";
-  return getTimestampFormatter(timestampFormat, true).format(date);
+  return getTimestampFormatter(timestampFormat, true).format(wallClockAsUtc(date));
 }
 
 /** Local date and time for details that must stay unambiguous across days and years. */
@@ -114,13 +126,15 @@ export function formatFullTimestamp(
 ): string {
   const date = parseTimestampDate(isoDate);
   if (!date) return "";
-  return getTimestampFormatter(timestampFormat, includeSeconds, undefined, true).format(date);
+  return getTimestampFormatter(timestampFormat, includeSeconds, undefined, true).format(
+    wallClockAsUtc(date),
+  );
 }
 
 // Deliberately not the host locale: the tooltip's ordinal suffix and
 // day-before-month order below are English, so a localized month alone would
 // read "4th Juni 2026".
-const monthNameFormatter = new Intl.DateTimeFormat("en-US", { month: "long" });
+const monthNameFormatter = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: "UTC" });
 
 function ordinalSuffix(day: number): string {
   const lastTwo = day % 100;
@@ -143,9 +157,9 @@ export function formatChatTimestampTooltip(
 ): string {
   const date = parseTimestampDate(isoDate);
   if (!date) return "";
-  const time = formatShortTimestamp(isoDate, timestampFormat);
+  const time = formatTime(date, timestampFormat);
   const day = date.getDate();
-  const month = monthNameFormatter.format(date);
+  const month = monthNameFormatter.format(wallClockAsUtc(date));
   const year = date.getFullYear();
   return `${time}, ${day}${ordinalSuffix(day)} ${month} ${year}`;
 }
@@ -153,7 +167,7 @@ export function formatChatTimestampTooltip(
 export function formatShortTimestamp(isoDate: string, timestampFormat: TimestampFormat): string {
   const date = parseTimestampDate(isoDate);
   if (!date) return "";
-  return getTimestampFormatter(timestampFormat, false).format(date);
+  return formatTime(date, timestampFormat);
 }
 
 const numericDateOptions: Intl.DateTimeFormatOptions = { month: "numeric", day: "numeric" };
@@ -161,11 +175,14 @@ const numericDateWithYearOptions: Intl.DateTimeFormatOptions = {
   ...numericDateOptions,
   year: "numeric",
 };
-const numericDateFormatter = new Intl.DateTimeFormat(timestampLocale, numericDateOptions);
-const numericDateWithYearFormatter = new Intl.DateTimeFormat(
-  timestampLocale,
-  numericDateWithYearOptions,
-);
+const numericDateFormatter = new Intl.DateTimeFormat(timestampLocale, {
+  ...numericDateOptions,
+  timeZone: "UTC",
+});
+const numericDateWithYearFormatter = new Intl.DateTimeFormat(timestampLocale, {
+  ...numericDateWithYearOptions,
+  timeZone: "UTC",
+});
 
 interface CalendarDay {
   year: number;
@@ -192,7 +209,9 @@ function calendarDay(date: Date, timeZone: string | undefined): CalendarDay {
 
 function formatNumericDate(date: Date, sameYear: boolean, timeZone: string | undefined): string {
   if (!timeZone) {
-    return (sameYear ? numericDateFormatter : numericDateWithYearFormatter).format(date);
+    return (sameYear ? numericDateFormatter : numericDateWithYearFormatter).format(
+      wallClockAsUtc(date),
+    );
   }
   return new Intl.DateTimeFormat(timestampLocale, {
     ...(sameYear ? numericDateOptions : numericDateWithYearOptions),
@@ -208,7 +227,7 @@ export function formatDayAwareTimestamp(
 ): string {
   const date = parseTimestampDate(isoDate);
   if (!date) return "";
-  const time = getTimestampFormatter(timestampFormat, false, timeZone).format(date);
+  const time = formatTime(date, timestampFormat, timeZone);
 
   const today = calendarDay(new Date(nowMs), timeZone);
   const messageDay = calendarDay(date, timeZone);
@@ -219,7 +238,7 @@ export function formatDayAwareTimestamp(
   return `${formatNumericDate(date, messageDay.year === today.year, timeZone)} ${time}`;
 }
 
-/** `timeZone` overrides the zone the formatters cached when they were built. */
+/** `timeZone` overrides the system's current zone. */
 export function formatUpcomingTimestamp(
   isoDate: string,
   timestampFormat: TimestampFormat,
@@ -228,7 +247,7 @@ export function formatUpcomingTimestamp(
 ): string {
   const date = parseTimestampDate(isoDate);
   if (!date) return "";
-  const time = getTimestampFormatter(timestampFormat, false, timeZone).format(date);
+  const time = formatTime(date, timestampFormat, timeZone);
 
   const today = calendarDay(new Date(nowMs), timeZone);
   const targetDay = calendarDay(date, timeZone);

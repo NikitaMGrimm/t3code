@@ -129,6 +129,12 @@ describe("storage cleanup settings", () => {
   });
 });
 
+describe("ClientSettings terminal close confirmation", () => {
+  it("keeps confirmation enabled for settings without a saved preference", () => {
+    expect(decodeClientSettings({}).confirmTerminalClose).toBe(true);
+  });
+});
+
 describe("ServerSettings usage price overrides", () => {
   const prices = { inputCostPerMillionTokens: 2, outputCostPerMillionTokens: 8 };
 
@@ -323,21 +329,6 @@ describe("ClientSettings notifications", () => {
     expect(decodeClientSettings({}).inAppNotificationsEnabled).toBe(false);
     expect(decodeClientSettingsPatch({})).not.toHaveProperty("inAppNotificationsEnabled");
     expect(decodeClientSettingsPatch({})).not.toHaveProperty("notificationMode");
-  });
-});
-
-describe("ClientSettings sidebar section dividers", () => {
-  it("keeps existing clients opted out and preserves explicit choices", () => {
-    expect(decodeClientSettings({}).sidebarSectionDividersEnabled).toBe(false);
-    expect(decodeClientSettingsPatch({})).not.toHaveProperty("sidebarSectionDividersEnabled");
-    for (const enabled of [true, false]) {
-      const patch = { sidebarSectionDividersEnabled: enabled };
-      expect(decodeClientSettingsPatch(patch)).toEqual(patch);
-      expect(
-        decodeClientSettings(encodeClientSettings(decodeClientSettings(patch)))
-          .sidebarSectionDividersEnabled,
-      ).toBe(enabled);
-    }
   });
 });
 
