@@ -1,19 +1,15 @@
 {
   "schema": 1,
-  "phase": "conflict",
+  "phase": "building",
   "upstreamTag": "v0.1.11-nightly.20261117.4851",
-  "conflicts": [
-    "apps/server/src/cloud/selfUpdate.ts",
-    "apps/server/src/provider/agentContextBudget.json",
-    "apps/web/src/timestampFormat.test.ts",
-    "apps/web/src/timestampFormat.ts"
-  ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.1.10-nightly.20261116.1794864284469",
+  "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/44178635592",
   "releasedVersion": "0.1.10-nightly.20261116.1794864284469",
   "baseCommit": "143b6ad7090c061e771e0cd9ace0961f614d1e2f",
-  "sequence": 1794949213886,
-  "conflictStage": "personal",
-  "conflictIdentity": "d6663572e1a8ec04564c56ef5653a8f92ec964dd4f9aa6d553b6b3fc55fe0d16",
+  "sequence": 1794950390396,
+  "resolvedTestImports": [],
+  "candidateCommit": "e1b300cfd3d28d3666b48bf1e8b65edc11a9f5d1",
+  "candidateVersion": "0.1.11-nightly.20261117.1794950390396",
   "inputs": {
     "upstreamTag": "v0.1.11-nightly.20261117.4851",
     "pullRequests": [
@@ -28,7 +24,7 @@
         "baseRef": "main"
       }
     ],
-    "resolutions": "a088dbea26def12982040b4f190dc5f4cdbc99c6cf12d20e6d393cdd2d728514"
+    "resolutions": "7d92f0a2d0b5f9d3df534a811dcc0e680f670e4e9cfb68b3a74adf7ffd8a9107"
   },
   "pullRequests": [
     {
