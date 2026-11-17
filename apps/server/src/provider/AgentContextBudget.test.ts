@@ -49,6 +49,7 @@ import { DocumentText } from "./DocumentText.ts";
 import { EnvironmentThemeService } from "../environmentTheme.ts";
 import { ProviderRegistry } from "./ProviderRegistry.ts";
 import budget from "./agentContextBudget.json" with { type: "json" };
+import personalBudgetDelta from "./agentContextBudget.personal.json" with { type: "json" };
 
 // Registration only stores tool definitions, so the handlers' services are never called.
 const toolHandlerServices = Layer.mergeAll(
@@ -135,8 +136,8 @@ it.effect("only request_secret and send_to_user ask Claude Code to load them up 
   }).pipe(Effect.provide(layerAdvertisedTools)),
 );
 
-// CI rejects a PR that raises any value above main's agentContextBudget.json, so growth
-// needs the agent-context-increase label. Lower the values when the text shrinks.
+// Track upstream's budget as-is and keep the personal byte changes separate.
+// The combined measurement still needs to match exactly.
 it.effect("agent context matches the committed budget", () =>
   Effect.gen(function* () {
     const mcp = yield* McpServer.McpServer;
@@ -157,7 +158,13 @@ it.effect("agent context matches the committed budget", () =>
 
     expect(
       measured,
-      "Set agentContextBudget.json to the measured values. Before you cut text to fit, run the evals that cover it (evals/README.md).",
-    ).toEqual(budget);
+      "Set agentContextBudget.personal.json to the measured difference from the upstream budget. Before you cut text to fit, run the evals that cover it (evals/README.md).",
+    ).toEqual({
+      claudeSystemAppendBytes:
+        budget.claudeSystemAppendBytes + personalBudgetDelta.claudeSystemAppendBytes,
+      codexAdditionalContextBytes:
+        budget.codexAdditionalContextBytes + personalBudgetDelta.codexAdditionalContextBytes,
+      mcpToolListJsonBytes: budget.mcpToolListJsonBytes + personalBudgetDelta.mcpToolListJsonBytes,
+    });
   }).pipe(Effect.provide(layerAdvertisedTools)),
 );
