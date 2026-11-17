@@ -1,17 +1,19 @@
 {
   "schema": 1,
-  "phase": "ready",
-  "upstreamTag": "v0.1.10-nightly.20261116.4800",
-  "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/43959781173",
+  "phase": "conflict",
+  "upstreamTag": "v0.1.11-nightly.20261117.4814",
+  "conflicts": [
+    "apps/web/src/timestampFormat.test.ts",
+    "apps/web/src/timestampFormat.ts"
+  ],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.1.10-nightly.20261116.1794864284469",
   "releasedVersion": "0.1.10-nightly.20261116.1794864284469",
-  "baseCommit": "daa19ebb111b267f93e21208104bab9c1be590aa",
-  "sequence": 1794864284469,
-  "resolvedTestImports": [],
-  "candidateCommit": "143b6ad7090c061e771e0cd9ace0961f614d1e2f",
-  "candidateVersion": "0.1.10-nightly.20261116.1794864284469",
+  "baseCommit": "143b6ad7090c061e771e0cd9ace0961f614d1e2f",
+  "sequence": 1794884821069,
+  "conflictStage": "personal",
+  "conflictIdentity": "e014f4edf54e56696c947b726f2cc6ab1ab010cdc79ff1040e92038742ee3a01",
   "inputs": {
-    "upstreamTag": "v0.1.10-nightly.20261116.4800",
+    "upstreamTag": "v0.1.11-nightly.20261117.4814",
     "pullRequests": [
       {
         "number": 17871,
