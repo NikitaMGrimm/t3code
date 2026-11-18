@@ -1,19 +1,19 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.11-nightly.20261118.4890",
+  "upstreamTag": "v0.1.11-nightly.20261118.4903",
   "conflicts": [
     "apps/web/src/components/ChatView.tsx"
   ],
   "runUrl": "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.1.11-nightly.20261117.1794950390396",
   "releasedVersion": "0.1.11-nightly.20261117.1794950390396",
   "baseCommit": "7060638431fda29c3f58234a18d7f18792640c7a",
-  "sequence": 1795019471886,
+  "sequence": 1795042867436,
   "conflictPullRequest": 22788,
   "conflictStage": "pull_request",
   "conflictIdentity": "b5dec93710b73172b794759a308b0423270aee6fc35bd3b4e60721f4fd0b08ab",
   "inputs": {
-    "upstreamTag": "v0.1.11-nightly.20261118.4890",
+    "upstreamTag": "v0.1.11-nightly.20261118.4903",
     "pullRequests": [
       {
         "number": 17871,
