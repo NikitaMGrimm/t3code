@@ -1,6 +1,6 @@
 {
   "inputs": {
-    "upstreamTag": "v0.1.11-nightly.20261117.4851",
+    "upstreamTag": "v0.1.11-nightly.20261118.4903",
     "pullRequests": [
       {
         "number": 17871,
@@ -13,7 +13,7 @@
         "baseRef": "main"
       }
     ],
-    "resolutions": "7d92f0a2d0b5f9d3df534a811dcc0e680f670e4e9cfb68b3a74adf7ffd8a9107"
+    "resolutions": "0d3af4fc268d0640eb8d5055a0ebae13ca6dd52ce1e82f3944b2db6eae796972"
   },
-  "observedAt": 1794950452.3469188
+  "observedAt": 1795061922.0949469
 }
