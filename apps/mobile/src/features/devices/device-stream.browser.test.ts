@@ -77,6 +77,13 @@ function viewerFixture(supported: boolean) {
       buttonForeground: "white",
       buttonBorder: "gray",
     },
+    labels: {
+      screen: "iOS Simulator screen",
+      reconnectingControls: "Reconnecting device controls...",
+      takeControl: "Take control",
+      releaseControl: "Release control",
+      phoneInputHelp: "Take control to interact with the phone.",
+    },
   });
   return { configured, requested, videoBodies };
 }

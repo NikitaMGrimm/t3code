@@ -1,13 +1,16 @@
 import type { RelayClientDeviceRecord } from "@t3tools/contracts/relay";
+import { msg } from "gt-react";
+
+import { m, type MessageResolver } from "~/i18n/messages";
 import type { TimestampFormat } from "@t3tools/contracts/settings";
 
 import { formatFullTimestamp } from "../../timestampFormat";
 
 const NOTIFICATION_PREFERENCES = [
-  ["notifyOnApproval", "approvals"],
-  ["notifyOnInput", "input requests"],
-  ["notifyOnCompletion", "completions"],
-  ["notifyOnFailure", "failures"],
+  ["notifyOnApproval", msg("approvals")],
+  ["notifyOnInput", msg("input requests")],
+  ["notifyOnCompletion", msg("completions")],
+  ["notifyOnFailure", msg("failures")],
 ] as const satisfies ReadonlyArray<
   readonly [keyof RelayClientDeviceRecord["notifications"], string]
 >;
@@ -22,23 +25,30 @@ export function mobileClientPlatformLabel(device: RelayClientDeviceRecord): stri
   return `${platform}${device.appVersion ? ` · T3 Code ${device.appVersion}` : ""}`;
 }
 
-export function mobileClientNotificationDetail(device: RelayClientDeviceRecord): string {
+/** Components pass `useMessages()` so the detail follows a language switch. */
+export function mobileClientNotificationDetail(
+  device: RelayClientDeviceRecord,
+  resolve: MessageResolver = m,
+): string {
   if (!device.notifications.enabled) {
-    return "Push notifications are disabled on this device.";
+    return resolve(msg("Push notifications are disabled on this device."));
   }
 
   const enabledPreferences = NOTIFICATION_PREFERENCES.flatMap(([preference, label]) =>
-    device.notifications[preference] ? [label] : [],
+    device.notifications[preference] ? [resolve(label)] : [],
   );
   return enabledPreferences.length > 0
-    ? `Alerts enabled for ${enabledPreferences.join(", ")}.`
-    : "Push notifications are enabled, but no alert types are selected.";
+    ? resolve(msg("Alerts enabled for {alerts}.", { alerts: enabledPreferences.join(", ") }))
+    : resolve(msg("Push notifications are enabled, but no alert types are selected."));
 }
 
 export function mobileClientUpdatedAtLabel(
   updatedAt: string,
   timestampFormat: TimestampFormat,
+  resolve: MessageResolver = m,
 ): string {
   const timestamp = formatFullTimestamp(updatedAt, timestampFormat, false);
-  return timestamp ? `Updated ${timestamp}` : "Update time unavailable";
+  return timestamp
+    ? resolve(msg("Updated {date}", { date: timestamp }))
+    : resolve(msg("Update time unavailable"));
 }

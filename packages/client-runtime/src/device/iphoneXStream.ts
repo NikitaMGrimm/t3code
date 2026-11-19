@@ -133,13 +133,18 @@ export function createIphoneXStream(
         if (active !== current) return;
         events.onScreen({ ...size, orientation: "portrait" });
         stateAt = performance.now();
-        if (generation === inputGeneration)
+        if (generation === inputGeneration) {
+          const controlsInput =
+            ownershipDesired && "controlsInput" in state && state.controlsInput === true;
           report(
-            ownershipDesired && "controlsInput" in state && state.controlsInput === true,
-            "owner" in state && state.owner === "agent"
-              ? "The agent has control. Take control to use the phone."
-              : "Take control to interact with the phone.",
+            controlsInput,
+            controlsInput
+              ? undefined
+              : "owner" in state && state.owner === "agent"
+                ? "The agent has control. Take control to use the phone."
+                : "Take control to interact with the phone.",
           );
+        }
       }
       const blob = await (await request("frame?preview=1", current)).blob();
       if (!["image/png", "image/jpeg"].includes(blob.type) || blob.size > 32 * 1024 * 1024)

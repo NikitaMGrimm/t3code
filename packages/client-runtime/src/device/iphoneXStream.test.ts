@@ -134,7 +134,7 @@ it("preserves viewer ownership when an expired access ticket restarts the client
     replacement = f.create();
     replacement.start();
     await vi.waitFor(() =>
-      expect(f.events.onInputConnected.mock.calls.some(([owned]) => owned)).toBe(true),
+      expect(f.events.onInputConnected).toHaveBeenLastCalledWith(true, undefined),
     );
   } finally {
     f.client.stop();
