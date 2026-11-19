@@ -10,7 +10,9 @@ import {
   AuthDiagnosticsReadScope,
   AuthOrchestrationReadScope,
   AuthFilesystemReadScope,
+  AuthRelayConfigureScope,
   AuthStandardClientScopes,
+  AuthTerminalOperateScope,
   AuthTerminalReadScope,
   type AuthEnvironmentScope,
   type AuthGrantScope,
@@ -622,6 +624,8 @@ export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHead
     ...AuthStandardClientScopes,
   ]);
   const selectedScopes = pairingScopes.filter((scope) => delegatableScopes.includes(scope));
+  const terminalSelected = selectedScopes.includes(AuthTerminalOperateScope);
+  const relayAdminSelected = selectedScopes.includes(AuthRelayConfigureScope);
   const [isCreatingPairingLink, setIsCreatingPairingLink] = useState(false);
 
   const handleCreatePairingLink = async () => {
@@ -798,6 +802,18 @@ export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHead
                         <span className="block text-xs leading-snug text-muted-foreground">
                           {m(description)}
                         </span>
+                        {terminalSelected && scope === AuthTerminalOperateScope ? (
+                          <span className="block text-xs text-warning">
+                            {gt(
+                              "Terminal commands can read or change files within the server account’s permissions.",
+                            )}
+                          </span>
+                        ) : null}
+                        {relayAdminSelected && scope === AuthRelayConfigureScope ? (
+                          <span className="block text-xs text-warning">
+                            {gt("This client can change who can issue pairing credentials.")}
+                          </span>
+                        ) : null}
                       </span>
                     </label>
                   ),

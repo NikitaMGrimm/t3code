@@ -17,9 +17,10 @@ import type * as AcpCompat from "effect-acp/compat";
 import { beginAcpMockPrompt } from "./acpMockCancellationState.ts";
 import { timelineFollowFixture, waitForTimelineFixtureRelease } from "./timeline-follow-fixture.ts";
 
-const requestLogPath = process.env.T3_ACP_REQUEST_LOG_PATH;
 const timelineFixtureRoot = process.env.T3_ACP_TIMELINE_FIXTURE_DIRECTORY;
+const requestLogPath = process.env.T3_ACP_REQUEST_LOG_PATH;
 const antigravityProfile = process.env.T3_ACP_ANTIGRAVITY === "1";
+const harnessFailure = process.env.T3_ACP_ANTIGRAVITY_HARNESS_FAILURE;
 // GitHub Copilot CLI advertises URL-shaped session mode ids.
 const copilotModesProfile = process.env.T3_ACP_COPILOT_MODES === "1";
 const copilotModeId = (name: string) =>
@@ -518,6 +519,16 @@ const program = Effect.gen(function* () {
       },
     });
 
+  const writeHarnessFailure = Effect.promise(
+    () =>
+      new Promise<void>((resolve) => {
+        process.stderr.write(
+          "I1022 11:04:37.910207 1865358 local_connection.py:551] harness stderr: Agent run failed: failed to handle call hook response: no pending hook for ID hook_request_2\n",
+          () => resolve(),
+        );
+      }),
+  );
+
   const finishPrompt = (
     targetSessionId: string,
     stopReason: AcpSchema.StopReason,
@@ -891,6 +902,37 @@ const program = Effect.gen(function* () {
       }
       beginAcpMockPrompt(cancelledSessions, requestedSessionId);
       promptCount += 1;
+      if (timelineFixtureRoot !== undefined) {
+        const timelineFixtureDirectory = `${timelineFixtureRoot}/${process.pid}-${promptCount}`;
+        const kind = request.prompt.some(
+          (part) =>
+            part.type === "text" &&
+            typeof part.text === "string" &&
+            part.text.includes("timeline-fixture:short"),
+        )
+          ? "short"
+          : "long";
+        for (const { phase, updates } of timelineFollowFixture(kind)) {
+          yield* Effect.sync(() => NodeFS.mkdirSync(timelineFixtureDirectory, { recursive: true }));
+          yield* Effect.sync(() =>
+            NodeFS.writeFileSync(
+              `${timelineFixtureDirectory}/waiting.json`,
+              encodeJson({ kind, phase, sessionId: requestedSessionId }),
+            ),
+          );
+          yield* Effect.promise(() =>
+            waitForTimelineFixtureRelease(timelineFixtureDirectory, phase),
+          );
+          for (const update of updates) {
+            yield* agent.client.sessionUpdate({ sessionId: requestedSessionId, update });
+            yield* Effect.sleep("40 millis");
+          }
+          yield* Effect.sync(() =>
+            NodeFS.writeFileSync(`${timelineFixtureDirectory}/${phase}.done`, "done\n"),
+          );
+        }
+        return yield* finishPrompt(requestedSessionId, "end_turn");
+      }
       if (idleError === "grok-background" && promptCount === 1) {
         // The structured completion lands before the prompt settles, so it is buffered.
         const taskId = "call-idle-error-background";
@@ -1008,35 +1050,16 @@ const program = Effect.gen(function* () {
         );
         return {};
       }
-      if (timelineFixtureRoot !== undefined) {
-        const timelineFixtureDirectory = `${timelineFixtureRoot}/${process.pid}-${promptCount}`;
-        const kind = request.prompt.some(
-          (part) =>
-            part.type === "text" &&
-            typeof part.text === "string" &&
-            part.text.includes("timeline-fixture:short"),
-        )
-          ? "short"
-          : "long";
-        for (const { phase, updates } of timelineFollowFixture(kind)) {
-          yield* Effect.sync(() => NodeFS.mkdirSync(timelineFixtureDirectory, { recursive: true }));
-          yield* Effect.sync(() =>
-            NodeFS.writeFileSync(
-              `${timelineFixtureDirectory}/waiting.json`,
-              encodeJson({ kind, phase, sessionId: requestedSessionId }),
-            ),
-          );
-          yield* Effect.promise(() =>
-            waitForTimelineFixtureRelease(timelineFixtureDirectory, phase),
-          );
-          for (const update of updates) {
-            yield* agent.client.sessionUpdate({ sessionId: requestedSessionId, update });
-            yield* Effect.sleep("40 millis");
-          }
-          yield* Effect.sync(() =>
-            NodeFS.writeFileSync(`${timelineFixtureDirectory}/${phase}.done`, "done\n"),
-          );
+      if (
+        harnessFailure === "1" ||
+        harnessFailure === "pending" ||
+        harnessFailure === "after-end-turn"
+      ) {
+        if (harnessFailure === "after-end-turn") {
+          return yield* finishPrompt(requestedSessionId, "end_turn");
         }
+        yield* writeHarnessFailure;
+        if (harnessFailure === "pending") return yield* Effect.never;
         return yield* finishPrompt(requestedSessionId, "end_turn");
       }
 
@@ -1302,6 +1325,33 @@ const program = Effect.gen(function* () {
             status: "completed",
             rawInput: { query: "TODO", path: "apps/web" },
           },
+          {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "structured-search-explicit-location",
+            title: "Grep",
+            kind: "search",
+            status: "completed",
+            rawInput: { query: "  README.md  " },
+            locations: [{ path: "README.md" }],
+            rawOutput: "# Title",
+          },
+          {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "structured-search-query-only",
+            title: "Grep",
+            kind: "search",
+            status: "completed",
+            rawInput: { query: "TODO" },
+            rawOutput: "src/a.ts: TODO",
+          },
+          {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "structured-search-query-no-output",
+            title: "Grep",
+            kind: "search",
+            status: "completed",
+            rawInput: { query: "FIXME" },
+          },
           // Grok backend searches: the query only arrives in the completed rawOutput.
           {
             sessionUpdate: "tool_call_update",
@@ -1367,6 +1417,43 @@ const program = Effect.gen(function* () {
             rawOutput: { commandLine: "cat probe.txt", exitCode: 0, combinedOutput: "after\n" },
           },
           {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "antigravity-web-search",
+            title: "Web search",
+            kind: "search",
+            status: "completed",
+            rawInput: { query: "  top story on Hacker News today  " },
+            rawOutput:
+              "Sources:\n<https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGYNzfz>.",
+          },
+          {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "antigravity-run-search-web",
+            title: "Running search_web",
+            kind: "search",
+            status: "completed",
+            rawInput: { query: "top story on Hacker News today" },
+          },
+          {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "antigravity-web-search-streamed",
+            title: "Web search",
+            kind: "search",
+            status: "in_progress",
+            rawInput: { query: "streamed citations" },
+            rawOutput: "Sources: https://example.com/streamed_(detail)",
+          },
+          {
+            sessionUpdate: "tool_call_content_chunk",
+            toolCallId: "antigravity-web-search-streamed",
+            content: { type: "content", content: { type: "text", text: " (updated)" } },
+          },
+          {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "antigravity-web-search-streamed",
+            status: "completed",
+          },
+          {
             sessionUpdate: "compaction_update",
             compactionId: "compact-1",
             status: "in_progress",
@@ -1400,8 +1487,27 @@ const program = Effect.gen(function* () {
             status: "in_progress",
           },
         });
+        yield* agent.client.sessionUpdate({
+          sessionId: requestedSessionId,
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "native-failed-tool",
+            title: "Failing command",
+            kind: "execute",
+            status: "in_progress",
+          },
+        });
         yield* Deferred.await(nativeCancelRequested);
         yield* Deferred.await(nativeCancelRelease);
+        yield* agent.client.sessionUpdate({
+          sessionId: requestedSessionId,
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "native-failed-tool",
+            status: "failed",
+            content: [{ type: "content", content: { type: "text", text: "Permission denied" } }],
+          },
+        });
         yield* agent.client.sessionUpdate({
           sessionId: requestedSessionId,
           update: {
@@ -1409,6 +1515,26 @@ const program = Effect.gen(function* () {
             toolCallId: "native-cancel-tool",
             status: "failed",
             content: [{ type: "content", content: { type: "text", text: "Cancelled." } }],
+          },
+        });
+        yield* agent.client.sessionUpdate({
+          sessionId: requestedSessionId,
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "native-unseen-cancel-tool",
+            title: "Cancelled command",
+            kind: "execute",
+            status: "failed",
+            content: [{ type: "content", content: { type: "text", text: "Cancelled." } }],
+          },
+        });
+        // A later output-only update must not undo the interrupted status.
+        yield* agent.client.sessionUpdate({
+          sessionId: requestedSessionId,
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "native-cancel-tool",
+            content: [{ type: "content", content: { type: "text", text: "Cancelled. exit 130" } }],
           },
         });
         yield* agent.client.sessionUpdate({
@@ -2069,7 +2195,9 @@ const program = Effect.gen(function* () {
             typeof params === "object" && params !== null ? Reflect.get(params, "code") : undefined;
           process.exit(typeof code === "number" ? code : 19);
         })
-      : Effect.void,
+      : method === "_test/harness-failure"
+        ? writeHarnessFailure
+        : Effect.void,
   );
 
   return yield* Effect.never;
