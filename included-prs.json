@@ -2,23 +2,17 @@
   "numbers": [
     16198,
     16941,
-    17871,
     19737,
     19919,
     21378,
     22788
   ],
   "pins": {
-    "17871": {
-      "headSha": "3bd2412b0c3910e38df27c9f84ff992acd89d129",
-      "baseSha": "ab6be13d438abeace7617e8d789d59cf2e880f42",
-      "pinnedAt": 0
-    },
     "22788": {
       "headSha": "9ec682fce8d5c70f386f6a43c3290dc9901e2a4a",
       "baseSha": "8d3b061121fe65669d5d43d011b48cd3027a4108",
       "pinnedAt": 0
     }
   },
-  "sequence": 1794766095346
+  "sequence": 1795083782172
 }
