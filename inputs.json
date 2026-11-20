@@ -1,14 +1,8 @@
 {
   "inputs": {
-    "upstreamTag": "v0.1.11-nightly.20261119.4941",
-    "pullRequests": [
-      {
-        "number": 22788,
-        "headSha": "9ec682fce8d5c70f386f6a43c3290dc9901e2a4a",
-        "baseRef": "main"
-      }
-    ],
-    "resolutions": "a0f4aa4510adae0180b86ffcf962354e6f4b42b4c8e5f8e52c0b5b6270a571a8"
+    "upstreamTag": "v0.1.12-nightly.20261120.5009",
+    "pullRequests": [],
+    "resolutions": "3504da50b7ce6f639888503777c181d4db1d2da2148f2815d7b1a994bd422d33"
   },
-  "observedAt": 1795106015.9385054
+  "observedAt": 1795215571.6793633
 }
