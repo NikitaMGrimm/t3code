@@ -2,20 +2,7 @@
   "repository": "NikitaMGrimm/t3code",
   "branch": "personal-nightly",
   "upstreamRepository": "pingdotgg/t3code",
-  "upstreamTag": "v0.1.11-nightly.20261119.4941",
-  "pullRequests": [
-    {
-      "number": 22788,
-      "title": "fix(web): hold chat position through streaming tool calls",
-      "headSha": "9ec682fce8d5c70f386f6a43c3290dc9901e2a4a",
-      "baseSha": "8d3b061121fe65669d5d43d011b48cd3027a4108",
-      "headRef": "fix/issue-20366",
-      "baseRef": "main",
-      "author": "juliusmarminge",
-      "url": "https://github.com/pingdotgg/t3code/pull/22788",
-      "headRepository": "pingdotgg/t3code",
-      "baseRepository": "pingdotgg/t3code"
-    }
-  ],
-  "prBaseline": "4856b2185b82c4da21ae412f5ce98a7795a3d2db"
+  "upstreamTag": "v0.1.12-nightly.20261120.5009",
+  "pullRequests": [],
+  "prBaseline": "f0a2aa10f5165413e863db9f1502dc4bb6fa42e8"
 }
