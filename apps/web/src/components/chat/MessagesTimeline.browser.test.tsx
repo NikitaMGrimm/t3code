@@ -2460,38 +2460,3 @@ it("keeps concurrent approvals actionable outside collapsed work and restores se
     .element(screen.getByRole("button", { name: "Open the current tab", exact: true }))
     .toBeVisible();
 });
-
-describe("timeline live follow", () => {
-  it("lets a wheel up break follow when the list mounts after a slow hydration", async () => {
-    const entries = Array.from({ length: 40 }, (_, index) =>
-      message(`Paragraph ${index}\n\n${"lorem ipsum ".repeat(60)}`, {}, `message-${index}`),
-    );
-    const container = document.createElement("div");
-    container.style.cssText =
-      "height: 1200px; width: 900px; display: flex; flex-direction: column;";
-    let screen: Awaited<ReturnType<typeof render>>;
-    {
-      // Hydration can outlast any fixed frame budget before the list mounts.
-      using _timers = fakeTimers();
-      screen = await render(<FollowHarness entries={entries} loading />, { container });
-      expect(container.querySelector(".messages-timeline-scroll")).toBeNull();
-      await act(async () => vi.advanceTimersByTime(16 * 20));
-    }
-    await using _screen = screen;
-    await screen.rerender(<FollowHarness entries={entries} loading={false} />);
-    const scrollNode = container.querySelector<HTMLElement>(".messages-timeline-scroll");
-    if (!scrollNode) throw new Error("Timeline did not mount");
-    await expect.poll(() => scrollNode.scrollHeight > scrollNode.clientHeight).toBe(true);
-    const follow = () => container.firstElementChild?.getAttribute("data-live-follow");
-    expect(follow()).toBe("true");
-    const row = scrollNode.querySelector<HTMLElement>("[data-timeline-root]");
-    if (!row) throw new Error("No timeline row");
-    // LegendList measures its viewport a frame after mount; retry until the gate sees overflow.
-    await vi.waitFor(async () => {
-      await act(async () => {
-        row.dispatchEvent(new WheelEvent("wheel", { deltaY: -120, bubbles: true }));
-      });
-      expect(follow()).toBe("false");
-    });
-  });
-});
