@@ -1,20 +1,19 @@
 {
   "schema": 1,
-  "phase": "conflict",
+  "phase": "building",
   "upstreamTag": "v0.1.12-nightly.20261120.5009",
-  "conflicts": [
-    "apps/server/scripts/acp-mock-agent.ts"
-  ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.1.11-nightly.20261119.1795105949840",
+  "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/44833184786",
   "releasedVersion": "0.1.11-nightly.20261119.1795105949840",
-  "baseCommit": "0dd3379437f16cfae8b4073f8bc1f8ee471d2e51",
-  "sequence": 1795213933468,
-  "conflictStage": "personal",
-  "conflictIdentity": "2cd1d73cf2b6e24d511896604f7348301f288b433d2a3e325947db8cda05a9cb",
+  "baseCommit": "064b6f4b69a1bd96ac1649a78a8230ebce391d86",
+  "sequence": 1795215495182,
+  "resolvedTestImports": [],
+  "candidateCommit": "34370b212c95b60ab4b33e13a12a51836ac0ae4f",
+  "candidateVersion": "0.1.12-nightly.20261120.1795215495182",
   "inputs": {
     "upstreamTag": "v0.1.12-nightly.20261120.5009",
     "pullRequests": [],
-    "resolutions": "a0f4aa4510adae0180b86ffcf962354e6f4b42b4c8e5f8e52c0b5b6270a571a8"
+    "resolutions": "3504da50b7ce6f639888503777c181d4db1d2da2148f2815d7b1a994bd422d33"
   },
   "pullRequests": []
 }
