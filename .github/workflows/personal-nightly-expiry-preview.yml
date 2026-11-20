@@ -1,0 +1,63 @@
+name: Personal nightly expiry preview
+
+on:
+  schedule:
+    - cron: "19 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    if: github.repository == 'NikitaMGrimm/t3code' && github.ref == 'refs/heads/personal-nightly'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Fetch the personal branch commit
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git init --quiet source
+          git -C source remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          git -C source fetch --no-tags origin "$SOURCE_COMMIT"
+          git -C source checkout --quiet --detach FETCH_HEAD
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          working-directory: source
+          node-version-file: package.json
+          run-install: false
+      - name: Assemble without closing PRs
+        id: assemble
+        working-directory: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/expiry-preview.json"
+          python3 -I scripts/personal-nightly.py preview-expiry --keep ../preview | tee "$report"
+          if jq -e '.closingPullRequests | length == 0' "$report" >/dev/null; then
+            echo "No selected PRs are in their expiry grace period." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          jq -r '"Official nightly: " + .upstreamTag, "",
+            (.closingPullRequests[] | "- PR #\(.number) expires at \(.expiresAt | floor | todateiso8601)")' \
+            "$report" >> "$GITHUB_STEP_SUMMARY"
+          if ! jq -e '.candidateCommit' "$report" >/dev/null; then
+            echo 'Assembly stopped with those PRs omitted. See the assembly log for details.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      - uses: voidzero-dev/setup-vp@v1
+        if: steps.assemble.outputs.ready == 'true'
+        with:
+          working-directory: preview
+          node-version-file: package.json
+          run-install: false
+      - name: Typecheck the preview
+        if: steps.assemble.outputs.ready == 'true'
+        working-directory: preview
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+          vp run --filter t3 --filter @t3tools/web --filter @t3tools/desktop typecheck

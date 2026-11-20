@@ -86,6 +86,64 @@ class PrSynchronizationTests(unittest.TestCase):
             nightly.main()
         return json.loads((Path(self.temp.name) / "personal-nightly-status.json").read_text()), fetch
 
+    def run_expiry_preview(self, pulls, selection, now):
+        self.remote()
+        nightly.write_state(self.repo, "included-prs.json", selection)
+        head = self.head()
+        preview = Path(self.temp.name) / "expiry-preview"
+        with patch.object(nightly, "fetch_latest_upstream", return_value=self.tag), \
+                patch.object(nightly, "discover_included_pull_requests", return_value=pulls), \
+                patch.object(nightly, "fetch_pull_requests") as fetch:
+            result = nightly.preview_expiry(self.repo, preview, now)
+        self.assertEqual(self.head(), head)
+        self.assertEqual(nightly.git("status", "--porcelain", cwd=self.repo).stdout, "")
+        self.assertEqual(nightly.read_state(self.repo, "included-prs.json"), selection)
+        self.assertEqual(nightly.read_state(self.repo, "status.json"), {})
+        return result, preview, fetch
+
+    def test_expiry_preview_omits_closing_prs_and_keeps_the_reviewed_heads(self):
+        closing = {**self.pull(1, {"closing.txt": "closing\n"}), "author": "contributor", "closedAt": 100}
+        reviewed = {**self.pull(2, {"retained.txt": "reviewed\n"}), "author": "contributor"}
+        newer = {**self.pull(2, {"retained.txt": "unreviewed\n"}), "author": "contributor"}
+        self.prepare([closing, reviewed])
+        selection = {"numbers": [1, 2], "pins": {"2": {
+            "pinnedAt": 50, "headSha": reviewed["headSha"], "baseSha": reviewed["baseSha"],
+        }}}
+
+        result, preview, fetch = self.run_expiry_preview([closing, newer], selection, 101)
+
+        self.assertEqual(result["closingPullRequests"], [{"number": 1, "expiresAt": 100 + nightly.CLOSED_SELECTION_GRACE}])
+        self.assertTrue(result["candidateCommit"])
+        self.assertFalse((preview / "closing.txt").exists())
+        self.assertEqual((preview / "retained.txt").read_text(), "reviewed\n")
+        self.assertEqual((preview / "personal.txt").read_text(), "my independent fix\n")
+        self.assertEqual([pr["number"] for pr in fetch.call_args.args[-1]], [2])
+        self.assertTrue((self.repo / "closing.txt").exists())
+
+    def test_expiry_preview_reports_conflicts_when_the_personal_layer_needs_the_pr(self):
+        closing = {**self.pull(1, {"shared.txt": "PR behavior\n"}), "author": "contributor", "closedAt": 100}
+        self.prepare([closing])
+        (self.repo / "shared.txt").write_text("personal addition to PR behavior\n")
+        self.commit("personal follow-up")
+
+        result, _, _ = self.run_expiry_preview([closing], {"numbers": [1]}, 101)
+
+        self.assertEqual(result["conflictStage"], "personal")
+        self.assertEqual(result["conflicts"], ["shared.txt"])
+        self.assertNotIn("candidateCommit", result)
+
+    def test_expiry_preview_skips_assembly_if_the_pr_was_reselected_after_closing(self):
+        closing = {**self.pull(1, {"closing.txt": "closing\n"}), "author": "contributor", "closedAt": 100}
+        selection = {"numbers": [1], "pins": {"1": {
+            "pinnedAt": 101, "headSha": closing["headSha"], "baseSha": closing["baseSha"],
+        }}}
+
+        result, preview, fetch = self.run_expiry_preview([closing], selection, 102)
+
+        self.assertEqual(result["closingPullRequests"], [])
+        self.assertFalse(preview.exists())
+        fetch.assert_not_called()
+
     def test_cooldown_coalesces_changed_inputs_without_fetching_or_building(self):
         self.remote()
         first = self.pull(1, {"pr.txt": "first\n"})

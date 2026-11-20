@@ -155,13 +155,13 @@ def pin_selected_pull_requests(pulls, selection, owner, now):
     return built, {"numbers": sorted(numbers), "pins": pins}, updates, expired
 
 
-def selected_pull_requests(repo, config, tag, selection, sequence, now, closing=None):
+def selected_pull_requests(repo, config, tag, selection, sequence, now, closing=None, *, persist=True):
     pulls = discover_included_pull_requests(repo, config, tag, set(selection.get("numbers", [])))
     pulls, updated, updates, expired = pin_selected_pull_requests(
         pulls, selection, config["repository"].split("/")[0], now)
     if closing is not None:
         closing.extend(closing_selections(pulls, updated))
-    if updated != {"numbers": sorted(selection.get("numbers", [])), "pins": selection.get("pins", {})}:
+    if persist and updated != {"numbers": sorted(selection.get("numbers", [])), "pins": selection.get("pins", {})}:
         write_state(repo, "included-prs.json", {**updated, "sequence": sequence})
     return [{key: value for key, value in pull.items() if key != "closedAt"} for pull in pulls], updates, expired
 
@@ -922,6 +922,42 @@ def latest_upstream_nightly(config):
         page += 1
 
 
+def fetch_latest_upstream(repo, config):
+    tag = latest_upstream_nightly(config)
+    git("fetch", "--no-tags", f"https://github.com/{config['upstreamRepository']}.git",
+        f"+refs/tags/{tag}:refs/tags/{tag}", cwd=repo)
+    return tag
+
+
+def preview_expiry(repo, directory, now):
+    """Assemble the current snapshot without closing selections in a separate checkout."""
+    directory = directory.resolve()
+    if directory.exists():
+        raise ValueError(f"{directory} already exists")
+    config = json.loads((repo / "personal-nightly.json").read_text())
+    tag = fetch_latest_upstream(repo, config)
+    closing = []
+    pulls, _, _ = selected_pull_requests(
+        repo, config, tag, read_state(repo, "included-prs.json"), int(now * 1000), now, closing, persist=False)
+    result = {"upstreamTag": tag, "closingPullRequests": closing}
+    if not closing:
+        return result
+
+    removing = {pull["number"] for pull in closing}
+    remaining = [pull for pull in pulls if pull["number"] not in removing]
+    resolutions = read_state(repo, "resolutions.json")
+    fetch_pull_requests(repo, config, remaining)
+    original = git("rev-parse", "HEAD", cwd=repo).stdout.strip()
+    upstream = git("rev-parse", f"{tag}^{{commit}}", cwd=repo).stdout.strip()
+    git("clone", "--quiet", "--no-checkout", "--no-tags", str(repo), str(directory))
+    prime_checkout(directory, upstream, resolutions)
+    assembly = assemble_into(directory, directory, tag, upstream, original, config, remaining, resolutions)
+    if candidate := assembly.pop("candidate", None):
+        git("reset", "--hard", candidate, cwd=directory)
+        assembly["candidateCommit"] = candidate
+    return {**result, **assembly}
+
+
 def check(repo, assemble_candidate):
     """The VPS checker's view of the next build, from this checkout of the integration branch.
 
@@ -930,10 +966,8 @@ def check(repo, assemble_candidate):
     snapshot that assembles.
     """
     config = json.loads((repo / "personal-nightly.json").read_text())
-    tag = latest_upstream_nightly(config)
     # Discovery decides whether merged PRs are already in this tag.
-    git("fetch", "--no-tags", f"https://github.com/{config['upstreamRepository']}.git",
-        f"+refs/tags/{tag}:refs/tags/{tag}", cwd=repo)
+    tag = fetch_latest_upstream(repo, config)
     sequence = time.time_ns() // 1_000_000
     closing = []
     pulls, updates, expired = selected_pull_requests(
@@ -1196,7 +1230,8 @@ def verify_import_tests(repo, status):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["prepare", "status", "notes", "verify", "reproduce", "record", "verify-imports", "check"])
+    parser.add_argument("command", choices=["prepare", "status", "notes", "verify", "reproduce", "record",
+                                            "verify-imports", "check", "preview-expiry"])
     parser.add_argument("--assemble", action="store_true", help="check: also merge the snapshot locally")
     parser.add_argument("--tag")
     parser.add_argument("--run-number", default=os.environ.get("GITHUB_RUN_ID"))
@@ -1210,7 +1245,7 @@ def main():
     parser.add_argument("--sync-prs", action="store_true")
     parser.add_argument("--status", type=Path, help="reproduce: a recorded status.json")
     parser.add_argument("--resolutions", type=Path, help="reproduce, record: a recorded resolutions.json")
-    parser.add_argument("--keep", type=Path, help="reproduce, record: the repair checkout directory")
+    parser.add_argument("--keep", type=Path, help="reproduce, record, preview-expiry: the isolated checkout directory")
     parser.add_argument("--output", type=Path, help="record: where to write the updated resolutions.json")
     args = parser.parse_args()
     repo = Path.cwd()
@@ -1221,6 +1256,11 @@ def main():
         return
     if args.command == "check":
         print(json.dumps(check(repo, args.assemble)))
+        return
+    if args.command == "preview-expiry":
+        if args.keep is None:
+            parser.error("preview-expiry requires --keep")
+        print(json.dumps(preview_expiry(repo, args.keep, time.time()), indent=2))
         return
     if args.command in ("reproduce", "record"):
         # Local repair tooling: reads the given files and writes only the kept checkout or output.
