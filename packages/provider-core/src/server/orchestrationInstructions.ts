@@ -1,5 +1,4 @@
 import type { ProviderInteractionMode } from "@t3tools/contracts";
-import { PERSONAL_ORCHESTRATION_INSTRUCTIONS } from "./personalOrchestrationInstructions.ts";
 
 // Codex truncates entries over 4,000 bytes; keep each section self-contained and below that limit.
 export const T3_CODE_ORCHESTRATION_SECTIONS: ReadonlyArray<string> = [
@@ -23,7 +22,6 @@ Ordinary coding tasks need no T3 tools.
 
 - Answer data with a trend or comparison with a chart and show any visual the user asks for here: pass an HTML file path or inline HTML to \`html_preview\`, then \`html_render\`. A screenshot on disk or a text description doesn't show it. Never start a server for it. Page tools write only on user request. Never use them to show results. Asked for an image to post, send or use elsewhere: a \`.png\` file and its path, never \`html_render\`.
 - Never use \`preview_*\` unasked to verify or show your own edit. Use them when the current request asks for browser work, including recording edits, or names a page or tab. Don't repeat preview calls from an earlier turn. Public pages: web fetch or search unless browser work was asked; then preview tools only, no web fetch. Close a tab you opened before you reply, unless the user asked for it or uses it.`,
-  PERSONAL_ORCHESTRATION_INSTRUCTIONS,
 ];
 
 export const T3_CODE_ORCHESTRATION_INSTRUCTIONS = `
