@@ -7,8 +7,8 @@
   ],
   "runUrl": "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.1.12-nightly.20261120.1795224077961",
   "releasedVersion": "0.1.12-nightly.20261120.1795224077961",
-  "baseCommit": "5f496a1c62626c9ec87edc4a4888b5f4f5aa039f",
-  "sequence": 1795226110879,
+  "baseCommit": "60ca7b06a1b9c26745870882a3e73ba845078112",
+  "sequence": 1795231230323,
   "conflictStage": "personal",
   "conflictIdentity": "122af0a68e297f99a0484c87d832e879f51fc14e550ca9e818c10ad05f72bab7",
   "inputs": {
