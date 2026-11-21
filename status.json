@@ -1,17 +1,20 @@
 {
   "schema": 1,
-  "phase": "ready",
-  "upstreamTag": "v0.1.12-nightly.20261121.5051",
-  "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/44920648586",
+  "phase": "conflict",
+  "upstreamTag": "v0.1.12-nightly.20261121.5064",
+  "conflicts": [
+    "apps/web/src/components/chat/ThreadAutomationsPanel.tsx",
+    "apps/web/src/components/settings/ScheduledTasksSettings.tsx",
+    "apps/web/src/components/settings/scheduledTasksSettings.logic.ts"
+  ],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.1.12-nightly.20261121.1795275785331",
   "releasedVersion": "0.1.12-nightly.20261121.1795275785331",
-  "baseCommit": "5efb9efa4da4220d84c14723d10e1bf1acdfdda3",
-  "sequence": 1795275785331,
-  "resolvedTestImports": [],
-  "candidateCommit": "3e9c8aff07e7c1a0192ef5b07166fcb24c2ce055",
-  "candidateVersion": "0.1.12-nightly.20261121.1795275785331",
+  "baseCommit": "3e9c8aff07e7c1a0192ef5b07166fcb24c2ce055",
+  "sequence": 1795296539456,
+  "conflictStage": "personal",
+  "conflictIdentity": "4eb37be01197e544eb803588ff664fe684452b780429770a78e0f79d24554a99",
   "inputs": {
-    "upstreamTag": "v0.1.12-nightly.20261121.5051",
+    "upstreamTag": "v0.1.12-nightly.20261121.5064",
     "pullRequests": [],
     "resolutions": "4c706b0903ce52055240adb3ee9e158b9a1c8d60ec3be581995340a2f9cd2b7c"
   },
