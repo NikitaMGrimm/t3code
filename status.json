@@ -1,20 +1,19 @@
 {
   "schema": 1,
-  "phase": "conflict",
+  "phase": "building",
   "upstreamTag": "v0.1.12-nightly.20261121.5024",
-  "conflicts": [
-    "packages/contracts/src/clientRpcPermissions.ts"
-  ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.1.12-nightly.20261120.1795224077961",
+  "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/44861214195",
   "releasedVersion": "0.1.12-nightly.20261120.1795224077961",
-  "baseCommit": "60ca7b06a1b9c26745870882a3e73ba845078112",
-  "sequence": 1795231230323,
-  "conflictStage": "personal",
-  "conflictIdentity": "122af0a68e297f99a0484c87d832e879f51fc14e550ca9e818c10ad05f72bab7",
+  "baseCommit": "7eddc4f58e10abbfbf07d9b5ff18e5e8993bc647",
+  "sequence": 1795231649973,
+  "resolvedTestImports": [],
+  "candidateCommit": "f4cd249bfbff598712af4edd2d14680d0f9ed0a3",
+  "candidateVersion": "0.1.12-nightly.20261121.1795231649973",
   "inputs": {
     "upstreamTag": "v0.1.12-nightly.20261121.5024",
     "pullRequests": [],
-    "resolutions": "3504da50b7ce6f639888503777c181d4db1d2da2148f2815d7b1a994bd422d33"
+    "resolutions": "8040ef27b1e9863ec99937c933091684a39ab0e315a87117d2a3e66b9aaf92ab"
   },
   "pullRequests": []
 }
