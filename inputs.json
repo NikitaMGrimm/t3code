@@ -1,8 +1,8 @@
 {
   "inputs": {
-    "upstreamTag": "v0.1.12-nightly.20261121.5051",
+    "upstreamTag": "v0.1.12-nightly.20261121.5064",
     "pullRequests": [],
-    "resolutions": "4c706b0903ce52055240adb3ee9e158b9a1c8d60ec3be581995340a2f9cd2b7c"
+    "resolutions": "debebd2eca758dc7103cfdfcf087a48c46bd7d67df816893b88dd5fe8b877757"
   },
-  "observedAt": 1795274950.4358113
+  "observedAt": 1795305306.4173195
 }
