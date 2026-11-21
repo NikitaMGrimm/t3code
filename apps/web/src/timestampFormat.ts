@@ -195,6 +195,36 @@ export function formatShortTimestamp(isoDate: string, timestampFormat: Timestamp
   return formatTime(date, timestampFormat);
 }
 
+const dateTimeFormatterCache = new Map<TimestampFormat, Intl.DateTimeFormat>();
+
+export function formatDateTimeTimestamp(isoDate: string, timestampFormat: TimestampFormat): string {
+  const date = parseTimestampDate(isoDate);
+  if (!date) return "";
+  let formatter = dateTimeFormatterCache.get(timestampFormat);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(timestampLocale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+      ...(timestampFormat === "locale" ? {} : { hour12: timestampFormat === "12-hour" }),
+    });
+    dateTimeFormatterCache.set(timestampFormat, formatter);
+  }
+  return formatter.format(date);
+}
+
+// Same pattern as the scheduled-task `TimeOfDay` contract.
+const TIME_OF_DAY_PATTERN = /^([01]?\d|2[0-3]):([0-5]\d)$/;
+
+/** Formats a wall-clock `H:MM` or `HH:MM`, returning malformed values unchanged. */
+export function formatTimeOfDay(timeOfDay: string, timestampFormat: TimestampFormat): string {
+  const match = TIME_OF_DAY_PATTERN.exec(timeOfDay.trim());
+  if (!match) return timeOfDay;
+  // Default-zone formatters run in UTC, so the host zone cannot shift the wall time.
+  return getTimestampFormatter(timestampFormat, false).format(
+    Date.UTC(2000, 0, 1, Number(match[1]), Number(match[2])),
+  );
+}
+
 const numericDateOptions: Intl.DateTimeFormatOptions = { month: "numeric", day: "numeric" };
 const numericDateWithYearOptions: Intl.DateTimeFormatOptions = {
   ...numericDateOptions,
@@ -452,16 +482,4 @@ export function formatExpiresInLabel(
   if (minutes > 0) parts.push(minutesLabel(minutes, resolve));
   if (seconds > 0) parts.push(secondsLabel(seconds, resolve));
   return expiresIn(parts);
-}
-
-// Same pattern as the scheduled-task `TimeOfDay` contract.
-const TIME_OF_DAY_PATTERN = /^([01]?\d|2[0-3]):([0-5]\d)$/;
-
-/** Formats a 24-hour `HH:MM` wall-clock string, returning it unchanged when malformed. */
-export function formatTimeOfDay(timeOfDay: string, timestampFormat: TimestampFormat): string {
-  const match = TIME_OF_DAY_PATTERN.exec(timeOfDay.trim());
-  if (!match) return timeOfDay;
-  // A fixed local date anchors the wall-clock time; only the time is rendered.
-  const date = new Date(2000, 0, 1, Number(match[1]), Number(match[2]));
-  return formatShortTimestamp(date.toISOString(), timestampFormat);
 }

@@ -12,20 +12,20 @@ import {
   type ScheduledTask,
   type ThreadId,
 } from "@t3tools/contracts";
+import type { TimestampFormat } from "@t3tools/contracts/settings";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
 
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
+import { useClientSettings } from "../../hooks/useSettings";
 import { cn } from "../../lib/utils";
 import { ScheduledRelativeLabel } from "../settings/ScheduledTasksSettings";
 import { scheduleLabel } from "../settings/scheduledTasksSettings.logic";
 import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
-import { useClientSettings } from "../../hooks/useSettings";
-import type { TimestampFormat } from "@t3tools/contracts/settings";
 
 import { readEnvironmentScope } from "../../state/session";
 import { Switch } from "../ui/switch";
@@ -45,14 +45,14 @@ const STATUS_DOT_CLASS: Record<ScheduledTask["lastRunStatus"], string> = {
 
 function taskScheduleLine(
   task: ScheduledTask,
+  timestampFormat: TimestampFormat,
   timeZone: string | undefined,
   resolve: MessageResolver,
   locale: string,
-  timestampFormat: TimestampFormat,
 ) {
   return (
     <>
-      {scheduleLabel(task.schedule, timeZone, task.nextRunAt, resolve, locale, timestampFormat)}
+      {scheduleLabel(task.schedule, timestampFormat, timeZone, task.nextRunAt, resolve, locale)}
       {task.blockedByPolicy !== undefined ? (
         ` · ${task.blockedByPolicy}`
       ) : task.enabled && task.nextRunAt !== null ? (
@@ -204,13 +204,13 @@ export function ThreadAutomationsPanel(props: {
                   {task.title}
                 </span>
                 <p className="truncate text-2xs text-muted-foreground">
-                  {taskScheduleLine(task, tasksQuery.data?.timeZone, m, locale, timestampFormat)}
+                  {taskScheduleLine(task, timestampFormat, tasksQuery.data?.timeZone, m, locale)}
                 </p>
               </TooltipTrigger>
               <TooltipPopup side="left">
                 <p className="font-medium">{task.title}</p>
                 <p className="text-muted-foreground">
-                  {taskScheduleLine(task, tasksQuery.data?.timeZone, m, locale, timestampFormat)}
+                  {taskScheduleLine(task, timestampFormat, tasksQuery.data?.timeZone, m, locale)}
                 </p>
               </TooltipPopup>
             </Tooltip>

@@ -845,11 +845,11 @@ function ScheduledTaskRow({
           <span>
             {scheduleLabel(
               task.schedule,
+              timestampFormat,
               timeZone,
               task.nextRunAt,
               messages,
               locale,
-              timestampFormat,
             )}{" "}
             ·{" "}
             {task.blockedByPolicy !== undefined ? (
