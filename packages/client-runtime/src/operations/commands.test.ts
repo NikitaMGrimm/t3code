@@ -722,6 +722,7 @@ describe("V2 environment commands", () => {
         .send(CommandId.make("command-turn-send"))
         .pipe(
           Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
+          Effect.provideService(RpcPermissionGuard, { authorize: () => Effect.void }),
           Effect.forkChild,
         );
       yield* Deferred.await(firstAttemptFailed);
