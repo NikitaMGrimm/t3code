@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import { act, render } from "../../test/render";
 
-import { setMarkdownTaskChecked } from "@t3tools/shared/markdownTaskList";
-
 const settingsOverrides = vi.hoisted(() => ({ mathRenderingEnabled: false }));
 
 vi.mock(import("../hooks/useSettings"), async (original) => {
@@ -56,15 +54,13 @@ describe("ChatMarkdown math", () => {
     settingsOverrides.mathRenderingEnabled = true;
     // Both the sanitized raw-HTML pipeline and the literal one keep the math classes.
     for (const parseRawHtml of [true, false]) {
-      let edited: string | undefined;
+      const onTaskListChange = vi.fn();
       await using screen = await render(
         <ChatMarkdown
           cwd="/tmp/project"
           text={text}
           parseRawHtml={parseRawHtml}
-          onTaskListChange={({ markerOffset, checked }) => {
-            edited = setMarkdownTaskChecked(text, markerOffset, checked);
-          }}
+          onTaskListChange={onTaskListChange}
         />,
       );
       expect(formulas(screen.container)).toEqual([
@@ -75,7 +71,10 @@ describe("ChatMarkdown math", () => {
       await act(async () =>
         screen.container.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click(),
       );
-      expect(edited).toBe(text.replace("- [ ]", "- [x]"));
+      expect(onTaskListChange).toHaveBeenCalledExactlyOnceWith({
+        markerOffset: text.indexOf("[ ]"),
+        checked: true,
+      });
     }
     // List indentation recovery parses blocks again; they still typeset.
     await using indented = await render(
