@@ -1,17 +1,19 @@
 {
   "schema": 1,
-  "phase": "failed",
-  "upstreamTag": "v0.1.12-nightly.20261122.5085",
-  "conflicts": [],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/45019801970",
+  "phase": "conflict",
+  "upstreamTag": "v0.1.12-nightly.20261122.5098",
+  "conflicts": [
+    "apps/web/vite.config.ts",
+    "packages/client-runtime/src/operations/commands.ts"
+  ],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.1.12-nightly.20261121.1795305216890",
   "releasedVersion": "0.1.12-nightly.20261121.1795305216890",
   "baseCommit": "2372c95f2aa14e26404fc50b14ac6af1643a9ea6",
-  "sequence": 1795348639461,
-  "resolvedTestImports": [],
-  "candidateCommit": "6a86413d42f209d55bcafbc64adf79f5dc763361",
-  "candidateVersion": "0.1.12-nightly.20261122.1795348639461",
+  "sequence": 1795355713568,
+  "conflictStage": "personal",
+  "conflictIdentity": "650aa49468a228f3e60b7ab4d406832ff69f252f87944f6773918fda77e0bd77",
   "inputs": {
-    "upstreamTag": "v0.1.12-nightly.20261122.5085",
+    "upstreamTag": "v0.1.12-nightly.20261122.5098",
     "pullRequests": [],
     "resolutions": "debebd2eca758dc7103cfdfcf087a48c46bd7d67df816893b88dd5fe8b877757"
   },
