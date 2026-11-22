@@ -630,7 +630,7 @@ export function BranchToolbarBranchSelector({
     if (branchCwd === null) return;
     void refreshLocalStatusForPicker({
       environmentId,
-      input: { cwd: branchCwd, localOnly: true },
+      input: { cwd: branchCwd },
     });
   });
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- refs listed while the project was cloning are empty; reload them past the server's snapshot when the clone finishes
@@ -684,7 +684,7 @@ export function BranchToolbarBranchSelector({
     if (open && !isBranchMenuOpen && branchCwd !== null) {
       void refreshLocalStatusForPicker({
         environmentId,
-        input: { cwd: branchCwd, localOnly: true },
+        input: { cwd: branchCwd },
       });
     }
     if (!open) {
