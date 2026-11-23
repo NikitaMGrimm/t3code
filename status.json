@@ -1,22 +1,19 @@
 {
   "schema": 1,
-  "phase": "conflict",
+  "phase": "building",
   "upstreamTag": "v0.1.12-nightly.20261123.5138",
-  "conflicts": [
-    "apps/web/src/timestampFormat.ts",
-    "docs/orchestration-v2/orchestrator-mcp-server.md",
-    "packages/contracts/src/clientRpcPermissions.ts"
-  ],
-  "runUrl": "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.1.12-nightly.20261122.1795373742215",
+  "conflicts": [],
+  "runUrl": "https://github.com/NikitaMGrimm/t3code/actions/runs/45192188085",
   "releasedVersion": "0.1.12-nightly.20261122.1795373742215",
-  "baseCommit": "dac96cfd138f466007cb39042a120e9f351226d2",
-  "sequence": 1795427885858,
-  "conflictStage": "personal",
-  "conflictIdentity": "ef81d61012e39c52795983a3cd789a29ce3ba0829fab0aae0c50f3c2ba0c688c",
+  "baseCommit": "8f0c919941df224c67d3f957be9a6af2808d5718",
+  "sequence": 1795443322510,
+  "resolvedTestImports": [],
+  "candidateCommit": "348688d1f8902983ed420e6acadaa093ce65f73c",
+  "candidateVersion": "0.1.12-nightly.20261123.1795443322510",
   "inputs": {
     "upstreamTag": "v0.1.12-nightly.20261123.5138",
     "pullRequests": [],
-    "resolutions": "740795d93177e64dc388456186147b8cb23e9cbd96f6ea200a5a30cd2311cb9a"
+    "resolutions": "426e2e9e621145238d7c6aa922da19b739019afe2b6fdf20e48f9d2f4f474c59"
   },
   "pullRequests": []
 }
