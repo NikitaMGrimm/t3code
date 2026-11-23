@@ -84,17 +84,23 @@ function getTimestampFormatter(
   timestampFormat: TimestampFormat,
   includeSeconds: boolean,
   timeZone = "UTC",
+  locale = timestampLocale,
   includeDate = false,
 ): Intl.DateTimeFormat {
-  const cacheKey = `${timestampFormat}:${includeSeconds ? "seconds" : "minutes"}:${timeZone}:${includeDate ? "date" : "time"}`;
+  const cacheKey = `${timestampFormat}:${includeSeconds ? "seconds" : "minutes"}:${timeZone}:${locale ?? ""}:${includeDate ? "date" : "time"}`;
   const cachedFormatter = timestampFormatterCache.get(cacheKey);
   if (cachedFormatter) {
     return cachedFormatter;
   }
 
-  const formatter = new Intl.DateTimeFormat(timestampLocale, {
+  const hourCycle =
+    timestampFormat === "locale" && locale !== timestampLocale
+      ? getTimestampFormatter(timestampFormat, includeSeconds).resolvedOptions().hourCycle
+      : undefined;
+  const formatter = new Intl.DateTimeFormat(locale, {
     ...(includeDate ? ({ year: "numeric", month: "short", day: "numeric" } as const) : {}),
     ...getTimestampFormatOptions(timestampFormat, includeSeconds),
+    ...(hourCycle === undefined ? {} : { hourCycle }),
     timeZone,
   });
   timestampFormatterCache.set(cacheKey, formatter);
@@ -130,9 +136,13 @@ export function formatFullTimestamp(
 ): string {
   const date = parseTimestampDate(isoDate);
   if (!date) return "";
-  return getTimestampFormatter(timestampFormat, includeSeconds, undefined, true).format(
-    wallClockAsUtc(date),
-  );
+  return getTimestampFormatter(
+    timestampFormat,
+    includeSeconds,
+    "UTC",
+    timestampLocale,
+    true,
+  ).format(wallClockAsUtc(date));
 }
 
 // English keeps its ordinal day-before-month form; other UI languages use their own long date.
@@ -189,10 +199,14 @@ export function formatChatTimestampTooltip(
   return `${time}, ${day}${ordinalSuffix(day)} ${month} ${year}`;
 }
 
-export function formatShortTimestamp(isoDate: string, timestampFormat: TimestampFormat): string {
+export function formatShortTimestamp(
+  isoDate: string,
+  timestampFormat: TimestampFormat,
+  locale?: string,
+): string {
   const date = parseTimestampDate(isoDate);
   if (!date) return "";
-  return formatTime(date, timestampFormat);
+  return getTimestampFormatter(timestampFormat, false, "UTC", locale).format(wallClockAsUtc(date));
 }
 
 const dateTimeFormatterCache = new Map<TimestampFormat, Intl.DateTimeFormat>();
