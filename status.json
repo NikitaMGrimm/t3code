@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.13-nightly.20261125.5245",
+  "upstreamTag": "v0.1.13-nightly.20261125.5258",
   "conflicts": [
     "apps/server/src/device/DeviceService.test.ts",
     "apps/web/src/components/ComposerContextPermissions.tsx",
@@ -12,11 +12,11 @@
   "runUrl": "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.1.12-nightly.20261123.1795486844757",
   "releasedVersion": "0.1.12-nightly.20261123.1795486844757",
   "baseCommit": "35de9295f79f5f70a02cf2fa0da746cb81f7e912",
-  "sequence": 1795613587230,
+  "sequence": 1795636707177,
   "conflictStage": "personal",
-  "conflictIdentity": "19bce866175cb6ef3d9fa805a10c00290ac24f325395794f079c75154fce8140",
+  "conflictIdentity": "39a8d1c38ae13a625265737f2d9bb063a61e1dbe60391933bf00b9f2d0520a1c",
   "inputs": {
-    "upstreamTag": "v0.1.13-nightly.20261125.5245",
+    "upstreamTag": "v0.1.13-nightly.20261125.5258",
     "pullRequests": [],
     "resolutions": "426e2e9e621145238d7c6aa922da19b739019afe2b6fdf20e48f9d2f4f474c59"
   },
