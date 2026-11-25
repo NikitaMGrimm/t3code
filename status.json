@@ -1,21 +1,22 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.12-nightly.20261125.5222",
+  "upstreamTag": "v0.1.12-nightly.20261125.5230",
   "conflicts": [
     "apps/server/src/device/DeviceService.test.ts",
     "apps/web/src/components/ComposerContextPermissions.tsx",
+    "apps/web/src/components/pullRequest/PullRequestSummaryTab.tsx",
     "apps/web/src/components/settings/ScheduledTasksSettings.tsx",
     "apps/web/src/components/sidebar/updateEverything.logic.test.ts"
   ],
   "runUrl": "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.1.12-nightly.20261123.1795486844757",
   "releasedVersion": "0.1.12-nightly.20261123.1795486844757",
   "baseCommit": "35de9295f79f5f70a02cf2fa0da746cb81f7e912",
-  "sequence": 1795577736831,
+  "sequence": 1795590491874,
   "conflictStage": "personal",
-  "conflictIdentity": "6955042d192014598f521a8b0df3e859fbf7e95b4a3b78bc350bf4fb62b8d048",
+  "conflictIdentity": "19bce866175cb6ef3d9fa805a10c00290ac24f325395794f079c75154fce8140",
   "inputs": {
-    "upstreamTag": "v0.1.12-nightly.20261125.5222",
+    "upstreamTag": "v0.1.12-nightly.20261125.5230",
     "pullRequests": [],
     "resolutions": "426e2e9e621145238d7c6aa922da19b739019afe2b6fdf20e48f9d2f4f474c59"
   },
