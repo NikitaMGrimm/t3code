@@ -140,6 +140,10 @@ jobs:
       - run: node scripts/update-release-package-versions.ts '${{ needs.prepare.outputs.version }}'
       - run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev pkg-config
       - run: vp run build:desktop
+      # The artifact upload skips hidden paths. The desktop workflow restores this manifest.
+      - name: Stage web asset manifest
+        shell: bash
+        run: cp apps/server/dist/client/.vite/manifest.json apps/server/dist/client/vite-manifest.release.json
       - uses: actions/upload-artifact@v7
         with:
           name: js-bundle
