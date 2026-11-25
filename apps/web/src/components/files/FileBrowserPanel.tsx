@@ -121,7 +121,12 @@ function FileSearchField({
         onKeyDown={(event) => {
           if (event.key !== "Escape" || event.nativeEvent.isComposing || event.keyCode === 229)
             return;
-          if (props.value) event.stopPropagation();
+          if (props.value || event.repeat) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (props.value) props.onClose();
+            return;
+          }
           props.onClose();
           event.currentTarget.blur();
         }}
@@ -183,6 +188,7 @@ export default function FileBrowserPanel({
     entries: directoryEntries,
     load,
     refresh,
+    revalidate,
     ready,
     error,
     isPending,
@@ -230,7 +236,12 @@ export default function FileBrowserPanel({
       const position = pointerIsFresh
         ? { x: pointer.x, y: pointer.y }
         : { x: anchorRect.left, y: anchorRect.bottom };
-      const fileTarget = { environmentId, filePath: relativePath, workspaceRoot: cwd };
+      const fileTarget = {
+        environmentId,
+        filePath: relativePath,
+        workspaceRoot: cwd,
+        isDirectory: item.kind === "directory",
+      };
       const fileMenuItems = fileContextMenu.buildItems(fileTarget);
       // The app menu owns focus; the tree's outside-click handler would dismiss it before click.
       context.close({ restoreFocus: !pointerIsFresh });
@@ -290,6 +301,7 @@ export default function FileBrowserPanel({
   );
 
   const loadingDirectoriesRef = useRef(loadingDirectories);
+  const revalidateDirectory = useStableCallback(revalidate);
   const dragMention = createFileTreeDragMentionController(
     hostFolder ? { mentionPath: (path: string) => joinHostPath(cwd, path) } : {},
   );
@@ -322,12 +334,15 @@ export default function FileBrowserPanel({
       }
     },
     paths: [],
-    renderRowDecoration: ({ item, row }) =>
-      row.kind === "directory" &&
-      row.isExpanded &&
-      loadingDirectoriesRef.current.has(item.path.replace(/\/$/, ""))
+    renderRowDecoration: ({ item, row }) => {
+      const path = item.path.replace(/\/$/, "");
+      const open = row.kind === "directory" && row.isExpanded;
+      // Pierre calls this for the rows it renders, which is the only sign of what is on screen.
+      revalidateDirectory(open ? path : path.slice(0, Math.max(0, path.lastIndexOf("/"))));
+      return open && loadingDirectoriesRef.current.has(path)
         ? { icon: "t3-tree-icon-loading", title: gt("Loading…") }
-        : null,
+        : null;
+    },
     search: false,
     onSearchChange: (value) => setQuery(value ?? ""),
     unsafeCSS: PIERRE_TREE_UNSAFE_CSS,
@@ -442,15 +457,20 @@ export default function FileBrowserPanel({
     }
     search.setValue(value);
   };
-  const handleRefresh = () => {
+  const refreshDirectories = () => {
     refresh();
+    // Renders the rows again, so each one on screen revalidates the folders it comes from.
+    model.setComposition(model.getComposition());
+  };
+  const handleRefresh = () => {
+    refreshDirectories();
     if (query.trim()) pathSearch.refresh();
     onRefreshSelectedFile?.();
   };
   useWorkspaceMutationRefresh({
     mutationId: workspaceMutationId,
     refresh: () => {
-      refresh();
+      refreshDirectories();
       if (query.trim()) pathSearch.refresh();
     },
     resourceKey: `files:${environmentId}:${cwd}`,

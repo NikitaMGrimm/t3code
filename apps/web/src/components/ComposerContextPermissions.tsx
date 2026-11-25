@@ -1,15 +1,16 @@
-import { useState } from "react";
-
 import type { EnvironmentId, RuntimeMode } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
+import { use } from "react";
 import { T, useGT, useMessages } from "gt-react";
 
 import { shortcutLabelForCommand } from "../keybindings";
 import { useManagedPolicy } from "../state/managedPolicy";
 import { primaryServerKeybindingsAtom } from "../state/server";
+import { HiddenThreadContext } from "./chat/backgroundThread";
 import { ComposerControl } from "./chat/ComposerControl";
 import { ComposerPermissionsSection } from "./chat/ComposerFooterControls";
 import { useComposerMenuProps } from "./chat/composerEventScope";
+import { useComposerMenuState } from "./chat/useComposerMenuState";
 import {
   resolveCompatibleRuntimeMode,
   resolveRuntimeModeOptions,
@@ -36,7 +37,7 @@ export function ComposerContextPermissions(props: {
     props.supportedRuntimeModes,
   );
   const options = resolveRuntimeModeOptions(modes, useManagedPolicy(props.environmentId), messages);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useComposerMenuState(use(HiddenThreadContext));
   const composerMenuProps = useComposerMenuProps(() => setOpen(false));
   const { icon: Icon } = runtimeModeConfig[mode];
   const label = messages(runtimeModeConfig[mode].label);
