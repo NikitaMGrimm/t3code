@@ -23,7 +23,7 @@ import {
   normalizeModelSlug,
 } from "@t3tools/shared/model";
 import { msg, T, useMessages } from "gt-react";
-import { memo, useRef } from "react";
+import { memo } from "react";
 import { GaugeIcon } from "lucide-react";
 import {
   Menu,
@@ -39,10 +39,10 @@ import { getProviderModelCapabilities, keepsUnavailableModelOptions } from "../.
 import { m, type MessageResolver } from "~/i18n/messages";
 import { cn } from "~/lib/utils";
 import { Badge } from "../ui/badge";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ComposerControl, ComposerControlIcon, type ComposerControlSize } from "./ComposerControl";
 import { useComposerMenuState } from "./useComposerMenuState";
 import { useComposerMenuProps } from "./composerEventScope";
+import { SharedTooltipTrigger } from "../ui/shared-tooltip";
 
 type ProviderOptions = ReadonlyArray<ProviderOptionSelection>;
 
@@ -514,7 +514,6 @@ export const TraitsPicker = memo(function TraitsPicker({
   disabled?: boolean;
 }) {
   const [isMenuOpen, setIsMenuOpen] = useComposerMenuState(hidden || disabled);
-  const triggerRef = useRef<HTMLButtonElement>(null);
   const composerFloatingLayerProps = useComposerMenuProps(() => setIsMenuOpen(false));
   const traits = useTraitsSelection(props);
   const resolve = useMessages();
@@ -543,48 +542,42 @@ export const TraitsPicker = memo(function TraitsPicker({
         setIsMenuOpen(open && !disabled);
       }}
     >
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <MenuTrigger
-              ref={triggerRef}
-              render={
-                <ComposerControl
-                  disabled={disabled}
-                  aria-label={triggerLabel}
-                  size={size}
-                  className={cn(
-                    isCodexStyle
-                      ? "min-w-0 max-w-40 shrink justify-start overflow-hidden whitespace-nowrap sm:max-w-48"
-                      : "shrink-0 whitespace-nowrap",
-                    props.triggerClassName,
-                  )}
-                />
-              }
-            />
-          }
-        >
-          {isCodexStyle ? (
-            <span
-              className={cn(
-                "flex min-w-0 w-full items-center",
-                size === "xs" ? "gap-1" : "gap-1.5",
-              )}
-            >
-              <ComposerControlIcon icon={GaugeIcon} size={size} />
-              <span data-composer-control-label className="min-w-0 truncate">
-                {triggerLabel}
-              </span>
+      <SharedTooltipTrigger
+        render={
+          <MenuTrigger
+            render={
+              <ComposerControl
+                disabled={disabled}
+                aria-label={triggerLabel}
+                size={size}
+                className={cn(
+                  isCodexStyle
+                    ? "min-w-0 max-w-40 shrink justify-start overflow-hidden whitespace-nowrap sm:max-w-48"
+                    : "shrink-0 whitespace-nowrap",
+                  props.triggerClassName,
+                )}
+              />
+            }
+          />
+        }
+        label={triggerLabel}
+      >
+        {isCodexStyle ? (
+          <span
+            className={cn("flex min-w-0 w-full items-center", size === "xs" ? "gap-1" : "gap-1.5")}
+          >
+            <ComposerControlIcon icon={GaugeIcon} size={size} />
+            <span data-composer-control-label className="min-w-0 truncate">
+              {triggerLabel}
             </span>
-          ) : (
-            <>
-              <ComposerControlIcon icon={GaugeIcon} size={size} />
-              <span data-composer-control-label>{triggerLabel}</span>
-            </>
-          )}
-        </TooltipTrigger>
-        <TooltipPopup side="top">{triggerLabel}</TooltipPopup>
-      </Tooltip>
+          </span>
+        ) : (
+          <>
+            <ComposerControlIcon icon={GaugeIcon} size={size} />
+            <span data-composer-control-label>{triggerLabel}</span>
+          </>
+        )}
+      </SharedTooltipTrigger>
       <MenuPopup {...composerFloatingLayerProps} align="start">
         <TraitsMenuContent {...props} />
       </MenuPopup>
