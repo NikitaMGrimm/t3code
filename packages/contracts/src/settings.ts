@@ -880,6 +880,7 @@ export const ANTIGRAVITY_AUTH_METHODS = [
   { value: "oauth-business", label: "Gemini Enterprise" },
   { value: "gemini-api-key", label: "Gemini API key" },
   { value: "agent-platform", label: "Agent Platform (Vertex AI)" },
+  { value: "gateway", label: "AI API gateway (experimental)" },
 ] as const satisfies ReadonlyArray<ProviderSettingsFormOption>;
 export const AntigravityAuthMethod = Schema.Literals(
   ANTIGRAVITY_AUTH_METHODS.map((method) => method.value),
@@ -889,6 +890,34 @@ const antigravityGcpFieldVisibility = {
   field: "authMethod",
   values: ["oauth-business", "agent-platform"],
 } satisfies ProviderSettingsFormAnnotation["visibleWhen"];
+
+export function antigravityGatewayUrlHasCredentials(value: string): boolean {
+  return /^[a-z][a-z\d+.-]*:\/*[^/?#]*@/i.test(value.trim());
+}
+
+export function antigravityGatewayUrlIssue(value: string): string | null {
+  if (antigravityGatewayUrlHasCredentials(value)) {
+    return "Remove credentials from the Antigravity gateway URL and use the API key field.";
+  }
+  const authority = /^https?:\/\/([^/?#\\\s]+)(?:[/?#]|$)/i.exec(value)?.[1];
+  const url = URL.parse(value);
+  if (
+    !authority ||
+    !url?.hostname ||
+    /%[0-7][\da-f]/i.test(authority) ||
+    /%(?![\da-f]{2})/i.test(value)
+  ) {
+    return "Enter an absolute Antigravity gateway URL using HTTPS or loopback HTTP.";
+  }
+  const loopback =
+    url.hostname === "localhost" ||
+    url.hostname === "[::1]" ||
+    /^127(?:\.(?:0|[1-9]\d{0,2})){3}(?::\d*)?$/.test(authority);
+  if (url.protocol === "http:" && !loopback) {
+    return "Use HTTPS for the Antigravity gateway URL unless the host is loopback.";
+  }
+  return null;
+}
 
 export const AntigravitySettings = makeProviderSettingsSchema(
   {
@@ -914,7 +943,7 @@ export const AntigravitySettings = makeProviderSettingsSchema(
       Schema.withDecodingDefault(Effect.succeed("")),
       Schema.annotateKey({
         title: "API key",
-        description: "Gemini or Vertex AI express key. Stored separately on the host.",
+        description: "Gemini, Vertex AI express, or gateway key. Stored separately on the host.",
         providerSettingsForm: {
           control: "password",
           placeholder: "Optional",
@@ -948,6 +977,17 @@ export const AntigravitySettings = makeProviderSettingsSchema(
         },
       }),
     ),
+    gatewayUrl: TrimmedString.pipe(
+      Schema.withDecodingDefault(Effect.succeed("")),
+      Schema.annotateKey({
+        title: "Gateway URL",
+        description: "Required for an AI API gateway. Antigravity lists the gateway's models.",
+        providerSettingsForm: {
+          placeholder: "https://gateway.example.com",
+          clearWhenEmpty: "omit",
+        },
+      }),
+    ),
     binaryPath: TrimmedString.pipe(
       Schema.withDecodingDefault(Effect.succeed("")),
       Schema.annotateKey({
@@ -961,7 +1001,7 @@ export const AntigravitySettings = makeProviderSettingsSchema(
       Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
     ),
   },
-  { order: ["authMethod", "apiKey", "gcpProject", "gcpLocation", "binaryPath"] },
+  { order: ["authMethod", "apiKey", "gatewayUrl", "gcpProject", "gcpLocation", "binaryPath"] },
 );
 export type AntigravitySettings = typeof AntigravitySettings.Type;
 
@@ -1822,10 +1862,12 @@ export class ServerSettingsError extends Schema.TaggedError<ServerSettingsError>
     managedBy: Schema.optional(Schema.String),
     /** For `use-disallowed-provider`: the provider's name as users know it. */
     providerLabel: Schema.optional(Schema.String),
+    detail: Schema.optional(Schema.String),
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
   override get message(): string {
+    if (this.detail !== undefined) return this.detail;
     if (this.operation === "write-managed-setting") {
       return `${this.managedSetting ?? "This setting"} is managed by ${this.managedBy ?? "your organization"} and cannot be changed.`;
     }

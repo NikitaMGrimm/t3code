@@ -22,8 +22,13 @@ Choose **Sign-in method** in the Antigravity instance settings:
 | **Gemini Enterprise**          | Browser sign-in, GCP project, and GCP location                          |
 | **Gemini API key**             | API key (no browser required)                                           |
 | **Agent Platform / Vertex AI** | API key, or GCP project + location with Application Default Credentials |
+| **AI API gateway**             | Gateway URL and the gateway's access key if required                    |
 
 API keys are stored outside `settings.json`, and ambient `GEMINI_API_KEY` / Google env vars do not override the instance's configured method.
+
+**AI API gateway** sends model requests through your gateway and uses the models it reports. Use
+HTTPS for remote gateways. Changing the sign-in method or gateway origin clears a previously saved
+key if you leave the field unchanged.
 
 ## Models, planning, and goals
 

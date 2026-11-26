@@ -309,6 +309,13 @@ const providerSecretDestinations = new Map<string, readonly [secret: string, url
   [openCodeClient.driverKind, ["serverPassword", "serverUrl"]],
 ]);
 
+export const isKeptSettingsSecret = (value: unknown, previous: unknown) =>
+  value === SECRET_REDACTED ||
+  (isSecretReference(value) &&
+    isSecretReference(previous) &&
+    value.provider === previous.provider &&
+    value.reference === previous.reference);
+
 /**
  * `next` with a kept secret cleared when the address it is sent to changed: a saved secret goes
  * only to the address it was saved for. A newly entered secret stays.
@@ -317,12 +324,6 @@ export function withoutRedirectedSecrets(
   current: ServerSettings,
   next: ServerSettings,
 ): ServerSettings {
-  const kept = (secret: unknown, saved: unknown) =>
-    secret === SECRET_REDACTED ||
-    (isSecretReference(secret) &&
-      isSecretReference(saved) &&
-      secret.provider === saved.provider &&
-      secret.reference === saved.reference);
   const rebound = <T extends object>(
     entry: T,
     previous: object | null | undefined,
@@ -333,7 +334,7 @@ export function withoutRedirectedSecrets(
     const fields = entry as Readonly<Record<string, unknown>>;
     const saved = previous as Readonly<Record<string, unknown>>;
     return destination(saved[url]) !== destination(fields[url]) &&
-      kept(fields[secret], saved[secret])
+      isKeptSettingsSecret(fields[secret], saved[secret])
       ? { ...entry, [secret]: "" }
       : entry;
   };

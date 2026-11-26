@@ -1199,6 +1199,76 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
     }).pipe(Effect.provide(layerSettings));
   });
 
+  it.effect("keeps gateway settings and credentials from the same save", () =>
+    Effect.gen(function* () {
+      const written = yield* Deferred.make<void>();
+      const finishWrite = yield* Deferred.make<void>();
+      const secrets = new Map<string, Uint8Array>();
+      const layerSecretStore = Layer.succeed(
+        ServerSecretStore.ServerSecretStore,
+        ServerSecretStore.ServerSecretStore.of({
+          get: (name) => Effect.sync(() => Option.fromNullishOr(secrets.get(name))),
+          set: (name, value) =>
+            Effect.gen(function* () {
+              secrets.set(name, value);
+              if (new TextDecoder().decode(value) === "gateway-b-key") {
+                yield* Deferred.succeed(written, undefined);
+                yield* Deferred.await(finishWrite);
+              }
+            }),
+          remove: (name) => Effect.sync(() => void secrets.delete(name)),
+          create: () => Effect.void,
+          getOrCreateRandom: (_, size) => Effect.succeed(new Uint8Array(size)),
+        }),
+      );
+      const layerSettings = ServerSettingsModule.layer.pipe(
+        Layer.provide(layerSecretStore),
+        Layer.provide(ManagedPolicy.layerTest()),
+        Layer.provideMerge(Layer.fresh(SqlitePersistence.layerMemory)),
+        Layer.provideMerge(
+          ServerConfig.layerTest(process.cwd(), { prefix: "t3code-settings-gateway-race-" }),
+        ),
+      );
+      yield* Effect.gen(function* () {
+        const service = yield* ServerSettingsModule.ServerSettingsService;
+        const instanceId = ProviderInstanceId.make("antigravity");
+        const configA = {
+          authMethod: "gateway",
+          gatewayUrl: "https://gateway-a.test",
+          apiKey: "gateway-a-key",
+        };
+        const configB = {
+          ...configA,
+          gatewayUrl: "https://gateway-b.test",
+          apiKey: "gateway-b-key",
+        };
+        const save = (config: typeof configA) =>
+          service.updateProviderInstance({
+            operation: "upsert",
+            instanceId,
+            instance: { driver: ProviderDriverKind.make("antigravity"), config },
+          });
+        const changes = yield* service.subscribeChanges;
+        yield* save(configA);
+        const writer = yield* save(configB).pipe(Effect.forkChild({ startImmediately: true }));
+        yield* Deferred.await(written);
+
+        const reader = yield* service.getSettings.pipe(
+          Effect.forkChild({ startImmediately: true }),
+        );
+        yield* Deferred.succeed(finishWrite, undefined);
+        yield* Fiber.join(writer);
+        assert.deepEqual(
+          (yield* Fiber.join(reader)).providerInstances[instanceId]?.config,
+          configB,
+        );
+
+        const firstChange = Option.getOrThrow(yield* changes.pipe(Stream.runHead));
+        assert.deepEqual(firstChange.providerInstances[instanceId]?.config, configA);
+      }).pipe(Effect.provide(layerSettings));
+    }),
+  );
+
   it.effect("keeps the inline value on disk when secret migration fails", () => {
     const cause = new ServerSecretStore.SecretStorePersistError({
       resource: "provider environment secret",
@@ -1619,6 +1689,104 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
           assert.isTrue(Option.isNone(yield* store.get(name)));
         }
       }).pipe(Effect.provide(layerServerSettingsWithSecrets())),
+  );
+
+  it.effect("keeps a saved Antigravity key at its original destination", () =>
+    Effect.gen(function* () {
+      const service = yield* ServerSettingsModule.ServerSettingsService;
+      const instanceId = ProviderInstanceId.make("antigravity");
+      const save = (config: Record<string, unknown>) =>
+        service.updateProviderInstance({
+          operation: "upsert",
+          instanceId,
+          instance: { driver: ProviderDriverKind.make("antigravity"), config },
+        });
+      const config = { authMethod: "gateway", gatewayUrl: "https://gateway.test" };
+      yield* save({ authMethod: "gemini-api-key", apiKey: "gemini-key" });
+      assert.propertyVal(
+        (yield* save({ ...config, apiKey: SECRET_REDACTED })).providerInstances[instanceId]?.config,
+        "apiKey",
+        "",
+      );
+      yield* save({ ...config, apiKey: "gateway-key" });
+      assert.propertyVal(
+        (yield* save({
+          ...config,
+          gatewayUrl: "https://gateway.test:443/api",
+          apiKey: SECRET_REDACTED,
+        })).providerInstances[instanceId]?.config,
+        "apiKey",
+        "gateway-key",
+      );
+      assert.propertyVal(
+        (yield* save({ ...config, gatewayUrl: "https://second.test", apiKey: SECRET_REDACTED }))
+          .providerInstances[instanceId]?.config,
+        "apiKey",
+        "",
+      );
+      const source = { provider: SecretProviderId.make("personal"), reference: "gateway/key" };
+      const replacement = { ...source, reference: "second/key" };
+      yield* save({ ...config, apiKey: source });
+      assert.propertyVal(
+        (yield* save({ authMethod: "agent-platform", apiKey: source })).providerInstances[
+          instanceId
+        ]?.config,
+        "apiKey",
+        "",
+      );
+      yield* save({ ...config, apiKey: source });
+      assert.deepEqual(
+        (yield* save({ ...config, gatewayUrl: "http://127.0.0.1:4000", apiKey: replacement }))
+          .providerInstances[instanceId]?.config,
+        { authMethod: "gateway", gatewayUrl: "http://127.0.0.1:4000", apiKey: replacement },
+      );
+    }).pipe(Effect.provide(layerServerSettings())),
+  );
+
+  it.effect("rejects invalid Antigravity gateway URLs before writing settings", () =>
+    Effect.gen(function* () {
+      const service = yield* ServerSettingsModule.ServerSettingsService;
+      const instanceId = ProviderInstanceId.make("antigravity");
+      for (const gatewayUrl of [
+        "https:///missing-host",
+        "https://%67ateway.test",
+        "https://gateway.test/a%xx",
+        "ftp://gateway.test",
+        "http://127.gateway.test",
+        "https://user:private-password@gateway.test",
+      ]) {
+        const error = yield* service
+          .updateSettings({
+            providerInstances: {
+              [instanceId]: {
+                driver: ProviderDriverKind.make("antigravity"),
+                config: { authMethod: "gateway", gatewayUrl },
+              },
+            },
+          })
+          .pipe(Effect.flip);
+        assert.include(error.message, "gateway URL");
+        assert.notInclude(JSON.stringify(error), "private-password");
+      }
+      assert.isUndefined((yield* service.getSettings).providerInstances[instanceId]);
+
+      const existing = yield* decodeServerSettings({
+        providerInstances: {
+          [instanceId]: {
+            driver: "antigravity",
+            config: {
+              authMethod: "gateway",
+              gatewayUrl: "https://user:private-password@gateway.test",
+            },
+          },
+        },
+      });
+      const client = ServerSettingsModule.redactServerSettingsForClient(existing, {
+        secretReferences: true,
+      });
+      assert.propertyVal(client.providerInstances[instanceId]?.config, "gatewayUrl", "");
+      assert.notInclude(JSON.stringify(client), "private-password");
+    }).pipe(Effect.provide(layerServerSettings())),
   );
 
   it.effect("moves saved provider credentials to the secret store when settings load", () =>
@@ -2294,7 +2462,8 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
       const fileSystem = yield* FileSystem.FileSystem;
       let failRename = false;
       let settingsPathToFail: string | undefined;
-      let readDuringWrite: Effect.Effect<void> = Effect.void;
+      const renameEntered = yield* Deferred.make<void>();
+      const failWrite = yield* Deferred.make<void>();
       const writeFailure = PlatformError.systemError({
         _tag: "PermissionDenied",
         module: "FileSystem",
@@ -2305,7 +2474,10 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         ...fileSystem,
         rename: (fromPath, toPath) =>
           failRename && toPath === settingsPathToFail
-            ? readDuringWrite.pipe(Effect.andThen(Effect.fail(writeFailure)))
+            ? Deferred.succeed(renameEntered, undefined).pipe(
+                Effect.andThen(Deferred.await(failWrite)),
+                Effect.andThen(Effect.fail(writeFailure)),
+              )
             : fileSystem.rename(fromPath, toPath),
       });
       const instanceId = ProviderInstanceId.make("antigravity_write_failure");
@@ -2327,7 +2499,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         });
 
         failRename = true;
-        readDuringWrite = Effect.ignore(serverSettings.getSettings);
         const failedUpdate = yield* serverSettings
           .updateProviderInstance({
             operation: "upsert",
@@ -2338,18 +2509,16 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
               config: { apiKey: "config-new" },
             },
           })
-          .pipe(Effect.result);
-        assert.equal(failedUpdate._tag, "Failure");
-        assert.equal(
-          (yield* serverSettings.getSettings).providerInstances[instanceId]?.environment?.[0]
-            ?.value,
-          "sk-kept",
+          .pipe(Effect.result, Effect.forkChild({ startImmediately: true }));
+        yield* Deferred.await(renameEntered);
+        const reader = yield* serverSettings.getSettings.pipe(
+          Effect.forkChild({ startImmediately: true }),
         );
-        assert.propertyVal(
-          (yield* serverSettings.getSettings).providerInstances[instanceId]?.config,
-          "apiKey",
-          "config-kept",
-        );
+        yield* Deferred.succeed(failWrite, undefined);
+        assert.equal((yield* Fiber.join(failedUpdate))._tag, "Failure");
+        const instance = (yield* Fiber.join(reader)).providerInstances[instanceId];
+        assert.equal(instance?.environment?.[0]?.value, "sk-kept");
+        assert.propertyVal(instance?.config, "apiKey", "config-kept");
 
         const failed = yield* serverSettings
           .updateProviderInstance({ operation: "remove", instanceId })

@@ -1,5 +1,7 @@
 import {
   DEFAULT_SERVER_SETTINGS,
+  antigravityGatewayUrlHasCredentials,
+  antigravityGatewayUrlIssue,
   ModelSelection,
   ProjectId,
   ProjectScript,
@@ -64,6 +66,7 @@ import {
 } from "./sourceControl/sourceControlHostSecrets.ts";
 
 import {
+  isKeptSettingsSecret,
   mapSettingsSecrets,
   mapSettingsSecretValues,
   withoutRemovedSecretProviderReferences,
@@ -161,8 +164,22 @@ export function redactServerSettingsForClient(
     : mapSettingsSecretValues(redacted, (value) =>
         isSecretReference(value) ? SECRET_REDACTED : value,
       );
+  let providerInstances: Record<ProviderInstanceId, ProviderInstanceConfig> | undefined;
+  for (const [instanceId, instance] of Object.entries(shaped.providerInstances) as Array<
+    [ProviderInstanceId, ProviderInstanceConfig]
+  >) {
+    const config = antigravityInstanceConfig(instance);
+    if (
+      typeof config?.gatewayUrl === "string" &&
+      antigravityGatewayUrlHasCredentials(config.gatewayUrl)
+    ) {
+      providerInstances ??= { ...shaped.providerInstances };
+      providerInstances[instanceId] = { ...instance, config: { ...config, gatewayUrl: "" } };
+    }
+  }
   return {
     ...shaped,
+    providerInstances: providerInstances ?? shaped.providerInstances,
     secretProviders: withoutUnknownSecretProviderConfigs(shaped),
     // Older clients decode only "cliproxy" sources and reject the whole settings payload otherwise.
     usageLimitSources: client.httpUsageLimitSources
@@ -266,6 +283,55 @@ function ensureProviderInstanceMutationAllowed(
     );
   }
   return Effect.void;
+}
+
+function antigravityInstanceConfig(instance: ProviderInstanceConfig | undefined) {
+  const config = instance?.driver === "antigravity" ? instance.config : undefined;
+  return config !== null && typeof config === "object" && !Array.isArray(config)
+    ? (config as Record<string, unknown>)
+    : undefined;
+}
+
+function protectAntigravityGatewaySettings(
+  current: ServerSettings,
+  next: ServerSettings,
+  settingsPath: string,
+) {
+  const providerInstances = { ...next.providerInstances };
+  for (const [instanceId, instance] of Object.entries(next.providerInstances) as Array<
+    [ProviderInstanceId, ProviderInstanceConfig]
+  >) {
+    const config = antigravityInstanceConfig(instance);
+    if (!config) continue;
+    const previous = antigravityInstanceConfig(current.providerInstances[instanceId]);
+    const gatewayUrl = typeof config.gatewayUrl === "string" ? config.gatewayUrl.trim() : "";
+    const previousUrl = typeof previous?.gatewayUrl === "string" ? previous.gatewayUrl.trim() : "";
+    if (gatewayUrl && gatewayUrl !== previousUrl) {
+      const detail = antigravityGatewayUrlIssue(gatewayUrl);
+      if (detail !== null) {
+        return Effect.fail(
+          new ServerSettingsError({
+            settingsPath,
+            operation: "normalize",
+            providerInstanceId: instanceId,
+            detail,
+          }),
+        );
+      }
+    }
+    const gateway = config.authMethod === "gateway";
+    if (
+      previous &&
+      (gateway !== (previous.authMethod === "gateway") ||
+        (gateway &&
+          (URL.parse(gatewayUrl)?.origin ?? gatewayUrl) !==
+            (URL.parse(previousUrl)?.origin ?? previousUrl))) &&
+      isKeptSettingsSecret(config.apiKey, previous.apiKey)
+    ) {
+      providerInstances[instanceId] = { ...instance, config: { ...config, apiKey: "" } };
+    }
+  }
+  return Effect.succeed({ ...next, providerInstances });
 }
 
 export class ServerSettingsService extends Context.Service<
@@ -1017,46 +1083,21 @@ const make = Effect.gen(function* () {
   );
 
   // Background sweeps read settings every few seconds; reading secret files each time is wasted.
-  // Every secret write rewrites the settings file, so a new cached object implies fresh secrets.
-  // A read that overlaps a secret write may see files a rollback then restores, so it is not kept.
+  // Settings and their separately stored secrets are read and published under the write lock.
   let materialized: { readonly source: ServerSettings; readonly value: ServerSettings } | null =
     null;
-  let secretWriteGeneration = 0;
-  const invalidateMaterialized = Effect.sync(() => {
-    secretWriteGeneration++;
-    materialized = null;
-  });
-  const getMaterializedSettings = getSettingsFromCache.pipe(
-    Effect.flatMap((source) => {
-      if (materialized?.source === source) return Effect.succeed(materialized.value);
-      const generation = secretWriteGeneration;
-      return materializeSettingsSecrets(source).pipe(
-        Effect.map(toEffective),
-        Effect.tap((value) =>
-          Effect.sync(() => {
-            if (generation === secretWriteGeneration) materialized = { source, value };
-          }),
-        ),
-      );
-    }),
-  );
-
-  const materializeChanges = (changes: Stream.Stream<ServerSettings>) =>
-    changes.pipe(
-      Stream.mapEffect((settings) =>
-        materializeSettingsSecrets(settings).pipe(
-          Effect.catch((error: ServerSettingsError) =>
-            Effect.logWarning("failed to materialize settings secrets", {
-              operation: error.operation,
-              providerInstanceId: error.providerInstanceId,
-              environmentVariable: error.environmentVariable,
-              cause: error.cause,
-            }).pipe(Effect.as(settings)),
-          ),
-        ),
+  const materializeSnapshot = (source: ServerSettings) => {
+    if (materialized?.source === source) return Effect.succeed(materialized.value);
+    return materializeSettingsSecrets(source).pipe(
+      Effect.map(toEffective),
+      Effect.tap((value) =>
+        Effect.sync(() => {
+          materialized = { source, value };
+        }),
       ),
-      Stream.map(toEffective),
     );
+  };
+  const getMaterializedSettings = getSettingsFromCache.pipe(Effect.flatMap(materializeSnapshot));
 
   type SecretChange = {
     readonly secretName: string;
@@ -1241,9 +1282,13 @@ const make = Effect.gen(function* () {
         }
         // An older client echoes a reference as the redacted marker; restore it before vetting so
         // a removed provider's reference is cleared below rather than restored by persistence.
-        const updated = withoutRedirectedSecrets(
+        const updated = yield* protectAntigravityGatewaySettings(
           current,
-          withEchoedSecretReferences(current, yield* update(current)),
+          withoutRedirectedSecrets(
+            current,
+            withEchoedSecretReferences(current, yield* update(current)),
+          ),
+          settingsPath,
         );
         // Vet before secrets: a variable the policy hides from clients is not one they removed.
         const vetted = managed.vetWrite(current, yield* normalizeServerSettings(updated), patch);
@@ -1279,9 +1324,9 @@ const make = Effect.gen(function* () {
           withoutRemovedSecretProviderReferences(current, vettedProviders.settings),
         );
         const next = yield* normalizeServerSettings(persisted.settings);
-        const materializedNext = yield* Effect.uninterruptibleMask(() =>
+        return yield* Effect.uninterruptible(
           Effect.gen(function* () {
-            yield* invalidateMaterialized;
+            materialized = null;
             const rollbackSecretChanges = yield* applySettingsSecretChanges(persisted.changes);
             const materializedExit = yield* Effect.exit(materializeSettingsSecrets(next));
             if (Exit.isFailure(materializedExit)) {
@@ -1293,14 +1338,16 @@ const make = Effect.gen(function* () {
               yield* rollbackSecretChanges;
               return yield* Effect.failCause(writeExit.cause);
             }
-            return materializedExit.value;
-          }).pipe(Effect.ensuring(invalidateMaterialized)),
+            yield* Cache.set(settingsCache, cacheKey, {
+              settings: next,
+              parseFailure: Option.none(),
+            });
+            const resolved = toEffective(materializedExit.value);
+            materialized = { source: next, value: resolved };
+            yield* emitChange(resolved);
+            return resolved;
+          }),
         );
-        yield* Cache.set(settingsCache, cacheKey, { settings: next, parseFailure: Option.none() });
-        const resolved = toEffective(materializedNext);
-        materialized = { source: next, value: resolved };
-        yield* emitChange(next);
-        return resolved;
       }),
     );
 
@@ -1310,7 +1357,17 @@ const make = Effect.gen(function* () {
   const revalidateAndEmit = writeSemaphore.withPermits(1)(
     Effect.gen(function* () {
       const { settings } = yield* reloadSettings;
-      yield* emitChange(settings);
+      const snapshot = yield* materializeSnapshot(settings).pipe(
+        Effect.catch((error) =>
+          Effect.logWarning("failed to materialize settings secrets", {
+            operation: error.operation,
+            providerInstanceId: error.providerInstanceId,
+            environmentVariable: error.environmentVariable,
+            cause: error.cause,
+          }).pipe(Effect.map(() => toEffective(settings))),
+        ),
+      );
+      yield* emitChange(snapshot);
     }),
   );
 
@@ -1433,7 +1490,7 @@ const make = Effect.gen(function* () {
 
     const startup = Effect.gen(function* () {
       yield* startWatcher;
-      yield* reloadSettings;
+      yield* writeSemaphore.withPermits(1)(reloadSettings);
     });
 
     const startupExit = yield* Effect.exit(startup);
@@ -1449,7 +1506,7 @@ const make = Effect.gen(function* () {
     managedPolicy,
     start,
     ready: Deferred.await(startedDeferred),
-    getSettings: getMaterializedSettings,
+    getSettings: writeSemaphore.withPermits(1)(getMaterializedSettings),
     updateSettings: (patch) =>
       updateAndPersistSettings(patch, (current) =>
         ensureSecretProviderWritesAllowed(patch, settingsPath).pipe(
@@ -1466,14 +1523,8 @@ const make = Effect.gen(function* () {
         }),
       ),
     withSettingsSnapshot,
-    get streamChanges() {
-      return materializeChanges(Stream.fromPubSub(changesPubSub));
-    },
-    get subscribeChanges() {
-      return PubSub.subscribe(changesPubSub).pipe(
-        Effect.map((subscription) => materializeChanges(Stream.fromSubscription(subscription))),
-      );
-    },
+    streamChanges: Stream.fromPubSub(changesPubSub),
+    subscribeChanges: PubSub.subscribe(changesPubSub).pipe(Effect.map(Stream.fromSubscription)),
   } satisfies ServerSettingsService["Service"];
 });
 
