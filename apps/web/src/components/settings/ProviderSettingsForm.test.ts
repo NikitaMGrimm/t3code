@@ -84,7 +84,20 @@ describe("ProviderSettingsForm helpers", () => {
       "gcpLocation",
       "binaryPath",
     ]);
-    expect(keysFor()).toEqual(["authMethod", "apiKey", "gcpProject", "gcpLocation", "binaryPath"]);
+    expect(keysFor({ authMethod: "gateway" })).toEqual([
+      "authMethod",
+      "apiKey",
+      "gatewayUrl",
+      "binaryPath",
+    ]);
+    expect(keysFor()).toEqual([
+      "authMethod",
+      "apiKey",
+      "gatewayUrl",
+      "gcpProject",
+      "gcpLocation",
+      "binaryPath",
+    ]);
   });
 
   it("does not store a text value its field's schema rejects", () => {

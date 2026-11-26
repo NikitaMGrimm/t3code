@@ -948,7 +948,10 @@ export const AntigravitySettings = makeProviderSettingsSchema(
           control: "password",
           placeholder: "Optional",
           clearWhenEmpty: "omit",
-          visibleWhen: { field: "authMethod", values: ["gemini-api-key", "agent-platform"] },
+          visibleWhen: {
+            field: "authMethod",
+            values: ["gemini-api-key", "agent-platform", "gateway"],
+          },
         },
       }),
     ),
@@ -985,6 +988,7 @@ export const AntigravitySettings = makeProviderSettingsSchema(
         providerSettingsForm: {
           placeholder: "https://gateway.example.com",
           clearWhenEmpty: "omit",
+          visibleWhen: { field: "authMethod", values: ["gateway"] },
         },
       }),
     ),
