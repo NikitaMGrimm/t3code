@@ -16,12 +16,11 @@ import { ComposerControl } from "./ComposerControl";
 import { useComposerMenuProps } from "./composerEventScope";
 import { isComposerControlPaste } from "./composerFocusRedirect";
 import { ComposerFooterModeControls } from "./ComposerFooterControls";
-import { runtimeModeConfig } from "./runtimeModeConfig";
+import { resolveRuntimeModeOption } from "./runtimeModeConfig";
 
-const runtimeModeOptions = (["approval-required", "full-access"] as const).map((mode) => ({
-  mode,
-  ...runtimeModeConfig[mode],
-}));
+const runtimeModeOptions = (["approval-required", "full-access"] as const).map((mode) =>
+  resolveRuntimeModeOption(mode),
+);
 
 function BranchControl() {
   const [open, setOpen] = useState(false);
