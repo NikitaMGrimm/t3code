@@ -24,11 +24,18 @@ import {
   NodeSelection,
   Plugin,
   PluginKey,
+  Selection,
   TextSelection,
   type Transaction,
 } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
-import type { NodeType, ResolvedPos } from "@tiptap/pm/model";
+import {
+  Fragment,
+  Slice,
+  type Node as ProseMirrorNode,
+  type NodeType,
+  type ResolvedPos,
+} from "@tiptap/pm/model";
 import type {
   AssistantCitation,
   ComposerContextClipboardFragment,
@@ -144,8 +151,9 @@ import { resolveAssistantCitationCommentDismissal } from "./chat/assistantCitati
 import { composerCodeBlockHighlight } from "./composerCodeBlockHighlight";
 import {
   importPastedComposerText,
-  readPastedComposerContext,
+  type PastedComposerClipboard,
   readPastedPlainText,
+  readPastedComposerClipboard,
 } from "./composerInlineTokenPaste";
 import { didComposerSelectionChangeVisibly } from "./composerSelection";
 import {
@@ -160,8 +168,15 @@ export interface ComposerPromptEditorHandle {
   restoreFocus: () => void;
   focusAt: (cursor: number) => void;
   focusAtEnd: () => void;
+  pasteAtCodeBlockEnd: (clipboardData: DataTransfer) => boolean;
   /** Pastes a clipboard event that targeted another element at the retained selection. */
-  pasteClipboardEvent: (event: ClipboardEvent) => boolean;
+  pasteClipboardEvent: (
+    event: ClipboardEvent,
+    options?: {
+      plainTextOnly: boolean;
+      foldText: (paste: PastedComposerClipboard) => boolean;
+    },
+  ) => boolean;
   readSelectionRange: () => { start: number; end: number };
   captureAttachmentInsertion: () => ComposerAttachmentInsertion | undefined;
   requestCitationComment: (request: ComposerCitationCommentRequest) => void;
@@ -218,7 +233,10 @@ export interface ComposerPromptEditorProps {
   onCitationSubmitAndSend?: () => boolean;
   /** Saves unsaved citation text into replacedValue when a controlled rewrite replaces the document. */
   onCitationDraftSave?: (replacedValue: string, savedValue: string) => void;
-  onPaste: React.ClipboardEventHandler<HTMLElement>;
+  onPaste: (
+    event: React.ClipboardEvent<HTMLElement>,
+    readClipboard: (plainTextOnly: boolean) => PastedComposerClipboard,
+  ) => void;
   editorRef: React.RefObject<ComposerPromptEditorHandle | null>;
 }
 
@@ -1193,13 +1211,15 @@ function ComposerPromptEditorTiptapInner(
     "aria-placeholder": placeholder,
   };
 
+  const capturedPastes = useRef(new WeakMap<ClipboardEvent, PastedComposerClipboard>());
+
   /** `newLineAt` inserts on a fresh line created at that block boundary, in the same undo step. */
   const insertClipboardText = (
     view: EditorView,
-    clipboardData: DataTransfer,
+    paste: PastedComposerClipboard,
     newLineAt?: number,
   ): boolean => {
-    const pastedText = readPastedPlainText(clipboardData);
+    const { text: pastedText } = paste;
     if (!pastedText) return false;
     const onNewLine = newLineAt !== undefined;
     // Paste verbatim inside fences; markdown parsing would split blocks and create unsupported chips.
@@ -1219,6 +1239,7 @@ function ComposerPromptEditorTiptapInner(
     if (
       !onNewLine &&
       sourceType?.isInSet($pasteFrom.marks()) &&
+      !paste.context?.records.length &&
       !pastedText.includes("\n") &&
       collectComposerPromptInlineTokens(`${pastedText}\n`).length === 0
     ) {
@@ -1230,11 +1251,7 @@ function ComposerPromptEditorTiptapInner(
       );
       return true;
     }
-    const importFragment = readCallbacks().importContextFragment;
-    let text =
-      !literalText && importFragment
-        ? importPastedComposerText(clipboardData, importFragment)
-        : pastedText;
+    let text = importPastedComposerText(paste, readCallbacks().importContextFragment);
     const tokens = literalText ? [] : collectComposerPromptInlineTokens(`${text}\n`);
     const isChip = (token: (typeof tokens)[number] | undefined) =>
       token?.type === "mention" ||
@@ -1279,7 +1296,20 @@ function ComposerPromptEditorTiptapInner(
             })
             // Pasted chips and lines would split shown Markdown, so parse it first.
             .command(collapseShownMarkdownSource)
-            .insertContent(content)
+            .command(({ tr, commands }) => {
+              const nodes = Array.isArray(content)
+                ? content.map((json) => tr.doc.type.schema.nodeFromJSON(json))
+                : [];
+              if (nodes.length < 2 || !nodes.every((node) => node.isBlock)) {
+                return commands.insertContent(content);
+              }
+              // Open paragraph edges join the caret's line and the text after it, as typed lines do.
+              const open = (node: ProseMirrorNode) => (node.type.name === "paragraph" ? 1 : 0);
+              tr.replaceSelection(
+                new Slice(Fragment.from(nodes), open(nodes[0]!), open(nodes.at(-1)!)),
+              );
+              return true;
+            })
             .command(({ tr }) => {
               // Move after a pasted rule so the next keystroke cannot replace it; add a trailing line
               // if needed.
@@ -1596,12 +1626,14 @@ function ComposerPromptEditorTiptapInner(
         handlePaste: (view, event) => {
           const clipboardData = event.clipboardData;
           if (!clipboardData) return false;
-          if (
-            clipboardData.files.length > 0 &&
-            (literalText || !readPastedComposerContext(clipboardData)?.records.length)
-          )
+          const captured = capturedPastes.current.get(event);
+          capturedPastes.current.delete(event);
+          const paste =
+            captured ??
+            readPastedComposerClipboard(clipboardData, literalText || isInCodeBlock(view));
+          if (!captured && clipboardData.files.length > 0 && !paste.context?.records.length)
             return false;
-          if (!insertClipboardText(view, clipboardData)) return false;
+          if (!insertClipboardText(view, paste)) return false;
           event.preventDefault();
           return true;
         },
@@ -1626,13 +1658,16 @@ function ComposerPromptEditorTiptapInner(
               // Between list items a paragraph does not fit; ProseMirror's drop adds an item there.
               if (!$target.parent.canReplaceWith(index, index, paragraph)) return false;
               view.focus();
-              return insertClipboardText(view, data, pos);
+              return insertClipboardText(view, readPastedComposerClipboard(data, literalText), pos);
             }
           }
           view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos)));
           // Handling the drop skips ProseMirror's own focus call.
           view.focus();
-          return insertClipboardText(view, data);
+          return insertClipboardText(
+            view,
+            readPastedComposerClipboard(data, literalText || isInCodeBlock(view)),
+          );
         },
       },
       onUpdate: ({ editor: updated, transaction }) => {
@@ -1656,6 +1691,18 @@ function ComposerPromptEditorTiptapInner(
     },
     [],
   );
+
+  const onClipboardPasteCapture = (event: React.ClipboardEvent<HTMLElement>) => {
+    onPaste(event, (plainTextOnly) => {
+      const paste = readPastedComposerClipboard(
+        event.clipboardData,
+        plainTextOnly || literalText || (editor !== null && isInCodeBlock(editor.view)),
+      );
+      capturedPastes.current.set(event.nativeEvent, paste);
+      return paste;
+    });
+  };
+  const onClipboardPasteCaptureStable = useStableCallback(onClipboardPasteCapture);
 
   const resumeEditingFocusRef = useRef(false);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- preserves native selection focus across temporarily making the editor read-only for dictation
@@ -1938,13 +1985,34 @@ function ComposerPromptEditorTiptapInner(
               ),
         );
       },
-      pasteClipboardEvent: (event) => {
-        const text = event.clipboardData?.getData("text/plain");
-        if (!editor?.isEditable || !text) return false;
-        // focus() restores the selection the editor kept while blurred, and
-        // pasteText runs the same handlePaste path as a paste typed here.
-        editor.view.focus();
-        return editor.view.pasteText(text, event);
+      pasteAtCodeBlockEnd: (clipboardData) => {
+        if (!editor?.isEditable) return false;
+        const { view } = editor;
+        const end = Selection.atEnd(view.state.doc);
+        if (!end.$from.parent.type.spec.code) return false;
+        const text = readPastedPlainText(clipboardData);
+        if (!text) return false;
+        view.focus();
+        view.dispatch(
+          markAsClipboardEdit(
+            view.state.tr.setSelection(end).insertText(text),
+            "paste",
+          ).scrollIntoView(),
+        );
+        return true;
+      },
+      pasteClipboardEvent: (event, options) => {
+        if (!editor?.isEditable || !event.clipboardData) return false;
+        const { view } = editor;
+        const paste = readPastedComposerClipboard(
+          event.clipboardData,
+          options?.plainTextOnly || literalText || isInCodeBlock(view),
+        );
+        if (!paste.text) return false;
+        view.focus();
+        if (options?.foldText(paste)) return true;
+        capturedPastes.current.set(event, paste);
+        return view.pasteText(paste.text, event);
       },
       readSelectionRange: () => {
         readSnapshot();
@@ -2088,7 +2156,7 @@ function ComposerPromptEditorTiptapInner(
               }}
               onKeyUp={(event) => onPageScrollKeyUp?.(event.key)}
               onBlur={onPageScrollRelease}
-              onPasteCapture={onPaste}
+              onPasteCapture={onClipboardPasteCaptureStable}
               onCopyCapture={(event) => handleCopyCut(event, false)}
               onCutCapture={(event) => handleCopyCut(event, true)}
             />

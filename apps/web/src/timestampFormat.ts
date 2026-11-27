@@ -201,7 +201,7 @@ export function formatChatTimestampTooltip(
 
 export function formatFullTimestamp(isoDate: string, timestampFormat: TimestampFormat): string {
   return new Date(isoDate).toLocaleString(
-    undefined,
+    timestampLocale,
     timestampFormat === "locale" ? undefined : { hour12: timestampFormat === "12-hour" },
   );
 }
@@ -226,11 +226,12 @@ export function formatDateTimeTimestamp(isoDate: string, timestampFormat: Timest
     formatter = new Intl.DateTimeFormat(timestampLocale, {
       dateStyle: "medium",
       timeStyle: "short",
+      timeZone: "UTC",
       ...(timestampFormat === "locale" ? {} : { hour12: timestampFormat === "12-hour" }),
     });
     dateTimeFormatterCache.set(timestampFormat, formatter);
   }
-  return formatter.format(date);
+  return formatter.format(wallClockAsUtc(date));
 }
 
 // Same pattern as the scheduled-task `TimeOfDay` contract.
