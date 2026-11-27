@@ -129,7 +129,7 @@ export function formatTimestamp(isoDate: string, timestampFormat: TimestampForma
 }
 
 /** Local date and time for details that must stay unambiguous across days and years. */
-export function formatFullTimestamp(
+export function formatDetailedTimestamp(
   isoDate: string,
   timestampFormat: TimestampFormat,
   includeSeconds = true,
@@ -197,6 +197,13 @@ export function formatChatTimestampTooltip(
   const month = monthNameFormatter.format(wallClockAsUtc(date));
   const year = date.getFullYear();
   return `${time}, ${day}${ordinalSuffix(day)} ${month} ${year}`;
+}
+
+export function formatFullTimestamp(isoDate: string, timestampFormat: TimestampFormat): string {
+  return new Date(isoDate).toLocaleString(
+    undefined,
+    timestampFormat === "locale" ? undefined : { hour12: timestampFormat === "12-hour" },
+  );
 }
 
 export function formatShortTimestamp(

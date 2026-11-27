@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { formatFullTimestamp, formatTimeOfDay, formatTimestamp } from "./timestampFormat";
+import { formatDetailedTimestamp, formatTimeOfDay, formatTimestamp } from "./timestampFormat";
 
 // ICU can separate the day period with a narrow no-break space.
 const normalize = (value: string) => value.replace(/[  ]/g, " ");
@@ -18,12 +18,13 @@ afterEach(() => {
   vi.resetModules();
 });
 
-describe("formatFullTimestamp", () => {
+describe("formatDetailedTimestamp", () => {
   it.each([
     ["en-US", "Apr 7, 2025, 3:44:09 PM", "Apr 7, 2025, 3:44:09 PM", "Apr 7, 2025, 15:44:09"],
     ["en-GB", "7 Apr 2025, 15:44:09", "7 Apr 2025, 3:44:09 pm", "7 Apr 2025, 15:44:09"],
   ])("keeps the date and seconds under %s", async (locale, localeLabel, twelve, twentyFour) => {
-    const { formatFullTimestamp: format, formatTimestamp: time } = await importUnderLocale(locale);
+    const { formatDetailedTimestamp: format, formatTimestamp: time } =
+      await importUnderLocale(locale);
     const date = new Date(2025, 3, 7, 15, 44, 9).toISOString();
 
     expect(normalize(format(date, "locale"))).toBe(localeLabel);
@@ -40,7 +41,7 @@ describe("formatFullTimestamp", () => {
     ["en-US", "Jan 1, 2025, 12:05 AM", "Jan 1, 2025, 00:05"],
     ["en-GB", "1 Jan 2025, 12:05 am", "1 Jan 2025, 0:05"],
   ])("renders midnight per explicit hour cycle under %s", async (locale, twelve, twentyFour) => {
-    const { formatFullTimestamp: format } = await importUnderLocale(locale);
+    const { formatDetailedTimestamp: format } = await importUnderLocale(locale);
     const midnight = new Date(2025, 0, 1, 0, 5, 9).toISOString();
 
     expect(normalize(format(midnight, "12-hour", false))).toBe(twelve);
@@ -48,8 +49,8 @@ describe("formatFullTimestamp", () => {
   });
 
   it("returns an empty label for an invalid date", () => {
-    expect(formatFullTimestamp("not-a-date", "24-hour")).toBe("");
-    expect(formatFullTimestamp("not-a-date", "12-hour", false)).toBe("");
+    expect(formatDetailedTimestamp("not-a-date", "24-hour")).toBe("");
+    expect(formatDetailedTimestamp("not-a-date", "12-hour", false)).toBe("");
   });
 });
 
@@ -90,10 +91,10 @@ describe("detailed timestamps after the system time zone changes", () => {
       }).format(new Date(instant));
     vi.stubEnv("TZ", "America/New_York");
     expect(formatTimestamp(instant, "12-hour")).toBe(expected("America/New_York", false));
-    expect(formatFullTimestamp(instant, "12-hour")).toBe(expected("America/New_York", true));
+    expect(formatDetailedTimestamp(instant, "12-hour")).toBe(expected("America/New_York", true));
 
     vi.stubEnv("TZ", "Asia/Bangkok");
     expect(formatTimestamp(instant, "12-hour")).toBe(expected("Asia/Bangkok", false));
-    expect(formatFullTimestamp(instant, "12-hour")).toBe(expected("Asia/Bangkok", true));
+    expect(formatDetailedTimestamp(instant, "12-hour")).toBe(expected("Asia/Bangkok", true));
   });
 });

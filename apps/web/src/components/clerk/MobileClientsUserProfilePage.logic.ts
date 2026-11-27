@@ -4,7 +4,7 @@ import { msg } from "gt-react";
 import { m, type MessageResolver } from "~/i18n/messages";
 import type { TimestampFormat } from "@t3tools/contracts/settings";
 
-import { formatFullTimestamp } from "../../timestampFormat";
+import { formatDetailedTimestamp } from "../../timestampFormat";
 
 const NOTIFICATION_PREFERENCES = [
   ["notifyOnApproval", msg("approvals")],
@@ -47,7 +47,7 @@ export function mobileClientUpdatedAtLabel(
   timestampFormat: TimestampFormat,
   resolve: MessageResolver = m,
 ): string {
-  const timestamp = formatFullTimestamp(updatedAt, timestampFormat, false);
+  const timestamp = formatDetailedTimestamp(updatedAt, timestampFormat, false);
   return timestamp
     ? resolve(msg("Updated {date}", { date: timestamp }))
     : resolve(msg("Update time unavailable"));

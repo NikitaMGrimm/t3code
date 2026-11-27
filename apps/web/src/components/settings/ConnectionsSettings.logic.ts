@@ -35,7 +35,7 @@ import {
   getDesktopUpdateDownloadedVersion,
   resolveDesktopUpdateButtonAction,
 } from "../desktopUpdate.logic";
-import { formatFullTimestamp } from "../../timestampFormat";
+import { formatDetailedTimestamp } from "../../timestampFormat";
 import {
   resolveServerConfigVersionMismatch,
   resolveServerSelfUpdateCapability,
@@ -184,7 +184,7 @@ export function formatAccessTimestamp(
   value: string,
   timestampFormat: TimestampFormat = "locale",
 ): string {
-  return formatFullTimestamp(value, timestampFormat, false) || value;
+  return formatDetailedTimestamp(value, timestampFormat, false) || value;
 }
 
 export function resolveConnectionServerVersionMismatch(
