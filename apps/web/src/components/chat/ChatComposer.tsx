@@ -4095,9 +4095,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     "hidden sm:flex",
                 )}
               >
-                {composerAttachButton && !dictationTakesFooter ? (
-                  <div className="me-2">{composerAttachButton}</div>
-                ) : null}
                 <div
                   data-chat-composer-actions="right"
                   data-chat-composer-transition-actions="true"
@@ -4120,7 +4117,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   <ComposerFooterPrimaryActions
                     // Stop state belongs to one thread; the composer stays mounted across threads.
                     key={`${environmentId}:${activeThreadId ?? "new"}`}
-                    attachAction={composerAttachButton}
+                    attachAction={dictationTakesFooter ? null : composerAttachButton}
                     compact={isComposerPrimaryActionsCompact}
                     canOperateThread={canOperateThread}
                     pendingAction={pendingPrimaryAction}
