@@ -124,8 +124,10 @@ async function renderComposer() {
 describe("composer picker paste", () => {
   it("dismisses the access picker and pastes once at the draft's retained caret", async () => {
     await using screen = await renderComposer();
-    await userEvent.click(screen.getByRole("button", { name: "Permissions: Supervised" }));
-    await expect.element(page.getByRole("menu")).toBeVisible();
+    const trigger = screen.getByRole("button", { name: "Permissions: Supervised" });
+    (trigger.element() as HTMLElement).focus();
+    await userEvent.keyboard("{ArrowDown}");
+    await expect.element(page.getByRole("menuitemradio", { name: "Supervised" })).toHaveFocus();
 
     const event = pasteOnFocused(" there");
 
@@ -137,8 +139,10 @@ describe("composer picker paste", () => {
 
   it("dismisses the compact controls menu and pastes into the draft", async () => {
     await using screen = await renderComposer();
-    await userEvent.click(screen.getByRole("button", { name: "More composer controls" }));
-    await expect.element(page.getByRole("menu")).toBeVisible();
+    const trigger = screen.getByRole("button", { name: "More composer controls" });
+    (trigger.element() as HTMLElement).focus();
+    await userEvent.keyboard("{ArrowDown}");
+    await expect.element(page.getByRole("menuitemradio", { name: "Supervised" })).toHaveFocus();
 
     pasteOnFocused(" there");
 
