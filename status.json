@@ -1,21 +1,22 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.14-nightly.20261127.5332",
+  "upstreamTag": "v0.1.14-nightly.20261127.5345",
   "conflicts": [
     "apps/web/src/components/ChatView.tsx",
     "apps/web/src/components/ComposerPromptEditorTiptap.tsx",
     "apps/web/src/components/chat/ChatComposer.tsx",
-    "apps/web/src/components/chat/usePasteToFocusComposer.ts"
+    "apps/web/src/components/chat/usePasteToFocusComposer.ts",
+    "apps/web/src/timestampFormat.ts"
   ],
   "runUrl": "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.1.13-nightly.20261126.1795725013535",
   "releasedVersion": "0.1.13-nightly.20261126.1795725013535",
   "baseCommit": "407775ab49a2a7d4d2f32939522b93ea82d0b916",
-  "sequence": 1795768568782,
+  "sequence": 1795791607682,
   "conflictStage": "personal",
-  "conflictIdentity": "32441d348e7d8173df2ae6f1cf2f22d71555a5109b528304e3ec777f093b030a",
+  "conflictIdentity": "02e07b7972f50fd46568f8e33ee2b7908df7084cfa7836d4684ee5cd4c3c0a23",
   "inputs": {
-    "upstreamTag": "v0.1.14-nightly.20261127.5332",
+    "upstreamTag": "v0.1.14-nightly.20261127.5345",
     "pullRequests": [],
     "resolutions": "0203417fe2587c9da99c9ffc9a6ac401e811184ff14947a07a68a62eccee0afe"
   },
