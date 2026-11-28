@@ -1,18 +1,18 @@
 {
   "schema": 1,
   "phase": "conflict",
-  "upstreamTag": "v0.1.14-nightly.20261127.5359",
+  "upstreamTag": "v0.1.14-nightly.20261128.5372",
   "conflicts": [
     "apps/web/src/components/device/DevicePanel.tsx"
   ],
   "runUrl": "https://github.com/NikitaMGrimm/t3code/releases/tag/v0.1.14-nightly.20261127.1795792641523",
   "releasedVersion": "0.1.14-nightly.20261127.1795792641523",
   "baseCommit": "ffcca200749e84fce2d4967ff87e0cf45082779a",
-  "sequence": 1795814892142,
+  "sequence": 1795838078485,
   "conflictStage": "personal",
   "conflictIdentity": "c4b1ae74cf0366c4db591e2aa388cbd352724e3d4d4565e284116b1624abd529",
   "inputs": {
-    "upstreamTag": "v0.1.14-nightly.20261127.5359",
+    "upstreamTag": "v0.1.14-nightly.20261128.5372",
     "pullRequests": [],
     "resolutions": "a096b30f7a99f5400ae3d4ee43a2e1da35df8aeb656cced6daa95f2b3a00256d"
   },
